@@ -1,0 +1,24 @@
+---
+/**
+ * Prose styles for the channel and compare collection entries. Their route
+ * pages give `article.prose` a grid and nothing else, so lists would render
+ * without markers and code blocks without a surface. An entry that imports
+ * this component gets list markers, step numbers, code blocks and a narrow
+ * plate. The styles are global but reach only `article.prose`, and only on
+ * pages that render this component.
+ */
+---
+<style is:global>
+  article.prose ul, article.prose ol { margin: 0; padding-left: 1.4em; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; color: var(--fg-2); }
+  /* A list item's widest <pre> must scroll inside it, not size the list's column. */
+  article.prose li { min-width: 0; }
+  article.prose li > code, article.prose p > code { overflow-wrap: anywhere; }
+  article.prose ul { list-style: disc; }
+  article.prose ol { list-style: decimal; }
+  article.prose li::marker { color: var(--lamp); font-family: var(--font-clock); }
+  article.prose li strong { color: var(--fg); }
+  article.prose li > pre { margin: 8px 0 4px; }
+  article.prose pre { padding: 12px 14px; background: var(--raised); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; font-size: 0.875rem; }
+  article.prose pre code { white-space: pre; }
+  article.prose .plate.ch-narrow { max-width: 360px; }
+</style>

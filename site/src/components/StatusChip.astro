@@ -1,0 +1,34 @@
+---
+/**
+ * Status is never colour-only (brand-book §7): every state carries its icon
+ * and its word. Canonical map: refused ban · approved check · pending hand ·
+ * running activity · info message-square · typed keyboard.
+ */
+import Ban from "@lucide/astro/icons/ban";
+import Check from "@lucide/astro/icons/check";
+import Hand from "@lucide/astro/icons/hand";
+import Activity from "@lucide/astro/icons/activity";
+import MessageSquare from "@lucide/astro/icons/message-square";
+import Keyboard from "@lucide/astro/icons/keyboard";
+import Clock from "@lucide/astro/icons/clock";
+
+type Kind = "refused" | "approved" | "pending" | "running" | "info" | "typed" | "coming";
+interface Props { kind: Kind; label?: string; class?: string; as?: "span" | "div" }
+const { kind, label, class: cls = "" } = Astro.props;
+const words: Record<Kind, string> = {
+  refused: "Refused", approved: "Approved", pending: "Waiting on you", running: "Running",
+  info: "Chat only", typed: "Typed reply", coming: "In development",
+};
+const text = label ?? words[kind];
+const klass = kind === "approved" ? "status-approved" : kind === "refused" ? "status-refused" : kind === "pending" || kind === "coming" ? "status-held" : kind === "running" ? "status-running" : "status-info";
+---
+<span class={`status ${klass} ${cls}`}>
+  {kind === "refused" && <Ban class="lucide" aria-hidden="true" />}
+  {kind === "approved" && <Check class="lucide" aria-hidden="true" />}
+  {kind === "pending" && <Hand class="lucide" aria-hidden="true" />}
+  {kind === "running" && <Activity class="lucide" aria-hidden="true" />}
+  {kind === "info" && <MessageSquare class="lucide" aria-hidden="true" />}
+  {kind === "typed" && <Keyboard class="lucide" aria-hidden="true" />}
+  {kind === "coming" && <Clock class="lucide" aria-hidden="true" />}
+  <span>{text}</span>
+</span>

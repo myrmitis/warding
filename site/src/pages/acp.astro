@@ -1,0 +1,115 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import StatusChip from "../components/StatusChip.astro";
+import WardBars from "../components/WardBars.astro";
+import ChTable from "../components/ChTable.astro";
+import { site } from "../data/site";
+import { harnesses, notDocked, router } from "../data/harnesses";
+import { channelCounts } from "../data/channels";
+import { softwareApplication } from "../lib/seo";
+
+/**
+ * /acp/ (site-spec §1): what the Agent Client Protocol is, the eleven runtimes
+ * the registry can dock with the command each is started with
+ * (src/junction/acp/runtimes.py builtin_specs), the verified cells from
+ * src/data/harnesses.ts, and what this product adds on top. Runtimes that are
+ * not docked are named only in a "not yet" sentence.
+ */
+const title = "An always-on Agent Client Protocol (ACP) client";
+const description = "Warding speaks ACP to Claude Code, Codex, Cursor, Goose, OpenCode, Kimi, Grok, Pi, Droid and kiro-cli, adding schedules, chat apps and a sandbox.";
+
+/** The command line each runtime is spawned with over stdio, from the runtime registry. */
+const spawn: Record<string, string> = {
+  cursor: "cursor-agent acp",
+  claude: "claude-agent-acp, or npx -y @agentclientprotocol/claude-agent-acp when it is not installed",
+  codex: "npx -y @agentclientprotocol/codex-acp (needs codex installed and logged in)",
+  kimi: "kimi acp",
+  dsh: "the DeepSeek Harness ACP launcher script",
+  goose: "goose acp",
+  grok: "grok agent stdio",
+  opencode: "opencode acp",
+  pi: "npx -y pi-acp",
+  droid: "droid exec --output-format acp",
+  "kiro-cli": "kiro-cli acp",
+};
+for (const h of harnesses) if (!spawn[h.id]) throw new Error(`acp.astro: no spawn line for ${h.id}`);
+
+const rows = harnesses.map((h) => {
+  const v = Object.entries(h.verified);
+  const status = v.length
+    ? v.map(([k, d]) => `<a href="/verified/#${h.id}-${k}">${k} verified · ${d}</a>`).join("; ")
+    : `<a href="/verified/">registered · unverified</a>`;
+  return [`<code>${h.command}</code> <span class="caption">${h.name.toLowerCase() !== h.command ? h.name : ""}${h.optional ? " · optional" : ""}</span>`, `<code>${spawn[h.id]}</code>`, status];
+});
+const notDockedLine = `No ${notDocked.join(", no ")} yet.`;
+---
+<PageLayout
+  title={title}
+  description={description}
+  h1="One ACP client for the agent you already use"
+  lead={`${site.name} does not ship its own coding agent. It starts the one you already use, talks to it over the Agent Client Protocol, and keeps it running on your machine with schedules, chat channels and a policy it cannot edit. Chat runs the one harness you choose in one setting; a spawned subagent can be routed to another installed one.`}
+  breadcrumbs={[{ label: "ACP", href: "/acp/" }]}
+  jsonLd={[softwareApplication()]}
+>
+  <div class="acp">
+    <section class="block" aria-labelledby="what-h">
+      <WardBars align="left" />
+      <h2 id="what-h">What ACP is</h2>
+      <p class="measure">The <a href="https://agentclientprotocol.com" rel="noopener">Agent Client Protocol</a> is an open protocol between a coding agent and the program that drives it: the client starts the agent as a process, speaks JSON-RPC to it over stdio, sends prompts, and receives the agent's messages, tool calls and permission requests. An editor is one kind of client. {site.name} is another: a client that runs as a service, so the agent keeps going when no editor is open, and the permission requests the agent sends can be answered from the dashboard or a chat app.</p>
+    </section>
+
+    <section class="block" aria-labelledby="dock-h">
+      <WardBars align="left" />
+      <h2 id="dock-h">The eleven runtimes it can dock</h2>
+      <p class="measure">Each runtime is one entry in the registry: the command that starts it, and what it needs installed. A check appears only where a dated row exists on <a href="/verified/">the verification log</a>. Today that is Claude Code, for chat. Every other cell is registered and unverified, and says so.</p>
+      <ChTable head={["Runtime", "Started with", "Verified"]} rows={rows} />
+      <p class="caption">{notDockedLine} The full matrix, capability by capability, is on <a href="/registry/">the registry</a>.</p>
+    </section>
+
+    <section class="block" aria-labelledby="claude-h">
+      <WardBars align="left" />
+      <h2 id="claude-h">Adapters, named</h2>
+      <ul class="facts measure">
+        <li><strong>Claude Code</strong> is reached through <code>claude-agent-acp</code>, an adapter published by the ACP project, not by Anthropic. If it is not installed, it is fetched with <code>npx</code> on first run, so the first start needs Node and a network connection. The Claude Code session runs under your own login; for shared or production automation, use an API key.</li>
+        <li><strong>Codex</strong> and <strong>Pi</strong> are reached the same way, through their ACP adapters fetched with <code>npx</code>. Codex still needs the <code>codex</code> CLI installed and logged in.</li>
+        <li><strong>Cursor, Kimi, Goose, Grok, OpenCode, Droid and kiro-cli</strong> speak ACP from their own CLI, started with the flag in the table. OpenCode signs in to OpenRouter and other providers with its own login.</li>
+        <li><strong>kiro-cli is optional</strong> and last in the order. With the harness set to <code>auto</code>, the first installed runtime in the table's order is docked.</li>
+      </ul>
+    </section>
+
+    <section class="block" aria-labelledby="adds-h">
+      <WardBars align="left" />
+      <h2 id="adds-h">What {site.name} adds around the agent</h2>
+      <ul class="adds" role="list">
+        <li class="tile"><h3>Schedules</h3><p>Cron jobs and a template gallery, created from the dashboard or the CLI. <a href="/schedule/">Schedule</a></p></li>
+        <li class="tile"><h3>Chat channels</h3><p>{channelCounts.total} apps: {channelCounts.buttons} with approve buttons, {channelCounts.typed} with typed approvals, {channelCounts.chatOnly} chat-only. <a href="/channels/">Channels</a></p></li>
+        <li class="tile"><h3>A gate in front of tool calls</h3><p>Tool calls go through {site.name}'s own gate: built-in deny rules and POLICY ∩ PROFILE are checked there, and a gated call waits for your answer. <a href="/security/">Security</a></p></li>
+        <li class="tile"><h3>A policy it cannot open</h3><p>The policy files sit on the keystone deny list, so the agent can neither read nor write them.</p></li>
+        <li class="tile"><h3>A sandbox and an audit log</h3><p>An OS sandbox where the host supports one, and a hash-chained log of what was allowed and refused.</p></li>
+        <li class="tile"><h3>Memory and Agent Worlds</h3><p>Memory and lessons across sessions, and a pixel sprite for each live one. <a href="/agent-worlds/">Agent Worlds</a></p></li>
+      </ul>
+    </section>
+
+    <section class="block" aria-labelledby="one-h">
+      <WardBars align="left" />
+      <h2 id="one-h">One harness for chat, and what that costs</h2>
+      <ul class="facts measure">
+        <li><strong>Chat runs the one harness you choose.</strong> Every chat session, channel and scheduled job uses it. Switching is one setting (<code>agent.acp_backend</code>), and your schedules, memory and channels stay.</li>
+        <li><strong>A spawned subagent can run elsewhere.</strong> The {router.name.toLowerCase()} (<code>{router.command}</code>) {router.what} <a href="/verified/#notyet-h">Registered · unverified</a>.</li>
+        <li><strong>The agent's own tools reach kiro-cli only today.</strong> On the other harnesses, the agent cannot create a scheduled job, spawn a subagent or ask you a question mid-turn from chat. Schedules still work from the dashboard and the CLI. <StatusChip kind="coming" label="Being extended" /></li>
+        <li><strong>Mostly unverified.</strong> The runtimes are registered; which features have been run on each is on <a href="/verified/">the verification log</a>, with dates.</li>
+      </ul>
+    </section>
+  </div>
+</PageLayout>
+
+<style>
+  .acp { display: grid; gap: 56px; }
+  .block { display: grid; gap: 16px; }
+  .facts { margin: 0; padding-left: 1.25em; display: grid; gap: 10px; color: var(--fg-2); }
+  .facts strong { color: var(--fg); }
+  .adds { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .adds li { display: grid; gap: 6px; align-content: start; }
+  .adds h3 { font-family: var(--font-sans); font-size: 1rem; font-weight: 600; margin: 0; }
+  .adds p { color: var(--fg-2); font-size: 0.9375rem; margin: 0; }
+</style>

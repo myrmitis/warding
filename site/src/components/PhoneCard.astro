@@ -1,0 +1,15 @@
+---
+/**
+ * The chat phone frame (brand-book §13): a plain 8 px-radius rectangle with a
+ * 1 px --line border, never a device drawing. Names the channel and harness.
+ */
+interface Props { channel: string; harness?: string; time?: string; class?: string }
+const { channel, harness = "", time = "", class: cls = "" } = Astro.props;
+---
+<div class={`phone ${cls}`} role="group" aria-label={`${channel} chat`}>
+  <div class="phone-head">
+    <span>{channel}{harness ? ` · ${harness}` : ""}</span>
+    {time && <span class="clock" style="font-size:12px">{time}</span>}
+  </div>
+  <slot />
+</div>

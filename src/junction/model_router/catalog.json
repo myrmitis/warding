@@ -1,0 +1,2806 @@
+{
+  "version": 1,
+  "source": "duolahypercho/codex-router",
+  "source_license": "MIT",
+  "note": "Namespaced model choices observed from Codex Router registry fragments. No credentials, endpoints, or secret filenames.",
+  "providers": [
+    {
+      "id": "ainetcafe",
+      "display_name": "ainetcafe",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "ainetcafe"
+    },
+    {
+      "id": "anthropic-api",
+      "display_name": "Anthropic API",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "anthropic"
+    },
+    {
+      "id": "antigravity-oauth",
+      "display_name": "Google Antigravity OAuth",
+      "auth_kind": "oauth",
+      "catalog_kind": "static",
+      "owned_by": "google"
+    },
+    {
+      "id": "cerebras",
+      "display_name": "Cerebras",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "cerebras"
+    },
+    {
+      "id": "chutes",
+      "display_name": "Chutes",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "chutes"
+    },
+    {
+      "id": "clinepass",
+      "display_name": "ClinePass",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "clinepass"
+    },
+    {
+      "id": "commandcode",
+      "display_name": "Command Code",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "commandcode"
+    },
+    {
+      "id": "commandcode-messages",
+      "display_name": "Command Code Messages",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "commandcode"
+    },
+    {
+      "id": "custom",
+      "display_name": "Custom",
+      "auth_kind": "per-model",
+      "catalog_kind": "static",
+      "owned_by": "custom"
+    },
+    {
+      "id": "deepseek",
+      "display_name": "DeepSeek API",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "deepseek"
+    },
+    {
+      "id": "devin-cli",
+      "display_name": "Devin CLI (Cascade)",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "cognition"
+    },
+    {
+      "id": "fireworks",
+      "display_name": "Fireworks AI",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "fireworks"
+    },
+    {
+      "id": "gemini-api",
+      "display_name": "Google Gemini API",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "google"
+    },
+    {
+      "id": "github-copilot",
+      "display_name": "GitHub Copilot",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "github"
+    },
+    {
+      "id": "grok-api",
+      "display_name": "xAI Grok API",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "xai"
+    },
+    {
+      "id": "grok-oauth",
+      "display_name": "xAI Grok OAuth",
+      "auth_kind": "oauth",
+      "catalog_kind": "static",
+      "owned_by": "xai"
+    },
+    {
+      "id": "groq",
+      "display_name": "Groq",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "groq"
+    },
+    {
+      "id": "huggingface",
+      "display_name": "Hugging Face Router",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "huggingface"
+    },
+    {
+      "id": "kilo-free",
+      "display_name": "Kilo Free",
+      "auth_kind": "anonymous",
+      "catalog_kind": "live",
+      "owned_by": "kilo"
+    },
+    {
+      "id": "kimi-api",
+      "display_name": "Kimi Platform API (Global)",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "kimi"
+    },
+    {
+      "id": "kimi-api-cn",
+      "display_name": "Kimi Platform API (China)",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "kimi"
+    },
+    {
+      "id": "kimi-oauth",
+      "display_name": "Kimi Code OAuth",
+      "auth_kind": "oauth",
+      "catalog_kind": "static",
+      "owned_by": "kimi"
+    },
+    {
+      "id": "lmstudio",
+      "display_name": "LM Studio (Local)",
+      "auth_kind": "keyless",
+      "catalog_kind": "live",
+      "owned_by": "lmstudio"
+    },
+    {
+      "id": "local",
+      "display_name": "Local (Ollama)",
+      "auth_kind": "keyless",
+      "catalog_kind": "live",
+      "owned_by": "local"
+    },
+    {
+      "id": "meta",
+      "display_name": "Meta API",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "meta"
+    },
+    {
+      "id": "minimax-token-plan",
+      "display_name": "MiniMax Token Plan",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "minimax"
+    },
+    {
+      "id": "mistral",
+      "display_name": "Mistral AI",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "mistral"
+    },
+    {
+      "id": "nano-gpt",
+      "display_name": "NanoGPT",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "nano-gpt"
+    },
+    {
+      "id": "nousresearch",
+      "display_name": "Nous Research (Hermes)",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "nousresearch"
+    },
+    {
+      "id": "nvidia-nim",
+      "display_name": "NVIDIA NIM",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "nvidia"
+    },
+    {
+      "id": "ollama-cloud",
+      "display_name": "Ollama Cloud",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "ollama"
+    },
+    {
+      "id": "opencode-free",
+      "display_name": "OpenCode Free",
+      "auth_kind": "anonymous",
+      "catalog_kind": "live",
+      "owned_by": "opencode"
+    },
+    {
+      "id": "opencode-free-responses",
+      "display_name": "OpenCode Free Responses",
+      "auth_kind": "anonymous",
+      "catalog_kind": "static",
+      "owned_by": "opencode"
+    },
+    {
+      "id": "opencode-go",
+      "display_name": "opencode Go/Zen",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "opencode"
+    },
+    {
+      "id": "opencode-go-messages",
+      "display_name": "opencode Messages",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "opencode"
+    },
+    {
+      "id": "opencode-go-responses",
+      "display_name": "opencode Responses",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "opencode"
+    },
+    {
+      "id": "opencode-zen",
+      "display_name": "opencode Zen",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "opencode"
+    },
+    {
+      "id": "opencode-zen-messages",
+      "display_name": "opencode Zen Messages",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "opencode"
+    },
+    {
+      "id": "opencode-zen-responses",
+      "display_name": "opencode Zen Responses",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "opencode"
+    },
+    {
+      "id": "openrouter",
+      "display_name": "OpenRouter",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "openrouter"
+    },
+    {
+      "id": "orca",
+      "display_name": "OrcaRouter",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "orcarouter"
+    },
+    {
+      "id": "qwen-plan",
+      "display_name": "Qwen (Alibaba Plan)",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "alibaba"
+    },
+    {
+      "id": "siliconflow",
+      "display_name": "SiliconFlow",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "siliconflow"
+    },
+    {
+      "id": "together",
+      "display_name": "Together AI",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "together"
+    },
+    {
+      "id": "venice",
+      "display_name": "Venice",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "venice"
+    },
+    {
+      "id": "vertex",
+      "display_name": "Google Cloud Vertex AI",
+      "auth_kind": "live",
+      "catalog_kind": "live",
+      "owned_by": "google"
+    },
+    {
+      "id": "xiaomi-mimo",
+      "display_name": "Xiaomi MiMo API",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "xiaomi"
+    },
+    {
+      "id": "zai-api",
+      "display_name": "Z.ai API",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "zai"
+    },
+    {
+      "id": "zai-coding",
+      "display_name": "Z.ai GLM Coding Plan",
+      "auth_kind": "api_key",
+      "catalog_kind": "static",
+      "owned_by": "zai"
+    }
+  ],
+  "models": [
+    {
+      "slug": "ainetcafe/kimi-k3",
+      "display_name": "Kimi K3 (ainetcafe)",
+      "provider": "ainetcafe",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 54
+    },
+    {
+      "slug": "anthropic-api/claude-opus-4.8",
+      "display_name": "Claude Opus 4.8 (API)",
+      "provider": "anthropic-api",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 9
+    },
+    {
+      "slug": "antigravity-oauth/gemini-3.1-pro",
+      "display_name": "Gemini 3.1 Pro (Antigravity)",
+      "provider": "antigravity-oauth",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "low",
+      "priority": 4
+    },
+    {
+      "slug": "antigravity-oauth/gemini-3.5-flash",
+      "display_name": "Gemini 3.5 Flash (Antigravity)",
+      "provider": "antigravity-oauth",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "medium",
+      "priority": 5
+    },
+    {
+      "slug": "antigravity-oauth/gemini-3.6-flash",
+      "display_name": "Gemini 3.6 Flash (Antigravity)",
+      "provider": "antigravity-oauth",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "medium",
+      "priority": 6
+    },
+    {
+      "slug": "antigravity-oauth/gemini-3.7-flash",
+      "display_name": "Gemini 3.7 Flash (Antigravity)",
+      "provider": "antigravity-oauth",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "medium",
+      "priority": 7
+    },
+    {
+      "slug": "clinepass/deepseek-v4-flash",
+      "display_name": "DeepSeek V4 Flash (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 56
+    },
+    {
+      "slug": "clinepass/deepseek-v4-pro",
+      "display_name": "DeepSeek V4 Pro (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 55
+    },
+    {
+      "slug": "clinepass/glm-5.2",
+      "display_name": "GLM-5.2 (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 51
+    },
+    {
+      "slug": "clinepass/kimi-k2.6",
+      "display_name": "Kimi K2.6 (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 54
+    },
+    {
+      "slug": "clinepass/kimi-k2.7-code",
+      "display_name": "Kimi K2.7 Code (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 53
+    },
+    {
+      "slug": "clinepass/kimi-k3",
+      "display_name": "Kimi K3 (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 52
+    },
+    {
+      "slug": "clinepass/mimo-v2.5",
+      "display_name": "MiMo-V2.5 (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1050000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 57
+    },
+    {
+      "slug": "clinepass/mimo-v2.5-pro",
+      "display_name": "MiMo-V2.5-Pro (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1050000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 58
+    },
+    {
+      "slug": "clinepass/minimax-m3",
+      "display_name": "MiniMax M3 (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 59
+    },
+    {
+      "slug": "clinepass/qwen3.7-max",
+      "display_name": "Qwen3.7 Max (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 60
+    },
+    {
+      "slug": "clinepass/qwen3.7-plus",
+      "display_name": "Qwen3.7 Plus (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 61
+    },
+    {
+      "slug": "clinepass/qwen3.8-max",
+      "display_name": "Qwen3.8 Max (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 62
+    },
+    {
+      "slug": "clinepass/tencent/hy4-preview",
+      "display_name": "Hy4 Preview (ClinePass)",
+      "provider": "clinepass",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 100
+    },
+    {
+      "slug": "commandcode/deepseek-v4-flash",
+      "display_name": "DeepSeek V4 Flash (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 100
+    },
+    {
+      "slug": "commandcode/deepseek-v4-pro",
+      "display_name": "DeepSeek V4 Pro (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 101
+    },
+    {
+      "slug": "commandcode/deepseek-v4.1-flash",
+      "display_name": "DeepSeek V4.1 Flash (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 102
+    },
+    {
+      "slug": "commandcode/fugu-ultra",
+      "display_name": "Fugu Ultra (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 126
+    },
+    {
+      "slug": "commandcode/gemini-3.5-flash",
+      "display_name": "Gemini 3.5 Flash (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 121
+    },
+    {
+      "slug": "commandcode/gemini-3.7-flash",
+      "display_name": "Gemini 3.7 Flash (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 120
+    },
+    {
+      "slug": "commandcode/gemini-3.8-flash",
+      "display_name": "Gemini 3.8 Flash (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 121
+    },
+    {
+      "slug": "commandcode/glm-5.2",
+      "display_name": "GLM-5.2 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 102
+    },
+    {
+      "slug": "commandcode/glm-5.2-fast",
+      "display_name": "GLM-5.2 Fast (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 103
+    },
+    {
+      "slug": "commandcode/glm-5.3",
+      "display_name": "GLM-5.3 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 102
+    },
+    {
+      "slug": "commandcode/glm-5.3-flash",
+      "display_name": "GLM-5.3-Flash (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 103
+    },
+    {
+      "slug": "commandcode/gpt-5.5",
+      "display_name": "GPT 5.5 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 200000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "medium",
+      "priority": 119
+    },
+    {
+      "slug": "commandcode/gpt-5.6-luna",
+      "display_name": "GPT 5.6 Luna (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1050000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "medium",
+      "priority": 118
+    },
+    {
+      "slug": "commandcode/gpt-5.6-sol",
+      "display_name": "GPT 5.6 Sol (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1050000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "medium",
+      "priority": 117
+    },
+    {
+      "slug": "commandcode/gpt-5.6-terra",
+      "display_name": "GPT 5.6 Terra (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1050000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "medium",
+      "priority": 116
+    },
+    {
+      "slug": "commandcode/grok-4.5",
+      "display_name": "Grok 4.5 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 500000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 115
+    },
+    {
+      "slug": "commandcode/grok-4.6",
+      "display_name": "Grok 4.6 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 500000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 114
+    },
+    {
+      "slug": "commandcode/hy3-paid",
+      "display_name": "Hy3 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 122
+    },
+    {
+      "slug": "commandcode/hy4-preview",
+      "display_name": "Hy4 Preview (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 123
+    },
+    {
+      "slug": "commandcode/inkling",
+      "display_name": "Inkling (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 256000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 127
+    },
+    {
+      "slug": "commandcode/inkling-small",
+      "display_name": "Inkling Small (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 128
+    },
+    {
+      "slug": "commandcode/kimi-k2.7-code",
+      "display_name": "Kimi K2.7 Code (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 256000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 105
+    },
+    {
+      "slug": "commandcode/kimi-k2.7-code-highspeed",
+      "display_name": "Kimi K2.7 Code HighSpeed (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 262000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 106
+    },
+    {
+      "slug": "commandcode/kimi-k3",
+      "display_name": "Kimi K3 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 104
+    },
+    {
+      "slug": "commandcode/laguna-s-2.1",
+      "display_name": "Laguna S 2.1 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 256000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 129
+    },
+    {
+      "slug": "commandcode/mimo-v2.5-pro",
+      "display_name": "MiMo-V2.5-Pro (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 113
+    },
+    {
+      "slug": "commandcode/minimax-m2.7",
+      "display_name": "MiniMax M2.7 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 200000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 112
+    },
+    {
+      "slug": "commandcode/minimax-m3",
+      "display_name": "MiniMax M3 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 111
+    },
+    {
+      "slug": "commandcode/muse-spark-1.2",
+      "display_name": "Muse Spark 1.2 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 124
+    },
+    {
+      "slug": "commandcode/muse-spark-1.3",
+      "display_name": "Muse Spark 1.3 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 123
+    },
+    {
+      "slug": "commandcode/nemotron-3-ultra",
+      "display_name": "Nemotron 3 Ultra (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 125
+    },
+    {
+      "slug": "commandcode/qwen3.7-flash",
+      "display_name": "Qwen3.7 Flash (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 110
+    },
+    {
+      "slug": "commandcode/qwen3.7-max",
+      "display_name": "Qwen3.7 Max (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 108
+    },
+    {
+      "slug": "commandcode/qwen3.7-plus",
+      "display_name": "Qwen3.7 Plus (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 109
+    },
+    {
+      "slug": "commandcode/qwen3.8-flash",
+      "display_name": "Qwen3.8 Flash (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 107
+    },
+    {
+      "slug": "commandcode/qwen3.8-max",
+      "display_name": "Qwen3.8 Max (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 107
+    },
+    {
+      "slug": "commandcode/qwen3.8-max-0902",
+      "display_name": "Qwen3.8 Max 0902 (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 108
+    },
+    {
+      "slug": "commandcode/step-3.7-flash",
+      "display_name": "Step 3.7 Flash (Command Code)",
+      "provider": "commandcode",
+      "listed": true,
+      "context_window": 256000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 123
+    },
+    {
+      "slug": "commandcode-messages/claude-fable-5",
+      "display_name": "Claude Fable 5 (Command Code)",
+      "provider": "commandcode-messages",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 133
+    },
+    {
+      "slug": "commandcode-messages/claude-fable-5.1",
+      "display_name": "Claude Fable 5.1 (Command Code)",
+      "provider": "commandcode-messages",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 134
+    },
+    {
+      "slug": "commandcode-messages/claude-haiku-4.5",
+      "display_name": "Claude Haiku 4.5 (Command Code)",
+      "provider": "commandcode-messages",
+      "listed": true,
+      "context_window": 200000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 134
+    },
+    {
+      "slug": "commandcode-messages/claude-opus-4.8",
+      "display_name": "Claude Opus 4.8 (Command Code)",
+      "provider": "commandcode-messages",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 132
+    },
+    {
+      "slug": "commandcode-messages/claude-opus-5",
+      "display_name": "Claude Opus 5 (Command Code)",
+      "provider": "commandcode-messages",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 130
+    },
+    {
+      "slug": "commandcode-messages/claude-sonnet-5",
+      "display_name": "Claude Sonnet 5 (Command Code)",
+      "provider": "commandcode-messages",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 131
+    },
+    {
+      "slug": "custom/qwen3.8-27b",
+      "display_name": "Qwen3.8-27-free-victor",
+      "provider": "custom",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "medium",
+      "priority": 140
+    },
+    {
+      "slug": "deepseek/deepseek-chat",
+      "display_name": "deepseek/deepseek-chat",
+      "provider": "deepseek",
+      "listed": false,
+      "context_window": null,
+      "input_modalities": [],
+      "default_effort": "",
+      "priority": 0
+    },
+    {
+      "slug": "deepseek/deepseek-reasoner",
+      "display_name": "deepseek/deepseek-reasoner",
+      "provider": "deepseek",
+      "listed": false,
+      "context_window": null,
+      "input_modalities": [],
+      "default_effort": "",
+      "priority": 0
+    },
+    {
+      "slug": "deepseek/deepseek-v4-flash",
+      "display_name": "DeepSeek V4 Flash (API)",
+      "provider": "deepseek",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 6
+    },
+    {
+      "slug": "deepseek/deepseek-v4-flash-vision-exp",
+      "display_name": "DeepSeek V4 Flash Vision Exp (API)",
+      "provider": "deepseek",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 6
+    },
+    {
+      "slug": "deepseek/deepseek-v4-pro",
+      "display_name": "DeepSeek V4 Pro (API)",
+      "provider": "deepseek",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 7
+    },
+    {
+      "slug": "deepseek/deepseek-v4.1-flash",
+      "display_name": "DeepSeek V4.1 Flash (API)",
+      "provider": "deepseek",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 8
+    },
+    {
+      "slug": "grok-api/grok-4.5",
+      "display_name": "Grok 4.5 (API)",
+      "provider": "grok-api",
+      "listed": true,
+      "context_window": 500000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 8
+    },
+    {
+      "slug": "grok-oauth/grok-4.5",
+      "display_name": "Grok 4.5 (OAuth)",
+      "provider": "grok-oauth",
+      "listed": true,
+      "context_window": 500000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 2
+    },
+    {
+      "slug": "grok-oauth/grok-4.6",
+      "display_name": "Grok 4.6 (OAuth)",
+      "provider": "grok-oauth",
+      "listed": true,
+      "context_window": 500000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 1
+    },
+    {
+      "slug": "kimi-api/kimi-k3",
+      "display_name": "Kimi K3 (API)",
+      "provider": "kimi-api",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 5
+    },
+    {
+      "slug": "kimi-api-cn/kimi-k3",
+      "display_name": "Kimi K3 (China API)",
+      "provider": "kimi-api-cn",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 6
+    },
+    {
+      "slug": "kimi-oauth/k3",
+      "display_name": "Kimi K3 (OAuth)",
+      "provider": "kimi-oauth",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 3
+    },
+    {
+      "slug": "kimi-oauth/kimi-for-coding",
+      "display_name": "K2.7 Coding (OAuth)",
+      "provider": "kimi-oauth",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 2
+    },
+    {
+      "slug": "kimi-oauth/kimi-for-coding-highspeed",
+      "display_name": "K2.7 Coding Highspeed (OAuth)",
+      "provider": "kimi-oauth",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 4
+    },
+    {
+      "slug": "meta/muse-spark-1.1",
+      "display_name": "Muse Spark 1.1 (Meta)",
+      "provider": "meta",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 50
+    },
+    {
+      "slug": "meta/muse-spark-1.2",
+      "display_name": "Muse Spark 1.2 (Meta)",
+      "provider": "meta",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 48
+    },
+    {
+      "slug": "meta/muse-spark-1.2-contributor",
+      "display_name": "Muse Spark 1.2 Contributor (Meta)",
+      "provider": "meta",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 49
+    },
+    {
+      "slug": "meta/muse-spark-1.3",
+      "display_name": "Muse Spark 1.3 (Meta)",
+      "provider": "meta",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 47
+    },
+    {
+      "slug": "meta/muse-spark-1.3-contributor",
+      "display_name": "Muse Spark 1.3 Contributor (Meta)",
+      "provider": "meta",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 48
+    },
+    {
+      "slug": "minimax-token-plan/minimax-m3",
+      "display_name": "MiniMax M3",
+      "provider": "minimax-token-plan",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 24
+    },
+    {
+      "slug": "nano-gpt/tencent/hy4-preview",
+      "display_name": "Hy4 Preview (NanoGPT)",
+      "provider": "nano-gpt",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 100
+    },
+    {
+      "slug": "nousresearch/claude-fable-5",
+      "display_name": "Claude Fable 5 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 76
+    },
+    {
+      "slug": "nousresearch/claude-fable-5.1",
+      "display_name": "Claude Fable 5.1 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 77
+    },
+    {
+      "slug": "nousresearch/claude-opus-5",
+      "display_name": "Claude Opus 5 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 78
+    },
+    {
+      "slug": "nousresearch/claude-sonnet-5",
+      "display_name": "Claude Sonnet 5 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 77
+    },
+    {
+      "slug": "nousresearch/deepseek-v4-flash",
+      "display_name": "DeepSeek V4 Flash (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 87
+    },
+    {
+      "slug": "nousresearch/deepseek-v4-pro",
+      "display_name": "DeepSeek V4 Pro (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 88
+    },
+    {
+      "slug": "nousresearch/deepseek-v4.1-flash",
+      "display_name": "DeepSeek V4.1 Flash (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 89
+    },
+    {
+      "slug": "nousresearch/gemini-3.7-flash",
+      "display_name": "Gemini 3.7 Flash (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "medium",
+      "priority": 74
+    },
+    {
+      "slug": "nousresearch/gemini-3.8-flash",
+      "display_name": "Gemini 3.8 Flash (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "medium",
+      "priority": 75
+    },
+    {
+      "slug": "nousresearch/glm-5.2",
+      "display_name": "GLM-5.2 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 81
+    },
+    {
+      "slug": "nousresearch/glm-5.3",
+      "display_name": "GLM-5.3 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 82
+    },
+    {
+      "slug": "nousresearch/gpt-5.6-terra",
+      "display_name": "GPT-5.6 Terra (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1050000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "medium",
+      "priority": 75
+    },
+    {
+      "slug": "nousresearch/grok-4.6",
+      "display_name": "Grok 4.6 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 500000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 73
+    },
+    {
+      "slug": "nousresearch/hermes-4-405b",
+      "display_name": "Hermes 4 405B (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 131072,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 94
+    },
+    {
+      "slug": "nousresearch/hermes-4-70b",
+      "display_name": "Hermes 4 70B (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 131072,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 93
+    },
+    {
+      "slug": "nousresearch/hy3-free",
+      "display_name": "Hy3 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 66
+    },
+    {
+      "slug": "nousresearch/kat-coder-pro-v2.5",
+      "display_name": "Kat Coder Pro v2.5 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 256000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 70
+    },
+    {
+      "slug": "nousresearch/kimi-k2.7-code",
+      "display_name": "Kimi K2.7 Code (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 85
+    },
+    {
+      "slug": "nousresearch/kimi-k3",
+      "display_name": "Kimi K3 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 86
+    },
+    {
+      "slug": "nousresearch/laguna-s-2.1-free",
+      "display_name": "Laguna S 2.1 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 69
+    },
+    {
+      "slug": "nousresearch/laguna-xs-2.1-free",
+      "display_name": "Laguna XS 2.1 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 68
+    },
+    {
+      "slug": "nousresearch/longcat-2.0-free",
+      "display_name": "LongCat 2.0 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 89
+    },
+    {
+      "slug": "nousresearch/mimo-v2.5-pro",
+      "display_name": "MiMo v2.5 Pro (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1050000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 79
+    },
+    {
+      "slug": "nousresearch/minimax-m3",
+      "display_name": "MiniMax M3 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 80
+    },
+    {
+      "slug": "nousresearch/muse-spark-1.2-contributor",
+      "display_name": "Muse Spark 1.2 Contributor (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 72
+    },
+    {
+      "slug": "nousresearch/muse-spark-1.3",
+      "display_name": "Muse Spark 1.3 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 73
+    },
+    {
+      "slug": "nousresearch/muse-spark-1.3-contributor",
+      "display_name": "Muse Spark 1.3 Contributor (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 73
+    },
+    {
+      "slug": "nousresearch/nemotron-3-ultra",
+      "display_name": "Nemotron 3 Ultra (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 512288,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 71
+    },
+    {
+      "slug": "nousresearch/qwen3.7-max",
+      "display_name": "Qwen 3.7 Max (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 83
+    },
+    {
+      "slug": "nousresearch/qwen3.8-flash",
+      "display_name": "Qwen3.8 Flash (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 84
+    },
+    {
+      "slug": "nousresearch/qwen3.8-max",
+      "display_name": "Qwen 3.8 Max (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "xhigh",
+      "priority": 84
+    },
+    {
+      "slug": "nousresearch/solar-pro4-free",
+      "display_name": "Solar Pro 4 (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 524288,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 65
+    },
+    {
+      "slug": "nousresearch/step-3.7-flash-free",
+      "display_name": "Step 3.7 Flash (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "medium",
+      "priority": 67
+    },
+    {
+      "slug": "nousresearch/tencent/hy4-preview",
+      "display_name": "Hy4 Preview (Nous Research)",
+      "provider": "nousresearch",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 100
+    },
+    {
+      "slug": "ollama-cloud/deepseek-v4-flash",
+      "display_name": "DeepSeek V4 Flash (Ollama Cloud)",
+      "provider": "ollama-cloud",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 26
+    },
+    {
+      "slug": "ollama-cloud/deepseek-v4-pro",
+      "display_name": "DeepSeek V4 Pro (Ollama Cloud)",
+      "provider": "ollama-cloud",
+      "listed": true,
+      "context_window": 524288,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 23
+    },
+    {
+      "slug": "ollama-cloud/deepseek-v4.1-flash",
+      "display_name": "DeepSeek V4.1 Flash (Ollama Cloud)",
+      "provider": "ollama-cloud",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 27
+    },
+    {
+      "slug": "ollama-cloud/glm-5.2",
+      "display_name": "GLM-5.2 (Ollama Cloud)",
+      "provider": "ollama-cloud",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 20
+    },
+    {
+      "slug": "ollama-cloud/glm-5.3",
+      "display_name": "GLM-5.3 (Ollama Cloud)",
+      "provider": "ollama-cloud",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 24
+    },
+    {
+      "slug": "ollama-cloud/glm-5.3-flash",
+      "display_name": "GLM-5.3-Flash (Ollama Cloud)",
+      "provider": "ollama-cloud",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 19
+    },
+    {
+      "slug": "ollama-cloud/kimi-k2.7-code",
+      "display_name": "Kimi K2.7 Code (Ollama Cloud)",
+      "provider": "ollama-cloud",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 21
+    },
+    {
+      "slug": "ollama-cloud/kimi-k3",
+      "display_name": "Kimi K3 (Ollama Cloud)",
+      "provider": "ollama-cloud",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 25
+    },
+    {
+      "slug": "ollama-cloud/minimax-m3",
+      "display_name": "MiniMax M3 (Ollama Cloud)",
+      "provider": "ollama-cloud",
+      "listed": true,
+      "context_window": 524288,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 22
+    },
+    {
+      "slug": "opencode-free-responses/muse-spark-1.3-contributor-free",
+      "display_name": "Muse Spark 1.3 Contributor (OpenCode Free)",
+      "provider": "opencode-free-responses",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "xhigh",
+      "priority": 48
+    },
+    {
+      "slug": "opencode-go/deepseek-v4-flash",
+      "display_name": "DeepSeek V4 Flash (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 37
+    },
+    {
+      "slug": "opencode-go/deepseek-v4-flash-vision-exp",
+      "display_name": "DeepSeek V4 Flash Vision Exp (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 38
+    },
+    {
+      "slug": "opencode-go/deepseek-v4-pro",
+      "display_name": "DeepSeek V4 Pro (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 36
+    },
+    {
+      "slug": "opencode-go/deepseek-v4.1-flash",
+      "display_name": "DeepSeek V4.1 Flash (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 39
+    },
+    {
+      "slug": "opencode-go/glm-5",
+      "display_name": "GLM-5 (opencode Go, legacy)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 202752,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 90
+    },
+    {
+      "slug": "opencode-go/glm-5.1",
+      "display_name": "GLM-5.1 (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 32
+    },
+    {
+      "slug": "opencode-go/glm-5.2",
+      "display_name": "GLM-5.2 (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 31
+    },
+    {
+      "slug": "opencode-go/glm-5.3",
+      "display_name": "GLM-5.3 (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 30
+    },
+    {
+      "slug": "opencode-go/glm-5.3-flash",
+      "display_name": "GLM-5.3-Flash (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 29
+    },
+    {
+      "slug": "opencode-go/hy3",
+      "display_name": "Hy3 (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 46
+    },
+    {
+      "slug": "opencode-go/hy4-preview",
+      "display_name": "Hy4 Preview (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1024000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 47
+    },
+    {
+      "slug": "opencode-go/kimi-k2.5",
+      "display_name": "Kimi K2.5 (opencode Go, legacy)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 91
+    },
+    {
+      "slug": "opencode-go/kimi-k2.6",
+      "display_name": "Kimi K2.6 (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 35
+    },
+    {
+      "slug": "opencode-go/kimi-k2.7-code",
+      "display_name": "Kimi K2.7 Code (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 34
+    },
+    {
+      "slug": "opencode-go/kimi-k3",
+      "display_name": "Kimi K3 (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 33
+    },
+    {
+      "slug": "opencode-go/longcat-2.0",
+      "display_name": "LongCat-2.0 (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 39
+    },
+    {
+      "slug": "opencode-go/mimo-v2.5",
+      "display_name": "MiMo-V2.5 (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 38
+    },
+    {
+      "slug": "opencode-go/mimo-v2.5-pro",
+      "display_name": "MiMo-V2.5-Pro (opencode Go)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 39
+    },
+    {
+      "slug": "opencode-go/qwen3.5-plus",
+      "display_name": "Qwen3.5 Plus (opencode Go, legacy)",
+      "provider": "opencode-go",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 92
+    },
+    {
+      "slug": "opencode-go-messages/minimax-m2.5",
+      "display_name": "MiniMax M2.5 (opencode Go)",
+      "provider": "opencode-go-messages",
+      "listed": true,
+      "context_window": 204800,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 42
+    },
+    {
+      "slug": "opencode-go-messages/minimax-m2.7",
+      "display_name": "MiniMax M2.7 (opencode Go)",
+      "provider": "opencode-go-messages",
+      "listed": true,
+      "context_window": 204800,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 41
+    },
+    {
+      "slug": "opencode-go-messages/minimax-m3",
+      "display_name": "MiniMax M3 (opencode Go)",
+      "provider": "opencode-go-messages",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 40
+    },
+    {
+      "slug": "opencode-go-messages/qwen3.6-plus",
+      "display_name": "Qwen3.6 Plus (opencode Go)",
+      "provider": "opencode-go-messages",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 45
+    },
+    {
+      "slug": "opencode-go-messages/qwen3.7-max",
+      "display_name": "Qwen3.7 Max (opencode Go)",
+      "provider": "opencode-go-messages",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 43
+    },
+    {
+      "slug": "opencode-go-messages/qwen3.7-plus",
+      "display_name": "Qwen3.7 Plus (opencode Go)",
+      "provider": "opencode-go-messages",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 44
+    },
+    {
+      "slug": "opencode-go-messages/qwen3.8-flash",
+      "display_name": "Qwen3.8 Flash (opencode Go)",
+      "provider": "opencode-go-messages",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 43
+    },
+    {
+      "slug": "opencode-go-messages/qwen3.8-max",
+      "display_name": "Qwen3.8 Max (opencode Go)",
+      "provider": "opencode-go-messages",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 42
+    },
+    {
+      "slug": "opencode-go-messages/union-alpha",
+      "display_name": "Union Alpha (opencode Go)",
+      "provider": "opencode-go-messages",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 28
+    },
+    {
+      "slug": "opencode-go-responses/gpt-5.6-luna",
+      "display_name": "GPT 5.6 Luna (opencode Go)",
+      "provider": "opencode-go-responses",
+      "listed": true,
+      "context_window": 272000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "medium",
+      "priority": 47
+    },
+    {
+      "slug": "opencode-go-responses/grok-4.5",
+      "display_name": "Grok 4.5 (opencode Go)",
+      "provider": "opencode-go-responses",
+      "listed": true,
+      "context_window": 500000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 30
+    },
+    {
+      "slug": "opencode-go-responses/grok-4.6",
+      "display_name": "Grok 4.6 (opencode Go)",
+      "provider": "opencode-go-responses",
+      "listed": true,
+      "context_window": 500000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 30
+    },
+    {
+      "slug": "opencode-go-responses/muse-spark-1.2-contributor",
+      "display_name": "Muse Spark 1.2 Contributor (opencode Go)",
+      "provider": "opencode-go-responses",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 48
+    },
+    {
+      "slug": "opencode-go-responses/muse-spark-1.3-contributor",
+      "display_name": "Muse Spark 1.3 Contributor (opencode Go)",
+      "provider": "opencode-go-responses",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 49
+    },
+    {
+      "slug": "openrouter/claude-fable-5.1",
+      "display_name": "Claude Fable 5.1 (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 77
+    },
+    {
+      "slug": "openrouter/deepseek-v4.1-flash",
+      "display_name": "DeepSeek V4.1 Flash (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 74
+    },
+    {
+      "slug": "openrouter/gemini-3.8-flash",
+      "display_name": "Gemini 3.8 Flash (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "medium",
+      "priority": 75
+    },
+    {
+      "slug": "openrouter/glm-5.3",
+      "display_name": "GLM-5.3 (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 102
+    },
+    {
+      "slug": "openrouter/glm-5.3-flash",
+      "display_name": "GLM-5.3-Flash (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 102
+    },
+    {
+      "slug": "openrouter/grok-4.6",
+      "display_name": "Grok 4.6 (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 500000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 72
+    },
+    {
+      "slug": "openrouter/muse-spark-1.2",
+      "display_name": "Muse Spark 1.2 (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 72
+    },
+    {
+      "slug": "openrouter/muse-spark-1.2-contributor",
+      "display_name": "Muse Spark 1.2 Contributor (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 72
+    },
+    {
+      "slug": "openrouter/muse-spark-1.3",
+      "display_name": "Muse Spark 1.3 (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 73
+    },
+    {
+      "slug": "openrouter/muse-spark-1.3-contributor",
+      "display_name": "Muse Spark 1.3 Contributor (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 73
+    },
+    {
+      "slug": "openrouter/qwen3.8-flash",
+      "display_name": "Qwen3.8 Flash (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 108
+    },
+    {
+      "slug": "openrouter/tencent/hy4-preview",
+      "display_name": "Hy4 Preview (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 100
+    },
+    {
+      "slug": "openrouter/union-alpha",
+      "display_name": "Union Alpha (OpenRouter)",
+      "provider": "openrouter",
+      "listed": true,
+      "context_window": 262144,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 71
+    },
+    {
+      "slug": "qwen-plan/deepseek-v4-flash-0731",
+      "display_name": "DeepSeek V4 Flash (Qwen Plan)",
+      "provider": "qwen-plan",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 19
+    },
+    {
+      "slug": "qwen-plan/deepseek-v4-pro",
+      "display_name": "DeepSeek V4 Pro (Qwen Plan)",
+      "provider": "qwen-plan",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 17
+    },
+    {
+      "slug": "qwen-plan/deepseek-v4-pro-0813",
+      "display_name": "DeepSeek V4 Pro 0813 (Qwen Plan)",
+      "provider": "qwen-plan",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 18
+    },
+    {
+      "slug": "qwen-plan/glm-5.2",
+      "display_name": "GLM-5.2 (Qwen Plan)",
+      "provider": "qwen-plan",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 20
+    },
+    {
+      "slug": "qwen-plan/qwen3.6-flash",
+      "display_name": "Qwen3.6 Flash (Plan)",
+      "provider": "qwen-plan",
+      "listed": true,
+      "context_window": 983616,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 16
+    },
+    {
+      "slug": "qwen-plan/qwen3.7-max",
+      "display_name": "Qwen3.7 Max (Plan)",
+      "provider": "qwen-plan",
+      "listed": true,
+      "context_window": 983616,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 14
+    },
+    {
+      "slug": "qwen-plan/qwen3.7-plus",
+      "display_name": "Qwen3.7 Plus (Plan)",
+      "provider": "qwen-plan",
+      "listed": true,
+      "context_window": 983616,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 15
+    },
+    {
+      "slug": "qwen-plan/qwen3.8-flash",
+      "display_name": "Qwen3.8 Flash (Plan)",
+      "provider": "qwen-plan",
+      "listed": true,
+      "context_window": 983616,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 16
+    },
+    {
+      "slug": "qwen-plan/qwen3.8-max",
+      "display_name": "Qwen3.8 Max (Plan)",
+      "provider": "qwen-plan",
+      "listed": true,
+      "context_window": 983616,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 12
+    },
+    {
+      "slug": "qwen-plan/qwen3.8-max-preview",
+      "display_name": "Qwen3.8 Max Preview (Plan)",
+      "provider": "qwen-plan",
+      "listed": true,
+      "context_window": 983616,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 13
+    },
+    {
+      "slug": "venice/claude-fable-5.1",
+      "display_name": "Claude Fable 5.1 (Venice)",
+      "provider": "venice",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 77
+    },
+    {
+      "slug": "venice/gemini-3.8-flash",
+      "display_name": "Gemini 3.8 Flash (Venice)",
+      "provider": "venice",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 75
+    },
+    {
+      "slug": "venice/glm-5.3",
+      "display_name": "GLM-5.3 (Venice)",
+      "provider": "venice",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 102
+    },
+    {
+      "slug": "xiaomi-mimo/mimo-v2.5",
+      "display_name": "MiMo-V2.5 (Xiaomi API)",
+      "provider": "xiaomi-mimo",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "high",
+      "priority": 71
+    },
+    {
+      "slug": "xiaomi-mimo/mimo-v2.5-pro",
+      "display_name": "MiMo-V2.5-Pro (Xiaomi API)",
+      "provider": "xiaomi-mimo",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 70
+    },
+    {
+      "slug": "zai-api/glm-4.7",
+      "display_name": "GLM-4.7 (Z.ai API)",
+      "provider": "zai-api",
+      "listed": true,
+      "context_window": 200000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 65
+    },
+    {
+      "slug": "zai-api/glm-5.2",
+      "display_name": "GLM-5.2 (Z.ai API)",
+      "provider": "zai-api",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 64
+    },
+    {
+      "slug": "zai-api/glm-5.3",
+      "display_name": "GLM-5.3 (Z.ai API)",
+      "provider": "zai-api",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 63
+    },
+    {
+      "slug": "zai-api/glm-5.3-flash",
+      "display_name": "GLM-5.3-Flash (Z.ai API)",
+      "provider": "zai-api",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 63
+    },
+    {
+      "slug": "zai-coding/glm-5-turbo",
+      "display_name": "GLM-5-Turbo (Coding Plan)",
+      "provider": "zai-coding",
+      "listed": true,
+      "context_window": 204800,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "high",
+      "priority": 13
+    },
+    {
+      "slug": "zai-coding/glm-5.2",
+      "display_name": "GLM-5.2 (Coding Plan)",
+      "provider": "zai-coding",
+      "listed": true,
+      "context_window": 1048576,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 12
+    },
+    {
+      "slug": "zai-coding/glm-5.3",
+      "display_name": "GLM-5.3 (Coding Plan)",
+      "provider": "zai-coding",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text"
+      ],
+      "default_effort": "max",
+      "priority": 10
+    },
+    {
+      "slug": "zai-coding/glm-5.3-flash",
+      "display_name": "GLM-5.3-Flash (Coding Plan)",
+      "provider": "zai-coding",
+      "listed": true,
+      "context_window": 1000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "default_effort": "max",
+      "priority": 11
+    }
+  ]
+}

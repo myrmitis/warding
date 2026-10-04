@@ -1,0 +1,299 @@
+name: Build Windows Desktop (reusable)
+
+# Reusable workflow: build the Windows desktop installer (NSIS Setup.exe) and
+# Authenticode-sign it during the build with the project's code-signing
+# certificate. Called by nightly.yml and release.yml beside build-desktop.yml.
+#
+# WHY THIS IS NOT A LEG OF build-desktop.yml
+#
+# Signing has to happen INSIDE the build here. electron-builder signs the app
+# executable, compresses it into the installer payload, then signs the
+# installer and its uninstaller -- so signing afterwards would mean unpacking
+# and rebuilding a self-extracting archive by hand. electron-builder's own
+# signtool integration does it at each of those points when WIN_CSC_LINK
+# carries a certificate. macOS can do the opposite -- ship an unsigned .app to
+# sign-and-notarize.yml -- because a .app is a directory, not a
+# self-extracting archive of signed parts.
+#
+# The consequence is that this job holds a production signing identity, and
+# build-desktop.yml deliberately holds NO credentials at all
+# (contents:read only, pinned by test/test_workflow_permissions.py). Handing
+# the certificate to the shared workflow would put it within reach of the mac
+# and Linux legs too, and drag them under the prod environment's branch policy
+# -- widening the blast radius of a build workflow for one platform's benefit.
+# A separate workflow keeps the credentialed surface to exactly the platform
+# that cannot avoid it.
+#
+# INSTALLER-ONLY LANE for now: win32 is still outside SUPPORTED_PLATFORMS in
+# auto-update.js, because electron-updater needs a published latest.yml feed
+# and verifies Authenticode fail-closed -- neither exists yet. The NSIS target
+# is the prerequisite for both (electron-updater's win32 path is NsisUpdater and
+# has no Squirrel support at all), so packaging lands first and the
+# publish+updater lane follows in publish-windows.yml. Unattested for now too:
+# no publish lane consumes these artifacts, so SLSA provenance lands in-lane
+# with publish-windows.yml (same pattern as publish-linux.yml).
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Semver version to stamp (electron package.json + __init__.py)"
+        required: true
+        type: string
+      soft_fail:
+        description: >-
+          Mark the build job continue-on-error. Publishing callers
+          (nightly/release) pass true so a Windows-only packaging or signing
+          failure never fails this reusable workflow -- which would skip every
+          dependent job and block the mac/Linux release for a platform that
+          publishes nothing yet (per-platform release independence). Default
+          false: any caller that omits it -- and the workflow_dispatch probe
+          path, where hard failure IS the validation signal -- keeps the job
+          blocking.
+        required: false
+        type: boolean
+        default: false
+      use_prod_environment:
+        description: >-
+          Run the job in the `prod` deployment environment. Publishing callers
+          MUST pass true: the signing certificate is a `prod` environment
+          secret, and the environment's deployment policy admits only main and
+          v* tags, so without the environment a release build cannot read the
+          certificate and ships unsigned.
+
+          Cannot be derived from github.event_name: inside a called reusable
+          workflow the github context "is always associated with the caller
+          workflow", so event_name reports the caller's trigger (schedule,
+          push, ...) and never workflow_call -- an event_name test would leave
+          the environment unset on exactly the paths that need it.
+
+          Left false by the dispatch probe: the prod environment's deployment
+          branch policy allows only main and v* tags, so requesting it would
+          make the any-ref packaging probe fail at job start on a feature
+          branch, defeating the one mechanism for validating a packaging change
+          before merge. The probe needs no credentials -- without the signing
+          certificate electron-builder skips signing and it builds unsigned,
+          which is the point of a packaging probe.
+        required: false
+        type: boolean
+        default: false
+  # Manual build-only probe: builds the installer from any ref WITHOUT
+  # publishing anything. Used to validate packaging changes before merge.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: >-
+          Semver version to stamp. Use a REALISTIC channel-shaped stamp
+          (e.g. 0.1.0-nightly.20260727t181500), not 0.0.0-probe.N: Squirrel
+          Int32-parses digit runs in the nupkg filename, and electron-builder
+          concatenates dot-separated identifiers into that filename, so a
+          probe with a single-digit identifier cannot exercise the stamp shape
+          that real nightlies produce. That gap let an Int32 overflow reach a
+          nightly. Note the "t": a DOTTED example like
+          0.1.0-nightly.20260727.181500 concatenates back to 14 digits and
+          reproduces the overflow (proven: run 30293292843).
+        required: true
+        type: string
+      soft_fail:
+        description: >-
+          Mark the build job continue-on-error (default false: a probe SHOULD
+          fail loudly -- hard failure is the validation signal). Declared on
+          BOTH triggers because the continue-on-error expression below reads
+          it on both paths; an input a trigger does not declare evaluates to
+          empty, making the key non-boolean, and GitHub then rejects the whole
+          workflow at startup with ZERO jobs and no log. That is exactly how
+          the dispatch probe path died unnoticed once already.
+        required: false
+        type: boolean
+        default: false
+      use_prod_environment:
+        description: >-
+          Run the job in the `prod` deployment environment (default false: the
+          environment's branch policy allows only main and v* tags, so
+          requesting it would break the any-ref probe -- see the
+          workflow_call description). Declared on BOTH triggers because the
+          job-level `environment` expression reads it on both paths.
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build Windows Desktop
+    # See the soft_fail input: `== true` is load-bearing, not noise. A bare
+    # `inputs.soft_fail` yields the raw value, which is non-boolean when a
+    # trigger does not declare the input, and GitHub rejects the workflow at
+    # startup. Comparing to true always produces a boolean.
+    continue-on-error: ${{ inputs.soft_fail == true }}
+    runs-on: windows-latest
+    timeout-minutes: 60
+    # Publishing callers pass use_prod_environment: true -- REQUIRED, because
+    # the signing certificate is scoped to the prod environment, whose
+    # deployment policy (main and v* tags only) is what keeps the production
+    # signing identity away from unmerged refs. sign-and-notarize.yml holds its
+    # Developer ID identity under the same environment for the same reason.
+    #
+    # An empty string applies NO environment, which is how the dispatch probe
+    # escapes the prod branch policy. See the input's description for why this
+    # is an explicit input rather than a github.event_name test.
+    environment: ${{ inputs.use_prod_environment == true && 'prod' || '' }}
+    # contents:read and nothing else. Signing reads a certificate from secrets,
+    # so this job mints no OIDC token: a build running third-party packaging
+    # tooling must not be able to present the prod environment's identity to
+    # the distribution role that the publish lanes assume.
+    permissions:
+      contents: read
+    env:
+      # Gate for the signing inputs, mirroring sign-and-notarize.yml:
+      # `secrets.*` is not available in a step-level `if`, so it is hoisted
+      # into env here and tested as env.HAS_WINDOWS_SIGNING. Empty on a fork or
+      # any repo without the certificate secret.
+      #
+      # This single flag drives BOTH the configuration guard AND the two
+      # WIN_CSC_* values below, so the build either receives the whole signing
+      # identity or none of it. With none, electron-builder finds no
+      # certificate, skips signing, and ships an unsigned installer.
+      #
+      # It ALSO requires use_prod_environment. Without this second term, a
+      # repository-level copy of the secret would reach the any-ref dispatch
+      # probe, handing the production identity to an unmerged feature branch.
+      # A probe deliberately builds unsigned; that is what it is for.
+      HAS_WINDOWS_SIGNING: ${{ secrets.WINDOWS_SIGNING_CERT_P12_BASE64 != '' && inputs.use_prod_environment == true && 'true' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        # The build script provisions python-build-standalone interpreters
+        # through uv; windows-latest does not ship it, and the script's
+        # curl|sh fallback is POSIX-shaped.
+
+      - name: Stamp version
+        env:
+          STAMP_VERSION: ${{ inputs.version }}
+        # bash (Git Bash) rather than the windows-latest default pwsh:
+        # sed -i.bak / rm -f are bash-isms.
+        shell: bash
+        run: |
+          sed -i.bak "s/__version__ = \".*\"/__version__ = \"${STAMP_VERSION}\"/" src/junction/__init__.py
+          rm -f src/junction/__init__.py.bak
+          # Stamp the Electron app: app.getVersion() (from package.json via
+          # electron-builder) must equal the feed version for the
+          # auto-updater's compare gate.
+          node -e "const fs=require('fs');const f='website/electron/package.json';const p=JSON.parse(fs.readFileSync(f));p.version=process.env.STAMP_VERSION;fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          echo "Building Windows desktop: ${STAMP_VERSION}"
+
+      # A certificate without its password is a misconfiguration, and letting
+      # it through would fail deep inside signtool with an opaque PFX error
+      # after the whole app has been built. Refusing here names the missing
+      # secret instead. The reverse half (a password with no certificate)
+      # leaves HAS_WINDOWS_SIGNING empty and builds unsigned, which the publish
+      # lane's Authenticode guard then refuses to ship.
+      - name: Refuse partial Windows signing configuration
+        if: env.HAS_WINDOWS_SIGNING
+        shell: bash
+        env:
+          HAS_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD != '' && 'true' || '' }}
+        run: |
+          if [ -z "${HAS_CERT_PASSWORD}" ]; then
+            echo "::error::WINDOWS_SIGNING_CERT_P12_BASE64 is set but WINDOWS_SIGNING_CERT_PASSWORD is not. Set both or neither."
+            exit 1
+          fi
+
+      - name: Build desktop app
+        # bash (Git Bash): the build script is bash, and `make` is not on the
+        # Windows runner image -- the Makefile target only adds a local-dev
+        # node-bin-dir PATH nicety that CI's setup-node already covers.
+        shell: bash
+        run: bash packaging/build-desktop.sh
+        env:
+          # The only certificate the build may use is the one WIN_CSC_LINK
+          # carries. electron-builder reads this flag in its macOS keychain
+          # lookup alone (packaging/build-desktop.sh also forces it off on every
+          # platform); it is pinned here as well so no signing input on this
+          # job comes from anywhere but the two values below.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          # electron-builder's native Windows signing inputs: WIN_CSC_LINK takes
+          # the base64 of the .pfx/.p12 directly and WIN_CSC_KEY_PASSWORD its
+          # password. With both empty electron-builder finds no certificate and
+          # builds unsigned. Signing uses sha256 only (signtoolOptions pins it)
+          # with an RFC3161 timestamp, which is what publish-windows.yml's guard
+          # requires. The Authenticode publisher that app-update.yml pins for
+          # NsisUpdater is read from this same certificate's subject CN, so the
+          # client always expects the identity that actually signed the bytes.
+          # Gated as ONE unit on HAS_WINDOWS_SIGNING so a probe run never
+          # receives the identity.
+          WIN_CSC_LINK: ${{ env.HAS_WINDOWS_SIGNING && secrets.WINDOWS_SIGNING_CERT_P12_BASE64 || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ env.HAS_WINDOWS_SIGNING && secrets.WINDOWS_SIGNING_CERT_PASSWORD || '' }}
+
+      # The installer and its blockmap are one artifact in two files: without
+      # the .blockmap, electron-updater silently falls back to a FULL download
+      # on every update. Failing HERE, before the upload, refuses to ship a
+      # corrupt artifact set at all: the publish lane then takes its
+      # documented build-produced-nothing skip path, exactly as for any other
+      # build failure, instead of hard-failing downstream -- where a missing
+      # blockmap on an insider run would block stable promotion of the mac,
+      # Linux and CLI artifacts (see the NOTE on release.yml's
+      # publish-windows-x64 job), the cross-platform coupling soft_fail exists
+      # to prevent. The Windows lane still goes visibly red, the step summary
+      # below carries the reason onto the run page even when soft_fail keeps
+      # the run green, and the workflow_dispatch packaging probe (soft_fail
+      # defaults false) hard-fails on this before merge.
+      # publish-windows.yml's own pairing check stays as the safety net for
+      # any artifact that reaches it by another path.
+      #
+      # The empty-glob case fails too: upload-artifact's if-no-files-found
+      # only errors when NO pattern matches, so a stray latest.yml alone would
+      # satisfy it and an installer-less artifact set would upload cleanly.
+      - name: Verify installer/blockmap pairing
+        shell: bash
+        run: |
+          shopt -s nullglob
+          fail() {
+            echo "::error::$1"
+            echo "**build-windows:** $1" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+          installers=(website/electron/dist/*.exe)
+          if [ "${#installers[@]}" -eq 0 ]; then
+            fail "no installer produced: website/electron/dist contains no .exe"
+          fi
+          for exe in "${installers[@]}"; do
+            if [ ! -f "${exe}.blockmap" ]; then
+              fail "orphaned installer: ${exe} has no sibling ${exe##*/}.blockmap -- electron-updater would silently fall back to full downloads"
+            fi
+          done
+          echo "installer/blockmap pairing verified for ${#installers[@]} installer(s)"
+
+      # NSIS output: electron-builder emits the installer flat into dist/ as
+      # "<productName> Setup <version>.exe", alongside a .blockmap (the
+      # differential-download index electron-updater consumes) and latest.yml
+      # when a publish provider is configured. dist/win-unpacked/ is the staged
+      # app tree, not a distributable, so it is deliberately not uploaded.
+      #
+      # These comments sit ABOVE the step, not inside `path:`. In a `|` block
+      # scalar every line is literal text, so a '#' line there is not a comment
+      # -- it becomes a glob pattern that matches nothing.
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: build-windows-x64
+          path: |
+            website/electron/dist/*.exe
+            website/electron/dist/*.exe.blockmap
+            website/electron/dist/latest.yml
+          if-no-files-found: error
+          retention-days: 14

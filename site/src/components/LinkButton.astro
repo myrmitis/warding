@@ -1,0 +1,6 @@
+---
+/** An outlined link that reads as a button; used for secondary CTAs. */
+interface Props { href: string; class?: string; external?: boolean; track?: string }
+const { href, class: cls = "", external = false, track } = Astro.props;
+---
+<a class={`btn btn-outline ${cls}`} href={href} data-track={track} rel={external ? "noopener" : undefined} target={external ? "_blank" : undefined}><slot /></a>

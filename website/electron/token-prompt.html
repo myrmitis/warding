@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Junction — Token Required</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #f4f6f9;
+      color: #0e1521;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .container { text-align: center; max-width: 480px; padding: 20px; }
+    .logo { font-size: 18px; font-weight: 800; letter-spacing: 0.18em; margin-bottom: 16px; color: #1f55ec; }
+    h2 { margin-bottom: 12px; font-size: 18px; }
+    p { color: #5d6878; font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+    code { background: #e7eefe; padding: 2px 6px; border-radius: 4px; color: #1847d0; }
+    input {
+      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #c8d0db;
+      background: #fff; color: #0e1521; font-size: 14px; margin-bottom: 12px;
+      outline: none;
+    }
+    input:focus { border-color: #1f55ec; }
+    button {
+      padding: 8px 24px; border-radius: 8px; border: none; cursor: pointer;
+      background: #1f55ec; color: #fff; font-size: 14px; font-weight: 600;
+    }
+    button:hover { background: #1847d0; }
+    .error { color: #dc2626; font-size: 12px; margin-top: 8px; display: none; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0b0e13; color: #d8dee7; }
+      .logo { color: #5c8dff; }
+      p { color: #8591a3; }
+      code { background: #161f33; color: #9dbcff; }
+      input { border-color: #313a48; background: #11151c; color: #d8dee7; }
+      button { background: #5c8dff; color: #06112b; }
+      button:hover { background: #7ea5ff; }
+      .error { color: #ef4444; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">JUNCTION</div>
+    <h2>Token Required</h2>
+    <p id="why"></p>
+    <input id="url" type="text" placeholder="Paste token URL or raw token…" autofocus>
+    <button onclick="go()">Connect</button>
+    <div class="error" id="err">Invalid URL — must be http://localhost with a ?token= parameter</div>
+  </div>
+  <script>
+    // WHICH machine to act on depends on who holds the port. main.js probes the
+    // listening socket and passes the verdict in as ?kind=. Three cases, not
+    // two: on a platform without lsof the probe cannot determine an owner, and
+    // asserting "not this app" there would be a confident guess. Default to the
+    // hedged wording, which is right whenever we are unsure.
+    (function explain() {
+      const q = new URLSearchParams(window.location.search);
+      const port = q.get('port') || '5476';
+      const host = q.get('host') || '';
+      const where = host ? host : 'the machine running that gateway';
+      const kind = q.get('kind');
+      var msg;
+      if (kind === 'local') {
+        msg = 'Port ' + port + ' is served by this app\u2019s own gateway, but it could not issue a '
+                    + 'dashboard token. Run junction token on THIS machine and paste the URL below.';
+      } else if (kind === 'foreign') {
+        msg = 'Port ' + port + ' is held by a gateway this app did not start \u2014 most often an SSH '
+          + 'tunnel to another machine. Its access key is its own, so a token has to come from '
+          + 'there: run junction token on ' + where + ', then paste the URL below.';
+      } else {
+        msg = 'The gateway on port ' + port + ' would not issue a dashboard token, and this app '
+          + 'could not determine which machine it is running on. If you reached it through an SSH '
+          + 'tunnel, run junction token on ' + where + '; otherwise run it on this machine. Then '
+          + 'paste the URL below.';
+      }
+      document.getElementById('why').textContent = msg;
+    })();
+
+    function go() {
+      const v = document.getElementById('url').value.trim();
+      if (!v) return;
+      const port = new URLSearchParams(window.location.search).get('port') || '5476';
+      let t;
+      try { t = new URL(v).searchParams.get('token'); } catch (_) { t = v; }
+      if (t) {
+        window.location.href = 'http://localhost:' + port + '?token=' + encodeURIComponent(t);
+      } else {
+        document.getElementById('err').style.display = 'block';
+      }
+    }
+    document.getElementById('url').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  </script>
+</body>
+</html>

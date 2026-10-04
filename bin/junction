@@ -1,0 +1,34 @@
+#!/bin/sh
+# Warding CLI wrapper. Installed as `warding`; `junction` is a silent alias.
+#
+# Public/OSS build: delegates to the bundled .venv so child processes inherit
+# a working Python even under a minimal PATH (e.g. MCP servers spawned by the
+# agent backend).
+
+# Resolve the invoked name BEFORE following the symlink so `bin/junction`
+# (or a PATH symlink to this file) still prefers the matching venv entry.
+INVOKED="$(basename "$0")"
+
+# Resolve symlinks so SCRIPT_DIR always points into the real install dir,
+# even when invoked via ~/.local/bin/junction symlink.
+REAL_PATH="$(readlink -f "$0" 2>/dev/null || python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "$0" 2>/dev/null)"
+if [ -z "$REAL_PATH" ]; then
+    echo "❌ Unable to resolve real path of $0. Install python3 or GNU coreutils." >&2
+    exit 1
+fi
+SCRIPT_DIR="$(cd "$(dirname "$REAL_PATH")/.." && pwd)"
+export JUNCTION_PROJECT_DIR="${JUNCTION_PROJECT_DIR:-$SCRIPT_DIR}"
+
+# Prefer the venv entry matching how we were invoked, then the primary CLI,
+# then the alias so an older virtualenv keeps launching.
+for name in "$INVOKED" warding junction; do
+    if [ -x "$SCRIPT_DIR/.venv/bin/$name" ]; then
+        exec "$SCRIPT_DIR/.venv/bin/$name" "$@"
+    fi
+done
+
+echo "❌ Warding virtual environment not found at $SCRIPT_DIR/.venv" >&2
+echo "   Set up the source checkout with:" >&2
+printf '       cd "%s" && bash minimal_install.sh\n' "$SCRIPT_DIR" >&2
+echo "   Source checkouts run from their own Python virtual environment." >&2
+exit 1

@@ -1,0 +1,124 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import StatusChip from "../components/StatusChip.astro";
+import WardBars from "../components/WardBars.astro";
+import { site } from "../data/site";
+import { notRunHereCount, notYet, rowSource, unverifiedCount, verifiedCount, verifiedRowsSorted } from "../data/rev-verified";
+
+/**
+ * /verified/: the verification log. One row per harness × feature with the
+ * anchor id every checkmark on the site points at (`<harness>-<feature>`).
+ * Rows come from src/data/rev-verified.ts, which is fed by the repository's
+ * dated log once it exists.
+ */
+const title = "What we have verified, with dates";
+const description = "Every checkmark on this site links to a dated row here: harness, feature, machine, date, log. One row is verified today; the rest say so.";
+const chip = (r: (typeof verifiedRowsSorted)[number]) =>
+  r.status === "verified" ? { kind: "approved" as const, label: "Verified" } : r.note ? { kind: "info" as const, label: "Not run here" } : { kind: "coming" as const, label: "Unverified" };
+---
+<PageLayout title={title} description={description} h1="The verification log" lead="A capability counts as verified only with a dated row on this page. A checkmark anywhere on the site links to its row; a row with no run says so." breadcrumbs={[{ label: "Verified", href: "/verified/" }]}>
+  <div class="vlog">
+    <dl class="tally" aria-label="Row counts">
+      <div><dt>Verified</dt><dd class="clock clock-44">{verifiedCount}</dd></div>
+      <div><dt>Registered, unverified</dt><dd class="clock clock-44">{unverifiedCount}</dd></div>
+      <div><dt>Not run here (kiro-cli)</dt><dd class="clock clock-44">{notRunHereCount}</dd></div>
+    </dl>
+
+    <section class="block" aria-labelledby="rows-h">
+      <WardBars align="left" />
+      <h2 id="rows-h">Rows</h2>
+      <p class="caption">Verified rows first, then the registry order. Each row's anchor is <code>#&lt;harness&gt;-&lt;feature&gt;</code>; the homepage matrix and <a href="/registry/">the registry</a> link here.</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="Verification log">
+        <table class="matrix vtable">
+          <thead>
+            <tr>
+              <th scope="col">Harness</th>
+              <th scope="col">Feature</th>
+              <th scope="col">Machine</th>
+              <th scope="col">Date</th>
+              <th scope="col">Evidence</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {verifiedRowsSorted.map((r) => {
+              const c = chip(r);
+              return (
+                <tr id={r.id} class={r.status === "verified" ? "row-verified" : ""}>
+                  <th scope="row" data-label="Harness"><span class="mono">{r.harness}</span>{r.harnessName.toLowerCase() !== r.harness && <span class="caption"> {r.harnessName}</span>}</th>
+                  <td data-label="Feature">{r.featureLabel}</td>
+                  <td data-label="Machine">{r.machine || <span class="dash" aria-label="none">—</span>}</td>
+                  <td data-label="Date">{r.date ? <time datetime={r.date} class="mono">{r.date}</time> : <span class="dash" aria-label="none">—</span>}</td>
+                  <td data-label="Evidence" class="evidence">
+                    {r.evidence}
+                    {r.note && <span class="caption note">{r.note}</span>}
+                  </td>
+                  <td data-label="Status"><StatusChip kind={c.kind} label={c.label} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="notyet-h">
+      <WardBars align="left" />
+      <h2 id="notyet-h">Not verified yet</h2>
+      <p class="measure">Stated here so nobody has to infer it from the gaps above.</p>
+      <ul class="notyet">
+        {notYet.map((n) => (
+          <li>
+            <div class="notyet-head">
+              <h3>{n.what}</h3>
+              <StatusChip kind="coming" label={n.status === "planned" ? "Planned" : "Being verified"} />
+            </div>
+            <p class="caption">{n.detail}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section class="block" aria-labelledby="how-h">
+      <WardBars align="left" />
+      <h2 id="how-h">How a row gets added</h2>
+      <div class="prose measure">
+        <p>Rows come from one dated log in the repository, <code>{rowSource.path}</code>, written by the person who runs the product: the harness, the feature, the machine, the date, the command and what came back. This page is rendered from that data at the next build; nothing here is written from memory.</p>
+        {!rowSource.exists && <p class="caption">That file does not exist yet. The one verified row above is recorded in the research notes behind this site and is the first entry the log will carry.</p>}
+        <p>The rule that makes the page useful: a checkmark elsewhere on the site links to a row here, and a capability with no row is written as unverified even when we expect it to work. Found a row that overstates? <a href={site.githubRepo} rel="noopener">Open an issue</a>.</p>
+      </div>
+    </section>
+  </div>
+</PageLayout>
+
+<style>
+  .vlog { display: grid; gap: 56px; }
+  .block { display: grid; gap: 16px; }
+  .tally { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .tally div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; display: grid; gap: 6px; }
+  .tally dt { font-size: 0.8125rem; color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .tally dd { margin: 0; color: var(--fg); }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .vtable th, .vtable td { white-space: normal; vertical-align: top; }
+  .vtable tbody th { white-space: nowrap; }
+  .vtable .evidence { min-width: 28ch; max-width: 48ch; }
+  .vtable .note { display: block; margin-top: 4px; }
+  .vtable .dash { color: var(--fg-3); }
+  .vtable tr:target { background: var(--lamp-glow); }
+  .vtable tr:target th, .vtable tr:target td { border-bottom-color: var(--lamp); }
+  .row-verified th, .row-verified td { background: color-mix(in srgb, var(--granted) 6%, transparent); }
+  .notyet { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; max-width: 76ch; }
+  .notyet li { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 6px; }
+  .notyet-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .notyet h3 { font-size: 1.125rem; font-weight: 500; }
+  .prose { display: grid; gap: 12px; color: var(--fg-2); }
+  @media (max-width: 720px) {
+    .tally { grid-template-columns: 1fr; }
+    .vtable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .vtable, .vtable tbody, .vtable tr { display: block; }
+    .vtable tr { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; background: var(--surface); }
+    .vtable th, .vtable td { display: grid; grid-template-columns: 8ch 1fr; gap: 8px; border: 0; padding: 4px 0; white-space: normal; }
+    .vtable th::before, .vtable td::before { content: attr(data-label); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); font-weight: 600; padding-top: 3px; }
+    .vtable .evidence { max-width: none; min-width: 0; }
+  }
+</style>

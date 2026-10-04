@@ -1,0 +1,11 @@
+{
+  "name": "Junction",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "gateway",
+      "command": ".venv/bin/junction gateway --no-open"
+    }
+  ],
+  "ports": [5476]
+}

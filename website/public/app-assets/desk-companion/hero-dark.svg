@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270" width="480" height="270">
+  <defs>
+    <linearGradient id="cc-bg-d" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0e13"/>
+      <stop offset="100%" stop-color="#161b24"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="270" rx="12" fill="url(#cc-bg-d)"/>
+
+  <!-- Soft corner motes -->
+  <circle cx="58" cy="42" r="20" fill="#1d232e" opacity="0.7"/>
+  <circle cx="430" cy="232" r="30" fill="#1d232e" opacity="0.6"/>
+
+  <!-- Breathing rings behind the companion -->
+  <g transform="translate(150,140)">
+    <circle r="118" fill="none" stroke="#5c8dff" stroke-width="1.4" opacity="0.18"/>
+    <circle r="92" fill="none" stroke="#5c8dff" stroke-width="1.4" opacity="0.28"/>
+    <circle r="66" fill="none" stroke="#7ea5ff" stroke-width="1.4" opacity="0.42"/>
+  </g>
+
+  <!-- The default companion: Mochi, a round orange cat, sitting -->
+  <g transform="translate(150,146)" stroke="#522210" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Tail, curled round the right side -->
+    <path d="M40,58 C84,62 88,14 64,4" fill="none" stroke-width="17"/>
+    <path d="M40,58 C84,62 88,14 64,4" fill="none" stroke="#F18D50" stroke-width="10"/>
+    <!-- Body -->
+    <ellipse cx="0" cy="36" rx="50" ry="40" fill="#F9A85F"/>
+    <ellipse cx="0" cy="46" rx="27" ry="25" fill="#FCD9B3" stroke="none"/>
+    <!-- Front paws -->
+    <ellipse cx="-20" cy="73" rx="14" ry="8" fill="#F5E6CB"/>
+    <ellipse cx="20" cy="73" rx="14" ry="8" fill="#F5E6CB"/>
+    <!-- Ears, drawn before the head so it covers their base -->
+    <path d="M-45,-34 L-41,-78 L-9,-56 Z" fill="#F18D50"/>
+    <path d="M45,-34 L41,-78 L9,-56 Z" fill="#F18D50"/>
+    <path d="M-37,-44 L-35,-67 L-18,-55 Z" fill="#F49681" stroke="none"/>
+    <path d="M37,-44 L35,-67 L18,-55 Z" fill="#F49681" stroke="none"/>
+    <!-- Head -->
+    <ellipse cx="0" cy="-20" rx="52" ry="42" fill="#F9A85F"/>
+    <!-- Cheeks -->
+    <circle cx="-32" cy="-4" r="8" fill="#F49681" stroke="none" opacity="0.5"/>
+    <circle cx="32" cy="-4" r="8" fill="#F49681" stroke="none" opacity="0.5"/>
+    <!-- Eyes -->
+    <ellipse cx="-18" cy="-24" rx="7" ry="9" fill="#522210" stroke="none"/>
+    <ellipse cx="18" cy="-24" rx="7" ry="9" fill="#522210" stroke="none"/>
+    <circle cx="-15.5" cy="-27.5" r="2.6" fill="#ffffff" stroke="none"/>
+    <circle cx="20.5" cy="-27.5" r="2.6" fill="#ffffff" stroke="none"/>
+    <!-- Nose and mouth -->
+    <path d="M-5,-9 L5,-9 L0,-4 Z" fill="#F49681" stroke-width="2"/>
+    <path d="M0,-4 Q-5,3 -11,0 M0,-4 Q5,3 11,0" fill="none" stroke-width="2.5"/>
+  </g>
+
+  <!-- Nudge cards: drink water / look away / reminder -->
+  <!-- Water -->
+  <rect x="300" y="52" width="152" height="44" rx="9" fill="#11151c" stroke="#232a35" stroke-width="1.5"/>
+  <circle cx="324" cy="74" r="13" fill="#16233f"/>
+  <path d="M324,66 C330,73 330,80 324,80 C318,80 318,73 324,66 Z" fill="#5c8dff"/>
+  <rect x="346" y="68" width="86" height="6" rx="3" fill="#d8dee7"/>
+  <rect x="346" y="79" width="54" height="5" rx="2.5" fill="#313a48"/>
+
+  <!-- Look away -->
+  <rect x="300" y="108" width="152" height="44" rx="9" fill="#11151c" stroke="#232a35" stroke-width="1.5"/>
+  <circle cx="324" cy="130" r="13" fill="#10271c"/>
+  <path d="M317,130 Q324,123 331,130 Q324,137 317,130 Z" fill="none" stroke="#2fbf71" stroke-width="2"/>
+  <circle cx="324" cy="130" r="2.4" fill="#2fbf71"/>
+  <rect x="346" y="124" width="72" height="6" rx="3" fill="#d8dee7"/>
+  <rect x="346" y="135" width="60" height="5" rx="2.5" fill="#313a48"/>
+
+  <!-- Reminder (clock) -->
+  <rect x="300" y="164" width="152" height="44" rx="9" fill="#11151c" stroke="#232a35" stroke-width="1.5" opacity="0.92"/>
+  <circle cx="324" cy="186" r="13" fill="#2e2512"/>
+  <circle cx="324" cy="186" r="8" fill="none" stroke="#f2b632" stroke-width="2"/>
+  <path d="M324,186 L324,181 M324,186 L328,188" stroke="#f2b632" stroke-width="2" stroke-linecap="round"/>
+  <rect x="346" y="180" width="64" height="6" rx="3" fill="#d8dee7"/>
+  <rect x="346" y="191" width="46" height="5" rx="2.5" fill="#313a48"/>
+</svg>

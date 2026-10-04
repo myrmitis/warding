@@ -1,0 +1,9 @@
+---
+/** Keyboard-operable FAQ entry: a native <details>. */
+interface Props { q: string; open?: boolean }
+const { q, open = false } = Astro.props;
+---
+<details class="faq" open={open}>
+  <summary>{q}</summary>
+  <div class="faq-body"><slot /></div>
+</details>

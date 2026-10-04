@@ -1,0 +1,458 @@
+{
+  "schemaVersion": 1,
+  "apps": [
+    {
+      "name": "agent-worlds",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Agent Worlds",
+      "summary": "Turns your running agents into characters in an animated pixel-art scene, so a glance tells you how busy Warding is. Each active agent appears as a sprite that reacts as work starts and finishes, across themed scenes from a classic office to a wizard tower or an underwater lab. Pop it out into its own window to keep it on a second screen while you work.",
+      "tags": [
+        "visualization",
+        "agents"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/worlds/icon.svg",
+      "heroRef": "/app-assets/worlds/hero-light.svg"
+    },
+    {
+      "name": "auto-improvement",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Auto-Improvement",
+      "summary": "Measures a GitHub repository before it changes it. Designs a calibrated performance metric (the ruler), proves the metric is trustworthy against a known win, then runs keep-or-revert improvement cycles: every candidate fix is written in an isolated worktree, gated against an edit allowlist and the repo's own tests, and kept only when the measured win clears the noise band. Survivors are drafted as GitHub pull requests you review and publish yourself.",
+      "tags": [
+        "performance",
+        "code-quality",
+        "automation",
+        "agents",
+        "github"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/auto-improvement/icon.svg",
+      "heroRef": "/app-assets/auto-improvement/hero-light.svg"
+    },
+    {
+      "name": "auto-research",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Research Lab",
+      "summary": "Runs multi-cycle research campaigns that keep working after you walk away. Give it a question and it expands that into a tree of narrower sub-questions, sends agents to investigate each one, and streams findings to the page as they land. A campaign self-drives until the question is answered or it notices progress has stalled, and you can hand the finished report off to your knowledge library or a shareable artifact.",
+      "tags": [
+        "research",
+        "autonomy",
+        "autonudge"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/auto-research/icon.svg",
+      "heroRef": "/app-assets/auto-research/hero-light.svg"
+    },
+    {
+      "name": "auto-triage-pipeline",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Warding Auto Triage Pipeline",
+      "summary": "A read-only, three-level view of Warding's own auto-triage pipeline: the six steps and their throughput, the issues inside a step, and what each issue's agent sessions cost.",
+      "tags": [
+        "pipeline",
+        "stewards",
+        "triage",
+        "developer-tools"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/auto-triage-pipeline/icon.svg",
+      "heroRef": "/app-assets/auto-triage-pipeline/hero-light.svg"
+    },
+    {
+      "name": "code-review-sage",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Code Review Sage",
+      "summary": "Deep-reviews GitHub pull requests and tells you which changes actually deserve your attention. Every changed file is reviewed in its own isolated agent session, weighted by how much blast radius it carries, and rolled up into a prioritized Focus Report. Findings are staged as a draft GitHub review that stays unpublished until you submit it, and the reviewer keeps learning your repository's real standards from shipped fixes and past review comments.",
+      "tags": [
+        "code-review",
+        "learning",
+        "developer-tools",
+        "github"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/code-review-sage/icon.svg",
+      "heroRef": "/app-assets/code-review-sage/hero-light.svg"
+    },
+    {
+      "name": "command-bar",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Command Bar",
+      "summary": "Replaces the quick-search (Cmd+K / Ctrl+K) surface with a launcher: type a command, not a query. The first page carries app commands, destinations and system settings and issues no request, so typing costs nothing. Sessions become a row you enter; searching knowledge, artifacts, skills and prompts is not available while this is enabled — disable it to get that back.",
+      "tags": [
+        "launcher",
+        "commands",
+        "productivity",
+        "keyboard"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/command-bar/icon.svg",
+      "heroRef": "/app-assets/command-bar/hero-light.svg"
+    },
+    {
+      "name": "design-critique",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Design Critique",
+      "summary": "A design critique you can run before you ask a colleague. Give it one screenshot, a whole multi-screen flow, a Figma file, a git repo, or a URL that is already serving, and it finds the candidate screens, lets you choose what to look at, then reports back the way an experienced designer would: an overall read, what is working, and the things worth tightening, each tied to a named heuristic. Multi-screen flows also get cross-screen findings that a single screen cannot show — inconsistent controls, missing progress, no way back, dead ends. It renders code and Figma before judging them, so it never critiques visuals it has not actually seen, and it says plainly which screens it could not get to instead of guessing.",
+      "tags": [
+        "design",
+        "ux",
+        "critique",
+        "accessibility",
+        "usability",
+        "heuristic-evaluation"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/design-critique/icon.svg",
+      "heroRef": "/app-assets/design-critique/hero-light.svg"
+    },
+    {
+      "name": "design-tweak",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Design Tweak",
+      "summary": "Visually select elements in your live app preview and turn them into scoped, source-mapped edit requests for the agent — like Figma comments, but for code.",
+      "tags": [
+        "design",
+        "frontend",
+        "preview",
+        "visual-editing",
+        "productivity"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/design-tweak/icon.svg",
+      "heroRef": "/app-assets/design-tweak/hero-light.svg"
+    },
+    {
+      "name": "desk-companion",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Companion",
+      "summary": "A desktop companion for Warding that helps you pace your day: it nudges you to take breaks, holds the reminders you set in plain language, and runs a short breathing exercise when you need to reset. It also lets you know when a session finishes, fails, or needs your OK.",
+      "tags": [
+        "companion",
+        "desktop-companion",
+        "reminders",
+        "breaks",
+        "wellbeing"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/desk-companion/icon.svg",
+      "heroRef": "/app-assets/desk-companion/hero-light.svg"
+    },
+    {
+      "name": "dev-fleet",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Dev Fleet",
+      "summary": "A control panel for working on Warding itself. Lists every feature worktree alongside its pull request state, commit count, and disk usage, and can bring any of them up as a pod: a complete preview instance on its own port with its own data directory, so you can click through an unfinished change without disturbing your live gateway. It also handles the chores around that — pulling main and rebuilding, rebasing a branch, streaming pod logs, and pruning worktrees whose work has already merged.",
+      "tags": [
+        "dev",
+        "pods",
+        "worktrees"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/dev-fleet/icon.svg",
+      "heroRef": "/app-assets/dev-fleet/hero-light.svg"
+    },
+    {
+      "name": "file-explorer",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Files",
+      "summary": "Browse and read files on the machine running Warding without leaving the dashboard. Keep several files open in tabs, walk the directory tree with each file's git status shown beside it, search a whole folder for a string, and read markdown rendered rather than raw. It is read-only by design: it opens and searches files but never edits, moves, or deletes them, and it can only reach your home directory plus /tmp and /opt.",
+      "tags": [
+        "files",
+        "explorer",
+        "productivity",
+        "code",
+        "markdown"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/file-explorer/icon.svg",
+      "heroRef": "/app-assets/file-explorer/hero-light.svg"
+    },
+    {
+      "name": "issue-radar",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Issue Radar",
+      "summary": "An issue triage assistant that remembers. Browse, filter, and triage GitHub issues, GitLab issues, and Azure DevOps work items with AI-suggested labels and per-item investigation notes — with findings kept in a local ledger so nothing gets re-investigated.",
+      "tags": [
+        "github",
+        "gitlab",
+        "azure",
+        "issue-triage",
+        "open-source",
+        "developer-tools"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/issue-radar/icon.svg",
+      "heroRef": "/app-assets/issue-radar/hero-light.svg"
+    },
+    {
+      "name": "md-notebook",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Notes",
+      "summary": "Keep a markdown notebook that lives in a git repository, so your notes are versioned, portable, and readable by any other editor. Point it at a GitHub repo and it clones a working copy, or attach a folder you already have — including an existing Obsidian vault — and it adopts that checkout in place without making a second copy. Notes render as formatted text you can click straight into to edit, [[wikilinks]] connect them, and every note shows what links back to it. Sync commits, pulls and pushes in one step, and a merge conflict is reported — listing the conflicted notes and aborting the merge — rather than overwriting anything.",
+      "tags": [
+        "notes",
+        "markdown",
+        "git",
+        "writing",
+        "productivity"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/md-notebook/icon.svg",
+      "heroRef": "/app-assets/md-notebook/hero-light.svg"
+    },
+    {
+      "name": "meetings",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Meetings",
+      "summary": "An AI meeting assistant. Transcribes a live meeting, keeps structured notes and diagrams as it goes, extracts action items, and lets you review them before filing.",
+      "tags": [
+        "meetings",
+        "transcription",
+        "notes",
+        "tasks",
+        "productivity"
+      ],
+      "author": {
+        "name": "adunuthu"
+      },
+      "iconRef": "/app-assets/meetings/icon.svg",
+      "heroRef": "/app-assets/meetings/hero-light.svg"
+    },
+    {
+      "name": "mochi",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Mochi",
+      "summary": "A desktop companion that lives on your screen. Mochi chats through its own panel, watches pages and feeds for you, plans its own day around your schedule, remembers your time together, and taps you on the shoulder only when something actually changed.",
+      "tags": [
+        "companion",
+        "desktop-pet",
+        "watchlist",
+        "reminders",
+        "autonomous"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/mochi/icon.png",
+      "heroRef": "/app-assets/mochi/hero.jpg"
+    },
+    {
+      "name": "ops-mission-control",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Ops Mission Control",
+      "summary": "An autonomous ops first responder. Watches your alarms, pages, and monitors; claims what fires; investigates it with real context; and proposes a fix — keeping everything it learns in a local ledger so the second occurrence is faster than the first.",
+      "tags": [
+        "ops",
+        "oncall",
+        "incidents",
+        "aws",
+        "monitoring",
+        "sre"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/ops-mission-control/icon.svg",
+      "heroRef": "/app-assets/ops-mission-control/hero-light.svg"
+    },
+    {
+      "name": "papyrus",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Papyrus",
+      "summary": "A LaTeX paper editor with live PDF preview and an AI co-author. Write in a split-pane editor, press Cmd+S (Ctrl+S on Windows and Linux) to compile with pdflatex or tectonic, and read the rendered PDF beside your source. Compilation errors are parsed into a clickable list that jumps to the offending line. Clone an existing paper from any git remote, then commit and push from the toolbar. The co-author panel is a real Warding chat session scoped to the paper, so the agent can read and edit your LaTeX while you watch the PDF update.",
+      "tags": [
+        "latex",
+        "writing",
+        "research",
+        "papers",
+        "editor"
+      ],
+      "author": {
+        "name": "tricatte"
+      },
+      "iconRef": "/app-assets/papyrus/icon.svg",
+      "heroRef": "/app-assets/papyrus/hero-light.svg"
+    },
+    {
+      "name": "personal-shopper",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Personal Shopper",
+      "summary": "A personal advisor that researches real stores and helps solve problems that may or may not end in a purchase. The Preferences tab is your own reference list — paste what matters into chat. It never buys anything — you do.",
+      "tags": [
+        "shopping",
+        "advisor",
+        "personal",
+        "recommendations",
+        "lifestyle"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/personal-shopper/icon.svg",
+      "heroRef": "/app-assets/personal-shopper/hero-light.svg"
+    },
+    {
+      "name": "pptx-maker",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "PPTX Maker",
+      "summary": "Describe the deck you want in chat and get a real .pptx back. An agent interviews you, writes a brief, an outline and an art direction, then composes every slide and generates the file — and you watch each deliverable appear in a live preview beside the conversation. Slides render as animated SVG as they are built, so you can see a deck take shape instead of waiting for a download. Reusable styles and .pptx templates let the same content come out looking like three different presentations.",
+      "tags": [
+        "pptx",
+        "presentation",
+        "slides",
+        "productivity",
+        "documents"
+      ],
+      "author": {
+        "name": "sktok"
+      },
+      "iconRef": "/app-assets/pptx-maker/icon.svg",
+      "heroRef": "/app-assets/pptx-maker/hero-light.svg"
+    },
+    {
+      "name": "projects",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Task Runner",
+      "summary": "Hand over a multi-step job and let it run to completion unattended. Describe the work in plain language, paste a written spec, or upload a YAML file, then either generate a plan first to review the steps or start it straight away. Each run gets its own page showing step-by-step progress, and you can pause, resume, retry, or stop it at any point.",
+      "tags": [
+        "tasks",
+        "autonomy",
+        "execution"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/projects/icon.svg",
+      "heroRef": "/app-assets/projects/hero-light.svg"
+    },
+    {
+      "name": "spec-builder",
+      "source": {
+        "type": "builtin"
+      },
+      "displayName": "Spec Builder",
+      "summary": "Spec-driven development inside Warding: turn a feature idea into Requirements → Design → Tasks with an embedded agent, review the markdown in-app, then hand the approved plan off to an autonomous execution session.",
+      "tags": [
+        "specs",
+        "kiro",
+        "planning",
+        "workflow",
+        "developer-tools"
+      ],
+      "author": {
+        "name": "junction"
+      },
+      "iconRef": "/app-assets/spec-builder/icon.svg",
+      "heroRef": "/app-assets/spec-builder/hero-light.svg"
+    },
+    {
+      "name": "todo-ledger",
+      "source": {
+        "type": "git",
+        "url": "https://github.com/qihang-dai/todo-ledger",
+        "ref": "f2bb1bf270cf28e8ebe5835d442a2db41b69c7fd"
+      },
+      "displayName": "Todo Ledger",
+      "summary": "Shared markdown todo lists. Humans and agent sessions create ledgers, claim items, and complete them — one source of truth across all sessions.",
+      "tags": [
+        "todo",
+        "tasks",
+        "collaboration",
+        "agents"
+      ],
+      "author": {
+        "name": "qihang-dai"
+      },
+      "version": "0.1.0"
+    },
+    {
+      "name": "todo-txt",
+      "source": {
+        "type": "git",
+        "url": "https://github.com/LeTeutz/todo-txt",
+        "ref": "38770920da964c89252384dbe29ac998b3ffde12"
+      },
+      "displayName": "todo.txt",
+      "summary": "Edits a todo.txt file: one task per line, no database. Point it at a folder you already sync, or use the one it creates. Priorities, projects, contexts and due dates colour as you type, and the format's semantics actually run rather than just highlight: rec: rollover on completion, t: thresholds, h:1 hidden tasks. Palette verbs match the todo.txt CLI. Archiving moves completed tasks to done.txt. AI rewrites the lines you select, and stages any deletion as a diff you approve.",
+      "tags": [
+        "todo",
+        "todo.txt",
+        "plaintext",
+        "editor",
+        "vim",
+        "productivity"
+      ],
+      "author": {
+        "name": "LeTeutz"
+      },
+      "version": "1.0.0"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+---
+import { getCollection, render } from "astro:content";
+import PageLayout from "../../layouts/PageLayout.astro";
+import { site } from "../../data/site";
+
+export async function getStaticPaths() {
+  const entries = (await getCollection("guides")).filter((e) => !e.data.draft);
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const techArticle = {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  headline: entry.data.h1,
+  description: entry.data.description,
+  author: { "@type": "Person", name: entry.data.author },
+  datePublished: entry.data.published.toISOString().slice(0, 10),
+  dateModified: (entry.data.updated ?? entry.data.published).toISOString().slice(0, 10),
+  publisher: { "@type": "Organization", name: site.company },
+  mainEntityOfPage: new URL(`/guides/${entry.id}/`, site.domain).toString(),
+};
+---
+<PageLayout title={entry.data.title} description={entry.data.description} h1={entry.data.h1} register={entry.data.ogRegister} ogSlug={`guides-${entry.id}`} breadcrumbs={[{ label: "Guides", href: "/guides/" }, { label: entry.data.h1, href: `/guides/${entry.id}/` }]} jsonLd={[techArticle]}>
+  <p class="caption">By {entry.data.author} · {entry.data.published.toISOString().slice(0, 10)}{entry.data.harness ? ` · ${entry.data.harness}` : ""}</p>
+  <article class="prose"><Content /></article>
+</PageLayout>
+<style>
+  .prose { max-width: 72ch; display: grid; gap: 16px; margin-top: 16px; }
+  .prose :global(h2) { margin-top: 24px; }
+  .prose :global(pre) { padding: 14px 16px; background: var(--raised); }
+</style>

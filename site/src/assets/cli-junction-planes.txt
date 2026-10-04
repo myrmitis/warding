@@ -1,0 +1,6 @@
+Junction planes
+  harness: auto (selected=claude; vendor CLI optional)
+  model:   built-in catalog (provider translation is not bundled)
+  roles:   orchestration=economy planning=capable execution=standard
+  docked:  claude
+never paste provider keys into chat.

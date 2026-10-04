@@ -1,0 +1,30 @@
+---
+/**
+ * Primary = --surface on --seal in paper, --bg on --lamp in night (tokens do
+ * that switch). A `disabledLabel` renders the named coming-soon state instead
+ * of an empty href: never `href=""`, never `#`. That state is plain text on a
+ * dashed outline with a clock, so assistive tech reads a status, not a link
+ * that goes nowhere.
+ */
+import Clock from "@lucide/astro/icons/clock";
+interface Props {
+  href?: string;
+  variant?: "primary" | "outline" | "quiet";
+  disabledLabel?: string;
+  type?: "button" | "submit";
+  class?: string;
+  id?: string;
+  external?: boolean;
+  track?: string;
+  ariaLabel?: string;
+}
+const { href = "", variant = "primary", disabledLabel, type = "button", class: cls = "", id, external = false, track, ariaLabel } = Astro.props;
+const classes = `btn btn-${variant} ${cls}`;
+---
+{href && href !== "#" ? (
+  <a class={classes} href={href} id={id} data-track={track} aria-label={ariaLabel} rel={external ? "noopener" : undefined} target={external ? "_blank" : undefined}><slot /></a>
+) : disabledLabel ? (
+  <span class={`btn btn-soon ${cls}`} id={id}><Clock class="lucide" aria-hidden="true" /> {disabledLabel}</span>
+) : (
+  <button class={classes} type={type} id={id} data-track={track} aria-label={ariaLabel}><slot /></button>
+)}

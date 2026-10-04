@@ -1,0 +1,54 @@
+---
+title: "Feishu chat for your coding agent (chat only today)"
+description: "Chat with your coding agent from Feishu or Lark today. In-chat approvals are planned, not built: buttons for Feishu. Join the list."
+h1: "Chat from Feishu. Approvals are planned."
+channel: feishu
+approval: chat-only
+ogRegister: paper
+ogQualifier: "Chat only today · Feishu and Lark · outbound connection"
+verified: []
+---
+import StatusChip from "../../components/StatusChip.astro";
+import ChChatOnly from "../../components/ChChatOnly.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+Talk to your agent from Feishu (飞书), or Lark, through a custom app bot. The gateway opens a long-connection WebSocket to Feishu, so there is no callback URL or public hostname.
+
+<ChChatOnly slug="feishu" />
+
+What has been run on which harness is on <a href="/verified/">the verification log</a>; a feature without a dated row there is unverified.
+
+## What works from Feishu today
+
+- **Chat in a direct message**, and in groups you allow explicitly, where Feishu delivers only messages that mention the bot. A group has its own conversation, so your DM history never becomes context for a reply the room reads.
+- **One reply per turn**: the answer is sent when the turn completes.
+- **Commands**: `/new` (or `/reset`) and `/compact`. Choices arrive as a numbered list you answer by typing.
+
+## Set it up
+
+1. **Install the Feishu extra** into the gateway's environment. From a source checkout:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{".venv/bin/pip install -e '.[feishu]'"}</code></pre>
+2. **Create a custom app** at open.feishu.cn (or open.larksuite.com for Lark), note its App ID and App Secret, and add the **Bot** feature.
+3. **Grant** `im:message` and `im:message:send_as_bot`, choose **Long connection** under Events & Callbacks, subscribe to `im.message.receive_v1`, and publish the app.
+4. **Save the credentials** in the data home's `.env` as `FEISHU_APP_ID` and `FEISHU_APP_SECRET`.
+5. **Allow yourself** by your `open_id` (it starts with `ou_`) in `config.json`:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`"feishu": { "enabled": true, "allowed_open_ids": ["ou_xxxxxxxxxxxxxxxx"] }`}</code></pre>
+6. **Restart the gateway** and DM the bot:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`${site.cli} restart`}</code></pre>
+
+## Who can reach it
+
+Deny by default: an empty `allowed_open_ids` authorises nobody. A group needs two switches, `allow_group` and its chat ID on `allowed_group_ids`. A message whose chat type is missing or unrecognised is denied, and every denial is written to the audit log.
+
+## Limits, stated plainly
+
+- **Owner-only.** One person runs this gateway, as themselves, with their files and credentials. There is no shared or team mode.
+- **One harness for chat.** The docked harness answers every channel; switching is one setting. A spawned subagent can be routed to another installed harness; that is registered, not verified.
+- **Text only, no streaming, replies only.** Images and files are ignored inbound, and the bot cannot start a conversation.
+- **No dashboard panel yet.** Configure it in `config.json`.
+- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) relies on the agent's own tools, which reach kiro-cli only today. On other harnesses, schedule from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
+
+<StatusChip kind="info" label="Approvals: chat only" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/junction/docs/feishu-integration.md`} rel="noopener">Full reference in the repository</a>

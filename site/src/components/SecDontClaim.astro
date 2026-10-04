@@ -1,0 +1,39 @@
+---
+/**
+ * The "What we don't claim" box (site-spec §2.10), repeated on
+ * /security/. The bullets follow the homepage box; the sandbox bullet names
+ * the command that actually installs the Ubuntu AppArmor profile.
+ */
+import CharterSheet from "./CharterSheet.astro";
+import WardSeal from "./WardSeal.astro";
+import { site } from "../data/site";
+
+interface Props { headingId?: string }
+const { headingId = "dont-claim-h" } = Astro.props;
+---
+<CharterSheet foil class="sec-signed">
+  <div class="sec-signed-head">
+    <h2 id={headingId}>What we don't claim.</h2>
+    <WardSeal size={56} />
+  </div>
+  <ul class="sec-signed-list">
+    <li>Chat runs the one harness you choose. Sending a spawned subagent to another installed harness is registered and unit-tested, not verified at runtime; the router picks a harness and forwards no provider traffic.</li>
+    <li>The model catalog lists names; it forwards nothing and holds no keys.</li>
+    <li>Approve buttons on five chat apps; WhatsApp is typed; four apps are chat-only.</li>
+    <li>Cron and subagents <em>from chat</em>, and the agent's mid-turn questions, work on kiro-cli today; on other harnesses create jobs and spawn subagents from the dashboard or CLI, and the agent cannot ask you a question mid-turn.</li>
+    <li>The OS sandbox fails closed — it refuses to run rather than run unconfined — on Windows, in containers without user namespaces, and on Ubuntu ≥ 23.10 until <code>{site.cli} service install</code> adds its AppArmor profile (it asks for sudo); you can opt in to unsandboxed execution with a loud warning.</li>
+    <li>Unaudited by a third party. Single owner. No hosted service. No signed installers yet.</li>
+    <li>Your vendor's terms and any future metering of unattended use apply and may change.</li>
+    <li>The default build contacts no server of ours. One third-party address remains: the embedding model is fetched from it on first embedding use, checked against a pinned hash. The <code>lsof</code> run: <a href="/verified/">/verified</a>.</li>
+  </ul>
+  <p class="caption">How to report a bypass: <a href={site.links.securityMd} rel="noopener">SECURITY.md</a>.</p>
+  <p class="sec-signature">Last checked against the code on 2026-09-30.</p>
+</CharterSheet>
+<style>
+  :global(.sec-signed) { max-width: 820px; margin-inline: auto; }
+  .sec-signed-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 20px; }
+  .sec-signed-list { margin: 0; padding-left: 20px; display: grid; gap: 10px; color: var(--fg); }
+  .sec-signed-list code { overflow-wrap: anywhere; }
+  :global(.sec-signed) .caption { margin-top: 16px; }
+  .sec-signature { margin-top: 12px; font-family: var(--font-display); font-style: italic; color: var(--fg-2); }
+</style>

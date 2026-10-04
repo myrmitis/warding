@@ -1,0 +1,305 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import StatusChip from "../components/StatusChip.astro";
+import WardBars from "../components/WardBars.astro";
+import WardSeal from "../components/WardSeal.astro";
+import Plate from "../components/Plate.astro";
+import Button from "../components/Button.astro";
+import SecDontClaim from "../components/SecDontClaim.astro";
+import { site } from "../data/site";
+import { softwareApplication } from "../lib/seo";
+import Ban from "@lucide/astro/icons/ban";
+import Link2 from "@lucide/astro/icons/link-2";
+import ArrowRight from "@lucide/astro/icons/arrow-right";
+import securityShot from "../assets/shots/default-settings-security.png";
+
+/**
+ * /security/ (site-spec §4): the charter, the scope table a reviewer greps for
+ * (#scope), sandbox status by OS, the two in-development proofs, approvals that
+ * never reach a phone, how to report, and the signed box. Every mechanism named
+ * here is taken from the repository: security._SENSITIVE_HOME_DIRS, the
+ * PreToolUse gate in hooks.py, sandbox.py's per-OS backends, sel.py's chain.
+ * The denied-command rule count is deliberately never written in prose.
+ */
+const title = "A sandboxed coding agent with a policy it cannot edit";
+const description = "OS sandbox, built-in deny rules, blocked ~/.ssh and ~/.aws paths, credential redaction and a hash-chained audit log, with what holds where, per OS.";
+const lead = `A policy file the agent cannot read or write, built-in deny rules for secrets and destructive commands, credential redaction, an OS sandbox where one is available, and a hash-chained audit log. Enforced at ${site.name}'s own gate. Unaudited by a third party. Here is exactly what is covered, what isn't, and what is still in development.`;
+
+const home = "~/.junction";
+const keystoneHome = [
+  `${home}/security_policy.json`, `${home}/profiles/`, `${home}/admission_policy.json`, `${home}/computer_use.json`,
+  `${home}/denied_commands.json`, `${home}/.env`, `${home}/trust/`, `${home}/security_events.jsonl`,
+];
+const keystoneUser = [
+  "~/.ssh", "~/.aws", "~/.gnupg", "~/.gpg", "~/.config/gcloud", "~/.azure", "~/.docker/config.json",
+  "~/.kube/config", "~/.npmrc", "~/.pypirc", "~/.netrc", "~/.git-credentials",
+];
+const denyCategories = [
+  "aws-destructive", "sensitive-file-read", "credential-exfil", "local-destructive", "self-protection",
+  "git-publish", "iac-teardown", "sql", "pipe-to-shell", "reverse-shell",
+];
+const credentialShapes = [
+  "AWS access key ids (AKIA… / ASIA…) and aws_secret_access_key / aws_session_token values",
+  "PEM private-key blocks, including encrypted and truncated ones",
+  "GitHub, GitLab, npm and PyPI tokens",
+  "Slack and Telegram bot tokens",
+  "Stripe, SendGrid, OpenAI and Anthropic API keys",
+  "database connection URLs with a password in them",
+];
+
+type Fails = "closed" | "open" | "mixed";
+const scope: { control: string; where: string; fails: Fails; failText: string }[] = [
+  { control: "Keystone paths", where: `${site.name}'s PreToolUse gate, for file tools and for read, write and extract verbs in shell commands. The OS sandbox also hides credential directories: ~/.gnupg, ~/.config/gcloud, ~/.azure and ~/.docker in every tier, ~/.aws and ~/.kube in the stricter tiers.`, fails: "closed", failText: "closed" },
+  { control: "Denied commands", where: "PreToolUse gate", fails: "closed", failText: "closed" },
+  { control: "POLICY ∩ PROFILE for tools and MCP calls", where: "PreToolUse gate", fails: "mixed", failText: "closed for denied calls; open for tools the harness pre-authorised (a pre-authorised tool can skip the hook)" },
+  { control: "Computer use", where: "in band on the tool dispatch path, never at the hook", fails: "closed", failText: "closed; off by default; one operator opt-in on the keystone file" },
+  { control: "App manifest permissions", where: "advisory today", fails: "open", failText: "open on an empty allowlist" },
+  { control: "Admission policy", where: "fleet seam", fails: "open", failText: "an absent policy admits (the public edition ships none)" },
+  { control: "Owner lock on channels", where: "messaging identity", fails: "open", failText: "no-op until JUNCTION_OWNER_ID is set" },
+  { control: "Credential redaction", where: "one chokepoint before the log", fails: "closed", failText: "always on, no policy key" },
+  { control: "Audit write on nested sandbox passthrough", where: "best effort", fails: "open", failText: "logs loudly and proceeds (the child stays inside the outer sandbox)" },
+];
+
+const sandboxRows: { os: string; kind: "approved" | "refused" | "pending"; label: string; note: string }[] = [
+  { os: "Linux with unprivileged user namespaces", kind: "approved", label: "Sandboxed", note: "A user namespace plus a mount namespace; sensitive directories are bind-mounted empty. The child keeps your UID, so toolchains work." },
+  { os: "Ubuntu 23.10 and newer", kind: "refused", label: "Fails closed", note: `The default AppArmor setting blocks the mount namespace. Run ${site.cli} service install: it asks for sudo and installs a narrow profile that grants only userns, attached to the service by systemd. A gateway started by hand stays unconfined, so it refuses to spawn.` },
+  { os: "Containers without user namespaces", kind: "refused", label: "Fails closed", note: "Usually the container's own seccomp filter denies unshare. Nothing spawns until you fix that or opt in." },
+  { os: "macOS (Seatbelt)", kind: "approved", label: "Sandboxed", note: "sandbox-exec with a generated profile, including macOS 26. Availability is probed empirically at runtime, not gated on a version number." },
+  { os: "Windows", kind: "refused", label: "Fails closed", note: "There is no sandbox backend of ours, so agent processes refuse to start until you opt in. A reviewed kiro-cli spawn uses kiro-cli's own sandbox instead." },
+];
+
+const selLine = `{"event_id":"6c1d0e9a7f3b2a54","timestamp":"2026-09-27T03:05:41.208113+00:00","event_type":"tool_invocation","caller_identity":"acp:3f2a9c…","agent":"junction","source":"acp","operation":"execute_bash","tool_kind":"execute","outcome":"denied","resources":"git push origin main","error":"denied command (git-publish)","prev_hash":"b71e42…","entry_hash":"9f2c8d…"}`;
+---
+<PageLayout title={title} description={description} h1="Some things it is not allowed to do, and we show you where that holds." lead={lead} breadcrumbs={[{ label: "Security", href: "/security/" }]} ogSlug="security" jsonLd={[softwareApplication()]}>
+  <div class="sec">
+    <div class="sec-stamp" aria-hidden="true"><WardSeal size={72} class="stamp" /></div>
+
+    <nav class="sec-toc caption" aria-label="On this page">
+      <a href="#charter">The charter</a>
+      <a href="#scope">Scope</a>
+      <a href="#sandbox">Sandbox by OS</a>
+      <a href="#break">Break the charter</a>
+      <a href="#verify">Verify the log</a>
+      <a href="#never-asked">Never asked</a>
+      <a href="#report">Report</a>
+      <a href="#dont-claim">What we don't claim</a>
+    </nav>
+
+    <!-- 1. The charter -->
+    <section class="block" id="charter" aria-labelledby="charter-h">
+      <WardBars align="left" />
+      <h2 id="charter-h">The charter</h2>
+      <p class="measure">Four articles. Each one names the mechanism that holds it, and the scope table below says where each mechanism stops.</p>
+
+      <article class="article sheet">
+        <div class="article-text">
+          <h3><span class="art">Article 1.</span> The agent cannot read or write its own policy.</h3>
+          <p id="keystone" class="keystone-gloss"><strong>The keystone</strong> is our word for one deny list: the secret and policy paths the agent is refused, at read and at write. It is <code>security._SENSITIVE_HOME_DIRS</code> in the source. The policy, its profiles, and the admission and computer-use files sit on it, so no setting the agent can reach turns the ceiling off.</p>
+          <p>{site.name}'s PreToolUse gate checks every file tool call against that list, and the shell-command matchers cover the read verbs (<code>cat</code>, <code>head</code>, <code>base64</code>, a <code>python</code> <code>open()</code>), the write verbs (redirection, <code>cp</code>, <code>mv</code>) and the extract verbs (<code>tar -C</code>, <code>unzip -d</code>) aimed at those paths. The audit log and its signing key are on the list too.</p>
+        </div>
+        <div class="article-proof">
+          <p class="caption proof-label">Under the data home</p>
+          <ul class="keystone-list">{keystoneHome.map((k) => <li>{k}</li>)}</ul>
+          <p class="caption proof-label">Under your home directory</p>
+          <ul class="keystone-list">{keystoneUser.map((k) => <li>{k}</li>)}<li>… and the kiro-cli auth stores</li></ul>
+        </div>
+      </article>
+
+      <article class="article sheet">
+        <div class="article-text">
+          <h3><span class="art">Article 2.</span> Secrets are redacted before they reach the log.</h3>
+          <p>Tool output passes one redaction chokepoint before anything is written or shown. It is always on; there is no policy key to turn it off. It matches credential shapes, including base64-encoded copies of them, and replaces each with <code>[REDACTED: credential]</code>.</p>
+          <p class="caption">Redaction is pattern-based. A secret with no recognisable shape, such as a plain password in a config file, is not caught by it; that is what the keystone and the sandbox are for.</p>
+        </div>
+        <div class="article-proof">
+          <p class="caption proof-label">Shapes it recognises (excerpt)</p>
+          <ul class="shape-list">{credentialShapes.map((s) => <li>{s}</li>)}</ul>
+        </div>
+      </article>
+
+      <article class="article sheet">
+        <div class="article-text">
+          <h3><span class="art">Article 3.</span> Tool decisions are appended to a hash-chained audit log you can verify.</h3>
+          <p>The Security Event Log is append-only JSONL in the data home. Each entry carries an HMAC-SHA256 over the one before it, so an edited line breaks the chain at that line. The signing key lives in <code>trust/</code>, outside the log's directory, so something that can rewrite the log cannot also re-sign it.</p>
+          <p>The live log rotates at 32 MiB into independent segments, seven kept; each new log opens with a rotation record naming the closed segment's last hash. Retention is a fixed 365 days.</p>
+        </div>
+        <div class="article-proof">
+          <p class="caption proof-label">What an entry records</p>
+          <pre class="terminal" tabindex="0" role="region" aria-label="Audit log fields"><code>timestamp · caller · source · operation
+tool_kind · outcome · resources (redacted)
+prev_hash <Link2 class="lucide lucide-inline" aria-hidden="true" /> entry_hash</code></pre>
+        </div>
+      </article>
+
+      <article class="article sheet">
+        <div class="article-text">
+          <h3><span class="art">Article 4.</span> Anything not granted by both the policy and the profile is denied.</h3>
+          <p>The policy is the ceiling; a profile narrows it for one surface, app or task (a cron job, a chat channel, a subagent). The effective permission is their intersection, tightest wins, and {site.name}'s own gate enforces it even when the agent's config granted the tool. A profile file that fails to parse becomes deny-all, never the ceiling.</p>
+          <p>Next to it sit the built-in denied-command rules, grouped by category and enforced at the same gate. List them with <code>{site.cli} security deny-list</code>.</p>
+        </div>
+        <div class="article-proof">
+          <pre class="terminal" tabindex="0" role="region" aria-label="How the effective policy is computed"><code>effective = POLICY ∩ PROFILE
+<span class="dim"># denied unless both grant it</span></code></pre>
+          <p class="caption proof-label">Denied-command categories</p>
+          <ul class="cat-list">{denyCategories.map((c) => <li class="mono">{c}</li>)}</ul>
+        </div>
+      </article>
+
+      <div class="charter-cta">
+        <Button disabledLabel="Render my charter · in development" />
+        <p class="caption"><code>{site.cli} charter</code> <StatusChip kind="coming" label="in development" />: one page with your effective policy, profile by profile. Until it ships, <code>{site.cli} policy show</code> prints the active policy and the rule categories.</p>
+      </div>
+
+      <div class="plate-wrap"><Plate num="I" title="The posture page" caption="Dashboard · Settings Security · 2026-09-26 · no agent connected" src={securityShot} alt="The dashboard's Security settings page listing the live posture: process sandbox, tool approval, sensitive path blocking, write-protected paths, denied commands, output redaction and credential patterns." crop={0.5} cropTop={0.48} sizes="(min-width: 1200px) 880px, 92vw" /></div>
+    </section>
+
+    <!-- 2. Scope -->
+    <section class="block" id="scope" aria-labelledby="scope-h">
+      <WardBars align="left" />
+      <h2 id="scope-h">Scope: what is enforced where</h2>
+      <p class="measure">"Fails closed" means that when the control cannot decide, the call is refused. "Fails open" means it is allowed. Both are listed.</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="What is enforced where">
+        <table class="matrix scope-table">
+          <thead>
+            <tr><th scope="col">Control</th><th scope="col">Where</th><th scope="col">Fails</th></tr>
+          </thead>
+          <tbody>
+            {scope.map((r) => (
+              <tr>
+                <th scope="row" data-label="Control">{r.control}</th>
+                <td data-label="Where">{r.where}</td>
+                <td data-label="Fails">
+                  <StatusChip kind={r.fails === "closed" ? "refused" : r.fails === "open" ? "pending" : "info"} label={r.fails === "closed" ? "Closed" : r.fails === "open" ? "Open" : "Mixed"} />
+                  {r.failText !== "closed" && <span class="caption fail-note">{r.failText}</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="measure scope-warn"><strong>If you rely on a control that reads "open" here, do not run unattended.</strong> We list these so you don't have to find them.</p>
+    </section>
+
+    <!-- 3. Sandbox by OS -->
+    <section class="block" id="sandbox" aria-labelledby="sandbox-h">
+      <WardBars align="left" />
+      <h2 id="sandbox-h">Sandbox status by OS</h2>
+      <p class="measure">The sandbox wraps each agent process. With no backend and the sandbox not switched off, it refuses to spawn rather than run unconfined.</p>
+      <ul class="os-list">
+        {sandboxRows.map((r) => (
+          <li class="tile os-row">
+            <div class="os-head">
+              <h3>{r.os}</h3>
+              <StatusChip kind={r.kind} label={r.label} />
+            </div>
+            <p class="caption">{r.note}</p>
+          </li>
+        ))}
+      </ul>
+      <p class="caption measure">Opting in: <code>agent.sandbox_allow_unsandboxed_exec</code> lets agents run without a sandbox on a host that has none. It prints a loud warning and the decision lands in the log. <code>{site.cli} setup</code> asks about it, default no, when it finds no backend.</p>
+    </section>
+
+    <!-- 4. Break the charter -->
+    <section class="block" id="break" aria-labelledby="break-h">
+      <WardBars align="left" />
+      <div class="head-row">
+        <h2 id="break-h">Break the charter</h2>
+        <StatusChip kind="coming" label="In development" />
+      </div>
+      <p class="measure">A public, reproducible script that tries to read or rewrite the policy through the usual doors (read, write, <code>sed</code>, symlink, hardlink, archive extract, <code>python -c open()</code>, redirection, <code>mv</code> over, <code>chmod</code>) and shows the refusal for each. It is in preparation. There is no script to run yet and no reward on offer. Until then, report what you find through <a href="#report">the process below</a>.</p>
+    </section>
+
+    <!-- 5. Verify the log -->
+    <section class="block" id="verify" aria-labelledby="verify-h">
+      <WardBars align="left" />
+      <div class="head-row">
+        <h2 id="verify-h">Verify the log</h2>
+      </div>
+      <p class="measure"><code>{site.cli} security verify</code> checks the chain today: it reports how many entries verify, how many were tampered with, and says so plainly when a rotated segment could not be checked.</p>
+      <p class="measure">What a green chain will mean: nothing without the key edited the log after the fact. What it will not mean: that every action was logged. The nested-sandbox passthrough row in <a href="#scope">the scope table</a> is a case where a failed write logs loudly and carries on.</p>
+    </section>
+
+    <!-- 6. Approvals never asked -->
+    <section class="block" id="never-asked" aria-labelledby="never-h">
+      <WardBars align="left" />
+      <h2 id="never-h">Some things never reach your phone</h2>
+      <p class="measure">A built-in deny rule refuses a call before any human is asked. At 03:05 the agent tries <code>git push origin main</code>; the git-publish rule refuses it at the gate, no Approve button is sent, and one line lands in the log:</p>
+      <div class="refusal">
+        <div class="stamp-seal"><Ban class="lucide" aria-hidden="true" /> Refused · built-in rule · 03:05:41</div>
+        <pre class="terminal sel-line" tabindex="0" role="region" aria-label="One audit log entry"><code>{JSON.stringify(JSON.parse(selLine), null, 2)}</code></pre>
+        <p class="caption">The fields are the log's real ones (<code>SecurityEvent</code> in <code>sel.py</code>); the values are illustrative. <code>agent</code> reads <span class="mono" data-alias>junction</span>, the package's internal name.</p>
+      </div>
+      <p><a href="/approvals/">What does reach your phone, per chat app <ArrowRight class="lucide lucide-inline" aria-hidden="true" /></a></p>
+    </section>
+
+    <!-- 7. Report -->
+    <section class="block" id="report" aria-labelledby="report-h">
+      <WardBars align="left" />
+      <h2 id="report-h">Report a vulnerability</h2>
+      <div class="measure prose">
+        <p>Please don't open a public issue. Use GitHub's <a href={`${site.githubRepo}/security/advisories/new`} rel="noopener">private vulnerability report</a> with a description, steps to reproduce, the impact and a fix if you have one.</p>
+        <p>We acknowledge reports within 48 hours and aim to fix or mitigate critical issues within 7 days. Only the latest release gets security patches. Third-party services the product connects to, such as model providers, are out of scope.</p>
+        <p class="caption">The full policy: <a href={site.links.securityMd} rel="noopener">SECURITY.md</a>.</p>
+      </div>
+    </section>
+
+    <!-- 8. What we don't claim -->
+    <section class="block" id="dont-claim" aria-label="What we don't claim">
+      <SecDontClaim headingId="dont-claim-h" />
+    </section>
+  </div>
+</PageLayout>
+
+<style>
+  .sec { display: grid; gap: 72px; position: relative; }
+  .sec-stamp { position: absolute; top: -96px; right: 0; }
+  .sec-toc { display: flex; flex-wrap: wrap; gap: 6px 16px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px 0; }
+  .sec-toc a { color: var(--fg-2); display: inline-flex; align-items: center; min-height: 44px; }
+  .sec-toc { padding-block: 0; }
+  .block { display: grid; gap: 16px; min-width: 0; }
+  .head-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .article { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 32px; padding: 32px; }
+  .article h3 { font-size: 1.5rem; line-height: 1.25; margin-bottom: 12px; }
+  .art { color: var(--seal); font-style: italic; margin-right: 4px; }
+  .article-text { display: grid; gap: 12px; align-content: start; }
+  .article-text p { color: var(--fg-2); max-width: 60ch; }
+  .keystone-gloss { border-left: 3px solid var(--seal); padding-left: 12px; }
+  .keystone-gloss strong { color: var(--fg); }
+  .article-proof { display: grid; gap: 10px; align-content: start; min-width: 0; }
+  .article-proof .keystone-list { overflow-wrap: anywhere; }
+  .proof-label { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; font-size: 0.75rem; }
+  .shape-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--fg-2); font-size: 0.9375rem; }
+  .cat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .cat-list li { border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; font-size: 0.8125rem; background: var(--raised); }
+  .plate-wrap { max-width: 880px; }
+  .charter-cta { display: grid; gap: 8px; justify-items: start; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .scope-table th, .scope-table td { white-space: normal; }
+  .scope-table tbody th { min-width: 16ch; }
+  .scope-table td:nth-child(2) { min-width: 28ch; max-width: 56ch; }
+  .scope-table td:last-child { min-width: 22ch; }
+  .fail-note { display: block; margin-top: 6px; }
+  .scope-warn { border-left: 3px solid var(--seal); padding-left: 12px; }
+  .os-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .os-row { display: grid; gap: 8px; align-content: start; }
+  .os-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; flex-wrap: wrap; }
+  .os-head h3 { font-size: 1.125rem; font-weight: 600; font-family: var(--font-sans); }
+  .refusal { display: grid; gap: 12px; justify-items: start; min-width: 0; }
+  .refusal .terminal { max-width: 100%; }
+  .sel-line code { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8125rem; }
+  .prose { display: grid; gap: 12px; }
+  code { overflow-wrap: anywhere; }
+  :global(.lucide-inline) { width: 16px; height: 16px; vertical-align: -3px; display: inline-block; }
+  @media (max-width: 900px) {
+    .article { grid-template-columns: 1fr; padding: 24px 18px; }
+    .os-list { grid-template-columns: 1fr; }
+    .sec-stamp { display: none; }
+  }
+  @media (max-width: 720px) {
+    .scope-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .scope-table, .scope-table tbody, .scope-table tr { display: block; }
+    .scope-table tr { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; background: var(--surface); }
+    .scope-table th, .scope-table td { display: block; border: 0; padding: 4px 0; min-width: 0 !important; max-width: none !important; }
+    .scope-table td::before { content: attr(data-label); display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); font-weight: 600; }
+  }
+</style>

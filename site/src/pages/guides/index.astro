@@ -1,0 +1,20 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+import { getCollection } from "astro:content";
+const entries = (await getCollection("guides")).filter((e) => !e.data.draft);
+---
+<PageLayout title="Warding guides" description="Step-by-step guides with the harness and date named on every screenshot, from a first service install to writing a policy." h1="Guides" lead="Every screenshot names its harness and date." breadcrumbs={[{ label: "Guides", href: "/guides/" }]}>
+  {entries.length === 0 ? (
+    <p class="caption">The first guides are being written and verified on a real machine before they are published.</p>
+  ) : (
+    <ul class="list">
+      {entries.map((e) => (
+        <li><a href={`/guides/${e.id}/`}>{e.data.h1}</a><p class="caption">{e.data.description}</p></li>
+      ))}
+    </ul>
+  )}
+</PageLayout>
+<style>
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 20px; }
+  .list a { font-family: var(--font-display); font-size: 1.375rem; font-weight: 500; }
+</style>
