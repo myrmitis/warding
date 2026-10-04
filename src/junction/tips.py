@@ -984,19 +984,23 @@ async def api_tips_feedback(request: web.Request) -> web.Response:
     try:
         body = await request.json()
     except ValueError:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+        return web.json_response({"error": "invalid JSON", "code": "invalid_json"}, status=400)
 
     if not isinstance(body, dict):
-        return web.json_response({"error": "body must be a JSON object"}, status=400)
+        return web.json_response(
+            {"error": "body must be a JSON object", "code": "invalid_body"}, status=400
+        )
 
     tip_id = body.get("id", "")
     action = body.get("action", "")
     if not isinstance(tip_id, str) or not isinstance(action, str) or len(tip_id) > 100:
-        return web.json_response({"error": "invalid fields"}, status=400)
+        return web.json_response(
+            {"error": "invalid fields", "code": "invalid_field_type"}, status=400
+        )
 
     valid_actions = ("shown", "ack", "dismiss", "snooze", "helpful", "optout", "optin")
     if action not in valid_actions:
-        return web.json_response({"error": "invalid action"}, status=400)
+        return web.json_response({"error": "invalid action", "code": "invalid_action"}, status=400)
 
     now = time.time()
 

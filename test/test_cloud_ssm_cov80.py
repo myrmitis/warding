@@ -378,6 +378,9 @@ class _FakeProc:
         return 0
 
 
+_TRUSTED_TASKKILL = r"C:\Windows\System32\taskkill.exe"
+
+
 class TestKillPortForward:
     def test_none_and_already_exited_are_noops(self) -> None:
         assert ssm.kill_port_forward(None) is None
@@ -397,14 +400,43 @@ class TestKillPortForward:
             return _R()
 
         monkeypatch.setattr(ssm.os, "name", "nt")
+        monkeypatch.setattr(
+            ssm.platform_compat, "trusted_system_bin", lambda name: _TRUSTED_TASKKILL
+        )
         monkeypatch.setattr(ssm.subprocess, "run", _run)
         proc = _FakeProc()
         ssm.kill_port_forward(proc)
-        assert calls == [["taskkill", "/T", "/F", "/PID", "4242"]]
+        assert calls == [[_TRUSTED_TASKKILL, "/T", "/F", "/PID", "4242"]]
         assert proc.terminated is False
+
+    def test_windows_without_trusted_taskkill_never_spawns_a_bare_name(self, monkeypatch) -> None:
+        """A taskkill outside the fixed system directories is treated as absent.
+
+        Spawning the bare name would let Windows' executable search pick a
+        same-named binary from the working directory or a writable PATH entry.
+        """
+        monkeypatch.setattr(ssm.os, "name", "nt")
+        monkeypatch.setattr(ssm.platform_compat, "trusted_system_bin", lambda name: None)
+        monkeypatch.setattr(
+            ssm.subprocess, "run", lambda argv, **k: pytest.fail(f"spawned {argv!r}")
+        )
+        monkeypatch.setattr(
+            ssm.os,
+            "getpgid",
+            lambda pid: (_ for _ in ()).throw(ProcessLookupError()),
+            # Windows has no os.getpgid; these tests SIMULATE the nt branch and must
+            # still run there. Same convention as test_cloud_ssm.py.
+            raising=False,
+        )
+        proc = _FakeProc()
+        ssm.kill_port_forward(proc)
+        assert proc.terminated is True
 
     def test_windows_taskkill_failure_falls_back_to_terminate(self, monkeypatch) -> None:
         monkeypatch.setattr(ssm.os, "name", "nt")
+        monkeypatch.setattr(
+            ssm.platform_compat, "trusted_system_bin", lambda name: _TRUSTED_TASKKILL
+        )
         monkeypatch.setattr(
             ssm.subprocess, "run", lambda argv, **k: (_ for _ in ()).throw(OSError("no taskkill"))
         )
@@ -450,6 +482,9 @@ class TestKillPortForward:
 
     def test_windows_taskkill_that_leaves_the_child_alive_falls_back(self, monkeypatch) -> None:
         monkeypatch.setattr(ssm.os, "name", "nt")
+        monkeypatch.setattr(
+            ssm.platform_compat, "trusted_system_bin", lambda name: _TRUSTED_TASKKILL
+        )
 
         class _R:
             returncode = 0

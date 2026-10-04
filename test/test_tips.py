@@ -1973,3 +1973,47 @@ class TestPersistedTipSanitizing:
         st = self._load(tmp_path, {"tips": [bad]})
         assert st.tips[0]["doc"] == ""
         assert st.tips[0]["doc_link"] == ""
+
+
+class TestTipsFeedbackErrorCodes:
+    """Every 400 from the feedback handler carries a machine-readable ``code``."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("raw", "code"),
+        [
+            (b"{not json", "invalid_json"),
+            (b"[1, 2]", "invalid_body"),
+            (b'{"id": 7, "action": "ack"}', "invalid_field_type"),
+            (b'{"id": "t", "action": "explode"}', "invalid_action"),
+        ],
+    )
+    async def test_validation_failures_carry_a_code(
+        self, tmp_path: Path, raw: bytes, code: str
+    ) -> None:
+        import types
+        from unittest.mock import Mock
+
+        from aiohttp import streams
+        from aiohttp.test_utils import make_mocked_request
+
+        from junction.tips import TipsCache, api_tips_feedback
+
+        with patch.dict(os.environ, {"JUNCTION_HOME": str(tmp_path)}):
+            cache = TipsCache()
+            cache.state = TipsState()
+            state = types.SimpleNamespace(_tips_cache=cache)
+
+            payload = streams.StreamReader(
+                Mock(_reading_paused=False), 2**16, loop=asyncio.get_event_loop()
+            )
+            payload.feed_data(raw)
+            payload.feed_eof()
+            req = make_mocked_request("POST", "/api/tips/feedback", payload=payload)
+            req.app["state"] = state
+            resp = await api_tips_feedback(req)
+
+        assert resp.status == 400
+        body = json.loads(resp.body)
+        assert body["code"] == code
+        assert body["error"]

@@ -398,9 +398,15 @@ def kill_port_forward(proc: Optional[subprocess.Popen]) -> None:
         pid = getattr(proc, "pid", None)
         if pid is None:
             return False
+        # Resolved from the fixed system directories, not through PATH or the
+        # working directory: a bare name would let a planted taskkill.exe run
+        # with the gateway's privileges.
+        taskkill_bin = platform_compat.trusted_system_bin("taskkill")
+        if taskkill_bin is None:
+            return False
         try:
             subprocess.run(
-                ["taskkill", "/T", "/F", "/PID", str(pid)],
+                [taskkill_bin, "/T", "/F", "/PID", str(pid)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=10,
