@@ -102,16 +102,12 @@ def gnu_readlink(tmp_path: Path) -> str:
     bindir = tmp_path / "shim"
     bindir.mkdir()
     shim = bindir / "readlink"
-    shim.write_text(
-        textwrap.dedent(
-            """\
+    shim.write_text(textwrap.dedent("""\
             #!/usr/bin/env python3
             import os, sys
             args = [a for a in sys.argv[1:] if a not in ("-f", "--")]
             print(os.path.realpath(args[0]))
-            """
-        )
-    )
+            """))
     shim.chmod(0o755)
     return str(bindir)
 

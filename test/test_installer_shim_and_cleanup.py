@@ -220,6 +220,7 @@ def _sandbox_first_run(tmp_path, monkeypatch, exe):
     _simulate_bundled_app(monkeypatch, exe)
 
 
+@_posix_shim_only
 def test_first_run_delivers_shim(tmp_path, monkeypatch):
     exe = _fake_bundle_launcher(tmp_path)
     _sandbox_first_run(tmp_path, monkeypatch, exe)

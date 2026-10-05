@@ -562,7 +562,9 @@ async def _stage_loop(
                     stage_num,
                     slot.key,
                 )
-                _fc_msg = f"⚠️ Stage {stage_num}: subagent manager unavailable. " "Auto-run stopped."
+                _fc_msg = (
+                    f"⚠️ Stage {stage_num}: subagent manager unavailable. " "Auto-run stopped."
+                )
                 slot._auto_run = False
                 slot.append("assistant", _fc_msg, "msg msg-a")
                 state.broadcast_ws(
