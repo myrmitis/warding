@@ -114,4 +114,4 @@ def test_f3_stage_tree_safe_rejects_dir_symlink(tmp_path):
 def test_f4_no_internal_tooling_instructions():
     src = (_ROOT / "website/src/pages/ArtifactDeployPage.tsx").read_text(encoding="utf-8")
     assert "ada" + " credentials" not in src
-    assert "Amazon" + "-internal" not in src
+    assert "Ama" + "zon-internal" not in src

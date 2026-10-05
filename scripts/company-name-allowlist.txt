@@ -1,0 +1,56 @@
+# Allowlist for scripts/check_company_names.py.
+#
+# The gate fails on the former parent company's name anywhere in a tracked
+# file, EXCEPT for the functional identifiers below: names that an external
+# system defined and that this code must spell exactly to work. Prose, comments,
+# docs and UI text name the service or the distro instead (S3, Polly, AL2023).
+#
+# This file is the one place the name is written out in full, so the gate does
+# not scan it. Entries are shrink-only in spirit: do not add one to silence a
+# prose mention, rewrite the prose. A new entry needs a reason in the PR.
+#
+# token:  a regex for a functional identifier. It is removed from a line before
+#         the line is checked, so a line that ALSO carries a prose mention is
+#         still reported. Matched case-insensitively unless it opts out with
+#         (?-i:...).
+# allow:  <path regex> :: <line regex>. One exact line in one file that the gate
+#         accepts as is. The pair keeps the exemption from covering the rest of
+#         that file.
+
+# --- tokens: identifiers an external system owns -----------------------------
+
+# AWS service hostnames, with plain or regex-escaped dots.
+token: amazonaws\\?\.com(?:\\?\.cn)?
+# Public AWS documentation, console and CLI hosts.
+token: (?:[\w-]+\\?\.)*aws\\?\.amazon\\?\.com
+# The PyPI package that provides streaming speech-to-text.
+token: amazon[-_]transcribe
+# Bedrock model ids.
+token: amazon\.(?:nova|titan)[\w.:-]*
+# The predecessor CLI's auth-store directories and wire user agent.
+token: amazon-?q(?:-?developer-?cli|-?for-?cli)?(?![a-z])
+token: com\.amazon\.aws\.codewhisperer\.runtime
+# kiro-cli's own file name.
+token: amazon-internal(?:\.json)?
+# AWS API identifiers: price-list service codes, managed policy names.
+token: (?-i:Amazon[A-Z][A-Za-z0-9]+)
+# Public SSM parameter path and container image tag for the distro's AMI/image.
+token: amazon-linux-latest
+token: amazonlinux:\d+
+# The exact text installers match in /etc/system-release.
+token: Amazon Linux release 2(?:023)?
+
+# --- allow: exact lines ------------------------------------------------------
+
+# Scrub tooling that detects internal markers. Owned by the repository owner.
+allow: ^scripts/scrub-(?:lint\.sh|allowlist\.txt)$ :: .
+# The deploy scanner: it exists to catch company-internal hostnames, so the
+# detector and its fixtures must spell the domain.
+allow: ^src/junction/deploy/scan\.py$ :: _INTERNAL_HOST_RE
+allow: ^src/junction/deploy/skills/artifact-deploy/scripts/deploy\.sh$ :: \.a2z\\?\.com
+allow: ^test/test_deploy_round2_fixes\.py$ :: host\{i\}
+allow: ^test/test_deploy_web_handlers\.py$ :: secret\.
+allow: ^test/test_deploy_web_render_scan\.py$ :: (?:w\.|host\.snippet)
+# Bedrock model ids carry a provider prefix that the UI strips for display.
+allow: ^website/src/pages/AgentsPage\.tsx$ :: anthropic\\\.\|
+allow: ^website/src/pages/chat/AssistantMessage\.tsx$ :: \(\?:anthropic\|

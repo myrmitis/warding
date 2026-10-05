@@ -496,7 +496,7 @@ def test_computer_use_sources_are_scrub_lint_clean():
     """Every computer-use source file passes the internal-marker scrub-lint pattern.
 
     ``scripts/scrub-lint.sh`` is a BLOCKING CI job, and its ``INTERNAL_PATTERN``
-    includes a bare ``\\.amazon\\.``, so a bundle id or host in that namespace
+    includes a bare company-domain alternative, so a bundle id or host in that namespace
     anywhere under ``computer_use/`` would fail it. The self-denylist names only
     Junction's own ``dev.junction`` bundle prefix, so no allowlist entry is needed.
 

@@ -56,8 +56,8 @@ backend:
 	  fi; \
 	  test -x $(VENV)/bin/python || "$$PY" -m venv $(VENV)
 	$(PIP) install --upgrade pip setuptools wheel
-	# --prefer-binary: on hosts below the modern manylinux baseline (e.g. Amazon
-	# Linux 2, glibc 2.26) the newest release of a compiled dep may ship only a
+	# --prefer-binary: on hosts below the modern manylinux baseline (e.g. AL2,
+	# glibc 2.26) the newest release of a compiled dep may ship only a
 	# manylinux_2_28 wheel + an sdist. Without this flag pip picks the newest
 	# version and builds the sdist from source, which fails (no toolchain / old
 	# GCC / missing -dev headers). --prefer-binary makes pip take an older
@@ -79,7 +79,7 @@ test: build
 #
 # Runs through the venv the `backend` target provisions rather than a bare
 # `$(PY) -m pip install --upgrade build`: on hosts whose system python3 is older
-# than 3.10 (Amazon Linux 2023 ships 3.9) that bare form installs `build` into
+# than 3.10 (AL2023 ships 3.9) that bare form installs `build` into
 # the *system* interpreter — mutating it without a venv, and tripping PEP 668
 # "externally-managed-environment" where the marker exists. Depending on
 # `backend` guarantees a >= 3.10 venv exists first.

@@ -1,8 +1,8 @@
 """Explicit operator consent before Junction spends money in an AWS account.
 
 Two optional features reach a PAID AWS service through the provider's own
-credential chain: Amazon Polly (text-to-speech, :mod:`junction.voice_reply`)
-and Amazon Transcribe (speech-to-text, :mod:`junction.transcribe` and
+credential chain: AWS Polly (text-to-speech, :mod:`junction.voice_reply`)
+and AWS Transcribe (speech-to-text, :mod:`junction.transcribe` and
 :mod:`junction.dashboard.stt_stream`). Both omit ``--profile`` / pass no
 credential resolver when no profile is configured, so "no profile set" does not
 mean "no account" -- it means "whichever account the ambient environment
@@ -80,8 +80,8 @@ GATED_SERVICES: frozenset[str] = frozenset({SERVICE_POLLY, SERVICE_TRANSCRIBE})
 
 #: Human-facing service names for the confirmation surfaces and the log lines.
 SERVICE_LABELS: dict[str, str] = {
-    SERVICE_POLLY: "Amazon Polly",
-    SERVICE_TRANSCRIBE: "Amazon Transcribe",
+    SERVICE_POLLY: "AWS Polly",
+    SERVICE_TRANSCRIBE: "AWS Transcribe",
 }
 
 #: Lock filename beside the consent file -- NOT the file itself, because

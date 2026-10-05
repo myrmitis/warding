@@ -810,7 +810,7 @@ def _ffmpeg_install_commands() -> list[str]:
         return ["winget install --id Gyan.FFmpeg"]
     if shutil.which("apt-get"):
         return ["sudo apt-get install -y ffmpeg"]
-    # Amazon Linux: no ffmpeg in the distro repos — build minimal ffmpeg from
+    # AL2/AL2023: no ffmpeg in the distro repos — build minimal ffmpeg from
     # source (the official recommendation).
     proj = os.environ.get("JUNCTION_PROJECT_DIR", "")
     script = os.path.join(proj, "scripts", "build-ffmpeg.sh") if proj else ""
@@ -947,7 +947,7 @@ def _stt_prereq_commands(provider: str = "whisper") -> list[str]:
 
 
 def _is_al2023() -> bool:
-    """Return True if running on Amazon Linux 2023."""
+    """Return True if running on AL2023."""
     try:
         return "2023" in Path("/etc/system-release").read_text(encoding="utf-8")
     except Exception:
@@ -1367,7 +1367,7 @@ echo "Using: $PY ($($PY --version))"
 # When pip finds no wheel matching the host it silently falls back to the source
 # tarball and starts a compile — which is why a wheel-compatibility problem
 # surfaces as a toolchain error ("GCC >= 9.3", "metadata-generation-failed")
-# that names numpy and looks unrelated to the missing wheel. Amazon Linux 2 ships
+# that names numpy and looks unrelated to the missing wheel. AL2 ships
 # glibc 2.26, so pip accepts at most manylinux_2_17, while current numpy publishes
 # manylinux_2_28 only — the default resolve therefore fetches numpy-2.5.1.tar.gz
 # and dies on the system GCC (7.3 on AL2).

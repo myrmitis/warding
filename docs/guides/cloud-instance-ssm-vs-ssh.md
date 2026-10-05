@@ -37,7 +37,7 @@ reg.add(
 )
 ```
 
-Requirements on the remote: only the **SSM agent** (preinstalled on Amazon Linux)
+Requirements on the remote: only the **SSM agent** (preinstalled on AL2 and AL2023)
 and an instance role that permits Session Manager. Requirements on the client:
 only the `aws` CLI + `session-manager-plugin` and `ssm:StartSession` permission.
 

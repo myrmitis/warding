@@ -132,7 +132,7 @@ class TestLinuxUnitRendering:
         assert "Restart=on-failure" in unit
         assert "RestartSec=10" in unit
         # System-level unit must run as the invoking user with the user's
-        # actual primary group (which on Amazon Linux is `amazon`, not the
+        # actual primary group (which on some distros is not the
         # username — getting this wrong causes status=216/GROUP at startup).
         assert "User=tester" in unit
         assert "Group=staff" in unit

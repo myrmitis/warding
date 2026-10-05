@@ -21,7 +21,7 @@ Four parts, in the order you will need them:
 ### Host requirements
 
 - **OS**: any modern Linux distribution (Ubuntu 22.04+, Debian 12+, Fedora,
-  CentOS Stream / RHEL 8+, CentOS 7, Amazon Linux 2 / 2023). macOS works too,
+  CentOS Stream / RHEL 8+, CentOS 7, AL2 / AL2023). macOS works too,
   with launchd instead of systemd.
 - **Python**: 3.10 or newer (`setup.cfg` sets `python_requires = >=3.10`).
 - **Node.js**: needed to build the dashboard bundle. `website/package.json`
@@ -43,7 +43,7 @@ Four parts, in the order you will need them:
 # Debian / Ubuntu (python3-venv is a separate package here)
 sudo apt-get update && sudo apt-get install -y git tmux python3 python3-pip python3-venv
 
-# Fedora / CentOS Stream / RHEL 8+ / Amazon Linux 2023 (python3 may be 3.9;
+# Fedora / CentOS Stream / RHEL 8+ / AL2023 (python3 may be 3.9;
 # python3.11 gives the 3.10+ the backend needs)
 sudo dnf install -y git tmux python3.11 python3.11-pip
 

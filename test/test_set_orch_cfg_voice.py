@@ -147,7 +147,7 @@ def test_provider_empty_string_falls_back_to_local(tmp_path, monkeypatch):
 def test_provider_omitted_defaults_to_local(tmp_path, monkeypatch):
     """The regression this flip closes: voice ON, provider unnamed.
 
-    This previously resolved to Amazon Polly, so a config that only said
+    This previously resolved to AWS Polly, so a config that only said
     ``enabled: true`` reached a paid AWS service under whatever the ambient
     credential chain resolved to -- with no operator decision behind it.
     """

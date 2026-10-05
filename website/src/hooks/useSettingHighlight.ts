@@ -11,20 +11,16 @@ import { i18nT } from '../i18n/t'
  *
  * - `slack.*` — the Slack tab collapsed into the Channels tab (nav regroup).
  * - `voice.aws-*` — labels gained (Transcribe)/(Polly) qualifiers, replacing
- *   the positional `-2` disambiguation suffix. The Polly pair then shifted
- *   again when the qualifier was corrected to the service's real name,
- *   Amazon Polly — so BOTH the positional id and the short-form id have to
- *   land on the current one.
+ *   the positional `-2` disambiguation suffix, so the positional ids have to
+ *   land on the qualified ones.
  * - `chat.fallback-model` — the row was relabeled from "Fallback Model" to
  *   "Default Model", the tier it actually is.
  */
 const LEGACY_ID_EXACT: Record<string, string> = {
   'voice.aws-profile': 'voice.aws-profile-transcribe',
   'voice.aws-region': 'voice.aws-region-transcribe',
-  'voice.aws-profile-2': 'voice.aws-profile-amazon-polly',
-  'voice.aws-region-2': 'voice.aws-region-amazon-polly',
-  'voice.aws-profile-polly': 'voice.aws-profile-amazon-polly',
-  'voice.aws-region-polly': 'voice.aws-region-amazon-polly',
+  'voice.aws-profile-2': 'voice.aws-profile-polly',
+  'voice.aws-region-2': 'voice.aws-region-polly',
   // The "Default Model" row was labeled "Fallback Model", and registry ids
   // derive from the label — without this, links saved or bookmarked against
   // the old id silently lose their highlight.

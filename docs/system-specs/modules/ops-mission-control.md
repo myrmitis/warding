@@ -3172,7 +3172,7 @@ new contract, not a new adapter.
 
 The one allowlist entry this app needs is the **public** AWS console host
 (`<region>.console.aws.amazon.com`) in the CloudWatch adapter's deep link, matched
-only because `INTERNAL_PATTERN` carries a broad `amazon\.com` alternative. It is
+only because `INTERNAL_PATTERN` carries a broad company-domain alternative. It is
 line-anchored so a genuinely internal reference in that file is still caught.
 
 ## Tests

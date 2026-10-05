@@ -5047,7 +5047,7 @@ _DATA_HOME_SECRET_LEAVES: list[str] = [
     # to the read+write keystone floor. Dashboard PUT is the sole writer and opens the
     # path directly.
     "ops_mission_control_policy.json",
-    # Recorded consent to call a PAID AWS service (Amazon Polly for TTS, Amazon
+    # Recorded consent to call a PAID AWS service (AWS Polly for TTS, AWS
     # Transcribe for STT). Same class of control as ``computer_use.json`` above:
     # the record is what AUTHORIZES billable requests against a specific AWS
     # account, so an agent that could write it would consent on the operator's

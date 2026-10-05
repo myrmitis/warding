@@ -3,7 +3,7 @@ import { api, type AwsConsentStatus } from '../api/client'
 import { i18nT } from '../i18n/t'
 
 /**
- * Confirmation gate for a paid AWS service (Amazon Polly, Amazon Transcribe).
+ * Confirmation gate for a paid AWS service (AWS Polly, AWS Transcribe).
  *
  * Renders inline in the settings card rather than as a blocking modal, and that
  * is deliberate: the confirmation is durable state the operator should be able

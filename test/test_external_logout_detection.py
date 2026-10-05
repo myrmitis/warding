@@ -438,7 +438,7 @@ class TestFingerprintCaching:
 
 
 class TestStorePathSelection:
-    def test_linux_path_is_kiro_cli_not_amazon_q(self, tmp_path: Path) -> None:
+    def test_linux_path_is_kiro_cli_not_the_predecessor_cli(self, tmp_path: Path) -> None:
         path = kp.kiro_identity_store_path("linux", tmp_path, {})
         assert path == tmp_path / ".local" / "share" / "kiro-cli" / "data.sqlite3"
 

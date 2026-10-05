@@ -1077,7 +1077,7 @@ def _toolchain_bin(name: str) -> str | None:
       failed with "no trusted executable for 'npm'".
 
     Managed toolchain first, system npm second: a distribution's node can be
-    older than ``website/package.json``'s ``engines`` (Amazon Linux 2023 ships
+    older than ``website/package.json``'s ``engines`` (AL2023 ships
     node 18 against ``>=22``), while ``ensure-node.sh`` installs a version
     chosen to satisfy the build.
     """

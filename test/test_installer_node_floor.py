@@ -1,6 +1,6 @@
 """The installer must not build the frontend against an unsupported Node.
 
-Amazon Linux 2023 ships node 18. ``install.sh`` gated its "already installed"
+AL2023 ships node 18. ``install.sh`` gated its "already installed"
 branch on ``has node`` alone, so that system node matched, EVERY install branch
 (apt/dnf/brew and nvm) was skipped, and the frontend build then ran under an
 unsupported interpreter -- emitting only ``EBADENGINE`` warnings and no usable

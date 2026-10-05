@@ -18,7 +18,7 @@ Parameters:
     Type: String
     Default: arm64
     AllowedValues: [arm64, x86_64]
-    Description: CPU architecture; selects the matching Amazon Linux 2023 AMI.
+    Description: CPU architecture; selects the matching AL2023 AMI.
   VolumeSizeGb:
     Type: Number
     Default: 60
@@ -121,7 +121,7 @@ Parameters:
       no key material - use `junction cloud connect` (SSM port-forward) instead.
 
 # The AMI is resolved at deploy time from the public SSM Parameter Store alias —
-# never a hardcoded per-region AMI id. Latest Amazon Linux 2023 for the arch.
+# never a hardcoded per-region AMI id. Latest AL2023 for the arch.
 # Mapping keys must be alphanumeric (no underscores), so x86_64 -> "x8664".
 Mappings:
   ArchToAmiParam:

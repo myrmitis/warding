@@ -83,7 +83,7 @@ if [ -z "$PY" ]; then
     fi
     # Re-probe with the same >=3.10 gate as above -- a bare existence check would
     # wrongly latch onto a distro's default python3 (RHEL/CentOS 7 = 3.6,
-    # Amazon Linux 2023 = 3.9), which then fails later at pip/venv.
+    # AL2023 = 3.9), which then fails later at pip/venv.
     for c in python3.12 python3.11 python3.10 python3; do
         if has "$c" && "$c" -c 'import sys; assert sys.version_info>=(3,10)' 2>/dev/null; then PY="$c"; break; fi
     done

@@ -116,7 +116,7 @@ $(common_asserts 'dpkg -L "$pkg"')
   test ! -e \"\$launcher\"
 "
 
-echo "▶ Installing '${RPM_NAME}' on Amazon Linux 2023…"
+echo "▶ Installing '${RPM_NAME}' on AL2023…"
 docker run --rm -v "${ABS_DIST}:/dist:ro" -w /dist amazonlinux:2023 bash -euxc "
   pkg=\$(rpm -qp --queryformat '%{NAME}' './${RPM_NAME}')
   dnf install -y './${RPM_NAME}'

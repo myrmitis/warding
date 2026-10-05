@@ -805,7 +805,7 @@ class TestConsentEndpointReads:
             resp = asyncio.run(handler.api_aws_consent_get(self._req({"service": "polly"})))
         body = json.loads(resp.text)
         assert resp.status == 200
-        assert body["serviceLabel"] == "Amazon Polly"
+        assert body["serviceLabel"] == "AWS Polly"
         assert body["account"] == "111122223333"
         assert body["credentialSource"] == "AWS CLI default credential provider chain"
         assert body["granted"] is False

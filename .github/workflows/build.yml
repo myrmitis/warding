@@ -23,7 +23,7 @@ jobs:
   build-wheel:
     name: Build Wheel
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -86,7 +86,7 @@ jobs:
   build-windows-installer:
     name: Build Windows Installer (x64)
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -179,7 +179,7 @@ jobs:
     name: Build Desktop (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     # macOS bills at 10x, so an unbounded hang here is the costliest in the repo.
-    timeout-minutes: 45
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:

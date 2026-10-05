@@ -3,7 +3,7 @@
  *
  * Nothing mounted this panel before, so every branch was unexecuted: the load
  * error + retry arm, the skeleton arm, both provider field sets (Piper and
- * Amazon Polly), the optimistic `voice-config-changed` broadcast, the rollback
+ * AWS Polly), the optimistic `voice-config-changed` broadcast, the rollback
  * on a failed save, the engine-compatibility fold when a voice changes, and the
  * live Polly catalogue vs. the offline fallback list.
  *
@@ -156,7 +156,7 @@ describe('VoicePanel piper fields', () => {
     expect(select(/^Speed$/)).toBeTruthy()
     expect(screen.queryByRole('combobox', { name: /^Voice$/ })).toBeNull()
     expect(screen.queryByRole('combobox', { name: /^Engine$/ })).toBeNull()
-    expect(screen.queryByText('AWS Profile (Amazon Polly)')).toBeNull()
+    expect(screen.queryByText('AWS Profile (Polly)')).toBeNull()
   })
 
   it('does not fetch the Polly catalogue for a piper user', async () => {
@@ -199,10 +199,10 @@ describe('VoicePanel piper fields', () => {
     await waitFor(() => expect(save).toHaveBeenCalledWith({ piper_length_scale: 0.7 }))
   })
 
-  it('switches provider to Amazon Polly from the dropdown', async () => {
+  it('switches provider to AWS Polly from the dropdown', async () => {
     const { save } = seed()
     await field('Piper Model')
-    await pick(/^Provider$/, 'Amazon Polly (cloud)')
+    await pick(/^Provider$/, 'AWS Polly (cloud)')
     await waitFor(() => expect(save).toHaveBeenCalledWith({ provider: 'polly' }))
   })
 })
@@ -240,13 +240,13 @@ describe('VoicePanel auto-speak', () => {
   })
 })
 
-/* ── Amazon Polly ─────────────────────────────────────────────────────────── */
+/* ── AWS Polly ─────────────────────────────────────────────────────────── */
 
 describe('VoicePanel polly fields', () => {
   it('renders the Polly field set and fetches the catalogue', async () => {
     const { voices } = seed({ provider: 'polly' })
-    await field('AWS Profile (Amazon Polly)')
-    await field('AWS Region (Amazon Polly)')
+    await field('AWS Profile (Polly)')
+    await field('AWS Region (Polly)')
     expect(select(/^Voice$/)).toBeTruthy()
     expect(select(/^Engine$/)).toBeTruthy()
     await waitFor(() => expect(voices).toHaveBeenCalled())
@@ -255,7 +255,7 @@ describe('VoicePanel polly fields', () => {
 
   it('labels catalogue voices as name (locale gender-initial)', async () => {
     seed({ provider: 'polly' })
-    await field('AWS Profile (Amazon Polly)')
+    await field('AWS Profile (Polly)')
     fireEvent.click(select(/^Voice$/))
     expect(await screen.findByRole('option', { name: 'Brian (en-GB M)' }, { timeout: 5_000 })).toBeTruthy()
     expect(screen.getByRole('option', { name: 'Ruth (en-US F)' })).toBeTruthy()
@@ -263,7 +263,7 @@ describe('VoicePanel polly fields', () => {
 
   it('offers the offline fallback list when the catalogue call fails', async () => {
     seed({ provider: 'polly' }, { voicesFail: true })
-    await field('AWS Profile (Amazon Polly)')
+    await field('AWS Profile (Polly)')
     fireEvent.click(select(/^Voice$/))
     expect(await screen.findByRole('option', { name: 'Matthew (US M)' }, { timeout: 5_000 })).toBeTruthy()
   })
@@ -272,21 +272,21 @@ describe('VoicePanel polly fields', () => {
     // Brian supports only `standard`, so keeping `generative` would send a
     // combination Polly rejects.
     const { save } = seed({ provider: 'polly', voice: 'Ruth', engine: 'generative' })
-    await field('AWS Profile (Amazon Polly)')
+    await field('AWS Profile (Polly)')
     await pick(/^Voice$/, 'Brian (en-GB M)')
     await waitFor(() => expect(save).toHaveBeenCalledWith({ voice: 'Brian', engine: 'standard' }))
   })
 
   it('keeps the engine when the new voice still supports it', async () => {
     const { save } = seed({ provider: 'polly', voice: 'Brian', engine: 'neural' })
-    await field('AWS Profile (Amazon Polly)')
+    await field('AWS Profile (Polly)')
     await pick(/^Voice$/, 'Ruth (en-US F)')
     await waitFor(() => expect(save).toHaveBeenCalledWith({ voice: 'Ruth' }))
   })
 
   it('limits the engine dropdown to what the selected voice supports', async () => {
     seed({ provider: 'polly', voice: 'Brian', engine: 'standard' })
-    await field('AWS Profile (Amazon Polly)')
+    await field('AWS Profile (Polly)')
     fireEvent.click(select(/^Engine$/))
     expect(await screen.findByRole('option', { name: 'standard' }, { timeout: 5_000 })).toBeTruthy()
     expect(screen.queryByRole('option', { name: 'generative' })).toBeNull()
@@ -294,21 +294,21 @@ describe('VoicePanel polly fields', () => {
 
   it('saves an engine change', async () => {
     const { save } = seed({ provider: 'polly', voice: 'Ruth', engine: 'generative' })
-    await field('AWS Profile (Amazon Polly)')
+    await field('AWS Profile (Polly)')
     await pick(/^Engine$/, 'neural')
     await waitFor(() => expect(save).toHaveBeenCalledWith({ engine: 'neural' }))
   })
 
   it('saves a speech-rate change', async () => {
     const { save } = seed({ provider: 'polly' })
-    await field('AWS Profile (Amazon Polly)')
+    await field('AWS Profile (Polly)')
     await pick(/^Speed$/, '120%')
     await waitFor(() => expect(save).toHaveBeenCalledWith({ rate: '120%' }))
   })
 
   it('saves trimmed profile and region on blur', async () => {
     const { save } = seed({ provider: 'polly' })
-    await field('AWS Profile (Amazon Polly)')
+    await field('AWS Profile (Polly)')
 
     const profile = screen.getByPlaceholderText('default')
     fireEvent.change(profile, { target: { value: ' work ' } })
@@ -327,7 +327,7 @@ describe('VoicePanel polly fields', () => {
 describe('VoicePanel save failure', () => {
   it('surfaces the save error and rolls the local inputs back', async () => {
     const { save } = seed({ provider: 'polly', aws_profile: 'original' }, { saveFails: true })
-    await field('AWS Profile (Amazon Polly)')
+    await field('AWS Profile (Polly)')
 
     const profile = screen.getByPlaceholderText('default')
     fireEvent.change(profile, { target: { value: 'typo' } })
@@ -340,7 +340,7 @@ describe('VoicePanel save failure', () => {
 
   it('dismisses the save error banner', async () => {
     seed({ provider: 'polly' }, { saveFails: true })
-    await field('AWS Profile (Amazon Polly)')
+    await field('AWS Profile (Polly)')
 
     const region = screen.getByPlaceholderText('us-east-1')
     fireEvent.change(region, { target: { value: 'eu-west-1' } })

@@ -73,8 +73,8 @@ if [ -x "$_junction_dir/ensure-node.sh" ]; then
     elif command -v mise >/dev/null 2>&1; then
         eval "$(mise activate bash 2>/dev/null)" 2>/dev/null || true
     fi
-    # On a host where no version manager can serve a supported Node -- Amazon
-    # Linux 2, whose glibc 2.26 cannot load the official builds -- ensure-node.sh
+    # On a host where no version manager can serve a supported Node -- AL2,
+    # whose glibc 2.26 cannot load the official builds -- ensure-node.sh
     # installs a private toolchain that neither nvm nor mise owns, so the
     # re-sourcing above cannot surface it. It records the directory it settled on;
     # consume that marker the way the Makefile and junction.env.node_bin_dirs()

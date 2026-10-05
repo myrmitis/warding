@@ -1323,7 +1323,7 @@ class TestSttInstallScriptWheels:
 
     openai-whisper is a pure-Python sdist, but numpy / numba / llvmlite / torch /
     triton / tiktoken ship compiled wheels. On a host whose glibc is older than the
-    wheel's tag (Amazon Linux 2 = glibc 2.26, so manylinux_2_17 is the ceiling while
+    wheel's tag (AL2 = glibc 2.26, so manylinux_2_17 is the ceiling while
     current numpy publishes manylinux_2_28) pip falls back to the source tarball and
     the failure surfaces as a compiler error naming numpy — "GCC >= 9.3",
     "metadata-generation-failed" — which reads as a numpy bug rather than the

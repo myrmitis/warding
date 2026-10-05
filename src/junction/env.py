@@ -498,7 +498,7 @@ def node_augmented_path(base_path: str = "") -> str:
     """Return *base_path* with :func:`node_bin_dirs` PREPENDED.
 
     Prepended, not appended: a distribution's system ``node`` can be older than
-    what ``website/package.json`` declares in ``engines`` (Amazon Linux 2023
+    what ``website/package.json`` declares in ``engines`` (AL2023
     ships node 18 against a ``>=22`` requirement), whereas
     ``ensure-node.sh`` installs a version chosen to satisfy the build. Where
     both exist the managed toolchain is the one that works.

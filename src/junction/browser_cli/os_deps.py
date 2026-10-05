@@ -4,8 +4,8 @@ Playwright's OS-dependency installer is **apt-only**. On a distribution it does
 not recognize it does not decline -- it picks its nearest Ubuntu package set and
 runs ``apt-get`` anyway, as root. On an rpm host that is wrong twice over: the
 package names do not exist, and the command needs a privilege the operator of a
-managed workstation usually does not have. The observed shape on Amazon Linux
-2023 is a sudo policy refusal quoting a 60-package ``apt-get`` line the user
+managed workstation usually does not have. The observed shape on AL2023
+is a sudo policy refusal quoting a 60-package ``apt-get`` line the user
 never typed, and because the flag and the browser download are one CLI
 invocation, that refusal takes the download down with it.
 
@@ -40,8 +40,8 @@ FAMILY_UNKNOWN = "unknown"
 _DEBIAN_IDS = frozenset({"debian", "ubuntu"})
 
 #: ``ID``/``ID_LIKE`` tokens that mean dnf/yum. ``amzn`` reports
-#: ``ID_LIKE=fedora``, so the ``ID_LIKE`` scan covers Amazon Linux without
-#: naming it, but it is listed anyway: Amazon Linux 2 omits ``ID_LIKE``.
+#: ``ID_LIKE=fedora``, so the ``ID_LIKE`` scan covers AL2023 without
+#: naming it, but it is listed anyway: AL2 omits ``ID_LIKE``.
 _RPM_IDS = frozenset(
     {
         "rhel",
@@ -214,7 +214,7 @@ def missing_deps_hint() -> str:
 
 #: How Playwright announces that the browser it just downloaded cannot run.
 #:
-#: MEASURED on Amazon Linux 2023: with libraries missing, ``install-browser``
+#: MEASURED on AL2023: with libraries missing, ``install-browser``
 #: prints this block and **exits 0**. Playwright classifies it as a warning, so
 #: the exit code alone reports a browser that cannot launch as installed --
 #: the panel goes green, and the real error arrives at the user's first browse

@@ -20,7 +20,7 @@ import AwsConsentGate from './AwsConsentGate'
 function status(overrides: Partial<AwsConsentStatus> = {}): AwsConsentStatus {
   return {
     service: 'polly',
-    serviceLabel: 'Amazon Polly',
+    serviceLabel: 'AWS Polly',
     profile: '',
     credentialSource: 'AWS CLI default credential provider chain',
     region: 'us-east-1',
@@ -29,7 +29,7 @@ function status(overrides: Partial<AwsConsentStatus> = {}): AwsConsentStatus {
     identityResolved: true,
     identityDetail: '',
     granted: false,
-    reason: 'Amazon Polly use has not been confirmed.',
+    reason: 'AWS Polly use has not been confirmed.',
     revokedOnAccountChange: false,
     grant: null,
     ...overrides,
@@ -48,7 +48,7 @@ describe('AwsConsentGate', () => {
     renderWithProviders(<AwsConsentGate service="polly" />)
 
     // The four facts the operator needs in order to consent knowingly.
-    expect(await screen.findByText('Amazon Polly')).toBeTruthy()
+    expect(await screen.findByText('AWS Polly')).toBeTruthy()
     expect(screen.getByText('us-east-1')).toBeTruthy()
     expect(screen.getByText('AWS CLI default credential provider chain')).toBeTruthy()
     expect(screen.getByText('111122223333')).toBeTruthy()

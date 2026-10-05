@@ -140,7 +140,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.linux_packaging == 'true' }}
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -231,6 +231,16 @@ jobs:
           # silently disables an exemption fails here instead of shipping green.
           python3 scripts/check_brand_name.py --test
           python3 scripts/check_brand_name.py
+
+      - name: Check that no tracked line names the former parent company
+        # Whole-tree on purpose, unlike the brand gate above: the tree is clean,
+        # so any mention is a regression, and reading every tracked file takes a
+        # few seconds. Functional identifiers an external system defines (AWS
+        # hostnames, package and model ids) are allowlisted in
+        # scripts/company-name-allowlist.txt.
+        run: |
+          python3 scripts/check_company_names.py --test
+          python3 scripts/check_company_names.py
 
   focus-cue-lint:
     name: Focus Cue Gate
@@ -382,7 +392,8 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        python-version: ["3.10", "3.12"]
+        # PRs lint on the newer interpreter only; main covers both.
+        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.10", "3.12"]') }}
     steps:
       # Full history so the black gate can compute THIS change's own diff. A
       # shallow clone truncates parent info and leaves no base ref, and the gate
@@ -466,13 +477,16 @@ jobs:
     name: Backend Tests
     needs: [changes]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       # Don't cancel sibling shards when one fails -- we want the full failure
       # picture across the suite, not just the first shard to break.
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.12"]
+        # PRs run the one version the coverage gate reads (the 3.12 shards are
+        # the only ones that collect coverage); main runs both. Each extra leg is
+        # ~70 billed minutes a push on this suite.
+        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.10", "3.12"]') }}
         # Duration-balanced shards (pytest-split). 4 groups x 2 Python = 8
         # parallel jobs, each on its own runner (4 cores via -n auto). To add
         # shards, extend this list AND bump SHARD_COUNT to match -- mind the
@@ -598,6 +612,9 @@ jobs:
   backend-test-windows:
     name: Backend Tests (Windows)
     needs: [changes]
+    # Windows bills at 2x and runs four ~20-minute shards, so pull requests skip
+    # it; every push to main still runs it.
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     # windows-latest runs the same shards measurably slower than POSIX.
     timeout-minutes: 40
@@ -1163,7 +1180,7 @@ jobs:
   frontend-lint:
     name: Frontend Lint & Type Check
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -1573,7 +1590,7 @@ jobs:
     name: Bundle Size Gate
     needs: [changes]
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
     # A backend-only diff cannot change the frontend bundle, so this gate has
     # nothing to measure there. Meta diffs (.github/**, scripts/**) leave both
     # surface flags false and still run the gate -- this job's own config lives
@@ -1611,7 +1628,7 @@ jobs:
   e2e:
     name: E2E (stub ACP backend, offline)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

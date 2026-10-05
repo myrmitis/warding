@@ -2948,7 +2948,7 @@ export const api = {
   voiceConfig: () => fetch('/api/voice/config').then(j),
   updateVoiceConfig: (body: object) => put('/api/voice/config', body).then(j),
   voiceVoices: () => fetch('/api/voice/voices').then(j),
-  // Paid-AWS-service consent (Amazon Polly for TTS, Amazon Transcribe for STT).
+  // Paid-AWS-service consent (AWS Polly for TTS, AWS Transcribe for STT).
   // The GET reports what would be billed AND performs the identity probe, so it
   // is the call that surfaces the account before the operator agrees to it.
   awsConsent: (service: string) =>

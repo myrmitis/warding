@@ -2,7 +2,7 @@
 # Ensure Node.js is available for the build. Installs via mise (preferred),
 # nvm, or the nodejs "unofficial-builds" glibc-217 tarball on old-glibc hosts.
 # Called by: setup.sh, junction update, junction gateway, Makefile (frontend)
-# Platforms: macOS, Amazon Linux 2 (glibc 2.26), Amazon Linux 2023, Linux
+# Platforms: macOS, AL2 (glibc 2.26), AL2023, Linux
 #
 # On success this records the resolved node bin directory in
 # "<data-home>/node-bin-dir" so non-interactive callers (e.g. make) can put
@@ -31,7 +31,7 @@ _select_data_home() {
 MIN_VERSION="22.12"   # human-readable primary floor, for messages
 TARGET_VERSION=24
 
-# Amazon Linux 2 ships glibc 2.26, but the OFFICIAL Node >= 18 binaries are
+# AL2 ships glibc 2.26, but the OFFICIAL Node >= 18 binaries are
 # linked against glibc >= 2.28 and fail to load ("GLIBC_2.28 not found"). The
 # nodejs "unofficial-builds" project publishes a `glibc-217` variant compiled
 # against glibc 2.17 that satisfies both the loader constraint and the
@@ -385,6 +385,6 @@ if _node_version_ok; then
 else
     echo "  ⚠️  Node install failed — frontend build needs Node >= $MIN_VERSION"
     echo "     macOS / AL2023 / modern Linux: curl https://mise.run | sh && mise use -g node@$TARGET_VERSION"
-    echo "     Amazon Linux 2 (x86_64): re-run 'bash ensure-node.sh' (installs the glibc-217 Node build)"
+    echo "     AL2 (x86_64): re-run 'bash ensure-node.sh' (installs the glibc-217 Node build)"
     exit 1
 fi

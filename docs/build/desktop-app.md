@@ -120,8 +120,8 @@ Two properties are load-bearing and worth knowing before you touch that lane:
   requirement of the shipped binaries is lower than the runner's own version:
   the highest `GLIBC_*` symbol version across the Electron binary and every
   bundled `.so` is **2.34**, which covers Ubuntu 22.04+, Debian 12+, Fedora,
-  CentOS Stream 9 and Amazon Linux 2023, and excludes Ubuntu 20.04, Debian 11
-  and Amazon Linux 2. Read the requirement with
+  CentOS Stream 9 and AL2023, and excludes Ubuntu 20.04, Debian 11
+  and AL2. Read the requirement with
   `objdump -T <binary> | grep -oE 'GLIBC_[0-9.]+' | sort -uV | tail -1` rather
   than assuming it equals the runner's glibc. The AppImage links against
   it, which is why both Linux legs stay on 22.04 (glibc 2.35) rather than moving

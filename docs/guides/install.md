@@ -37,7 +37,7 @@ Builds use plain `pip` + `npm`/Vite + `pytest`, driven by the repo-root
 | Requirement | Needed for | Floor |
 |-------------|------------|-------|
 | **Python** | Backend | `>= 3.10` (`requires-python` in `pyproject.toml`; `make build` provisions a 3.12 `.venv` by default) |
-| **Node.js + npm** | Building the dashboard | `20 \|\| >= 22` (`website/package.json` `engines`); `ensure-node.sh` targets 20, and drops to 16 on Amazon Linux 2 where newer official builds need a glibc that host does not have |
+| **Node.js + npm** | Building the dashboard | `20 \|\| >= 22` (`website/package.json` `engines`); `ensure-node.sh` targets 20, and drops to 16 on AL2 where newer official builds need a glibc that host does not have |
 | **An ACP runtime** | Driving the LLM | Optional; Cursor, Claude, Codex, Grok, … — a vendor agent CLI is optional |
 
 Node is only needed to *build* the dashboard. A source install that already
@@ -113,7 +113,7 @@ in the sandbox section. Prefer a package where you can.
 |---|---|
 | The dashboard, a terminal, scheduled work, a server | **Operator script** (above) or **from source** (a) |
 | A desktop app on Debian/Ubuntu | **`.deb`** (d) |
-| A desktop app on Fedora / RHEL / CentOS Stream / Amazon Linux 2023 | **`.rpm`** (d) |
+| A desktop app on Fedora / RHEL / CentOS Stream / AL2023 | **`.rpm`** (d) |
 | A desktop app with no root and no package manager | **AppImage** (d) |
 | A container host | **Docker** ([guide](docker.md)) |
 
@@ -293,16 +293,16 @@ manager doing the write, not the app. `sudo apt remove junction` /
 [Uninstalling](#uninstalling) for what happens to your data.
 
 The AppImage needs no root and no package manager, which is the reason to pick
-it, but it also needs FUSE present (`sudo dnf install fuse` on Amazon Linux
-2023, which ships without it; `--appimage-extract-and-run` is the escape hatch)
+it, but it also needs FUSE present (`sudo dnf install fuse` on AL2023,
+which ships without it; `--appimage-extract-and-run` is the escape hatch)
 and it runs from a randomized temporary mount, so it carries the manual
 sandbox-profile step and the move-breaks-it caveat documented in the
 [sandbox section](#linux-the-agent-sandbox-and-unprivileged-user-namespaces).
 
 All three Linux formats are built from the same glibc floor as the build runner.
 Verified requirement at the time of writing is **glibc 2.34**, which covers
-Ubuntu 22.04+, Debian 12+, Fedora, CentOS Stream 9 and Amazon Linux 2023, and
-excludes Ubuntu 20.04, Debian 11 and Amazon Linux 2 — on those, use the
+Ubuntu 22.04+, Debian 12+, Fedora, CentOS Stream 9 and AL2023, and
+excludes Ubuntu 20.04, Debian 11 and AL2 — on those, use the
 [source install](#a-from-source-recommended) instead.
 
 Prebuilt downloads for the release channels are linked from the
@@ -519,7 +519,7 @@ playwright-cli install --skills agents --global
 ```
 
 `--with-deps` installs OS libraries through `apt` and needs root. Playwright
-implements it for apt alone, so on Fedora, RHEL, CentOS or Amazon Linux it
+implements it for apt alone, so on Fedora, RHEL, CentOS or AL2023 it
 misfires against Ubuntu package names; install the libraries with your own
 package manager instead. The Settings → Browser install button adapts to the
 host and reports the command to run when it needs root — see
@@ -721,7 +721,7 @@ host is left as it was found rather than carrying an orphaned userns permission.
 The installer skips the profile silently, with a reason it can print, when
 AppArmor is not an active LSM, when the sysctl is not `1`, when
 `apparmor_parser` is absent, or when the parser is older than 4.x (the `userns`
-rule needs 4.x or newer). So on Debian, Arch, RHEL and Amazon Linux nothing
+rule needs 4.x or newer). So on Debian, Arch, RHEL and AL2023 nothing
 changes.
 
 **Running the gateway outside systemd** (for example `junction up` in a

@@ -2539,7 +2539,7 @@ class TestRedactExfiltrationUrls:
         assert "[REDACTED" not in result
         assert len(warnings) == 0
 
-    def test_amazonaws_not_safe(self) -> None:
+    def test_aws_endpoint_not_safe(self) -> None:
         """amazonaws.com is NOT allowlisted — anyone can provision endpoints."""
         from junction.security import redact_exfiltration_urls
 
@@ -2584,7 +2584,7 @@ class TestRedactExfiltrationUrls:
         warnings = scan_exfiltration_urls(f"Link: {url}")
         assert len(warnings) == 0
 
-    def test_amazonaws_non_presigned_still_redacted(self) -> None:
+    def test_aws_endpoint_non_presigned_still_redacted(self) -> None:
         """amazonaws.com URLs without presigned params are still redacted."""
         from junction.security import redact_exfiltration_urls
 

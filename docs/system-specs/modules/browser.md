@@ -331,7 +331,7 @@ state. Nothing in this path elevates or runs a package manager. The rpm list
 covers Chromium alone: it is the engine `attach` supports and the one `browser_ok`
 gates on, so it is what "browsing works" means.
 
-**A zero exit is not a verdict.** MEASURED on Amazon Linux 2023: with libraries
+**A zero exit is not a verdict.** MEASURED on AL2023: with libraries
 missing, `install-browser` prints
 
 ```

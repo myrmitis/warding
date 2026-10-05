@@ -1726,10 +1726,10 @@ export const SETTINGS_REGISTRY: SettingEntry[] =
     "occurrence": 1
   },
   {
-    "id": "voice.aws-profile-amazon-polly",
-    "label": "AWS Profile (Amazon Polly)",
+    "id": "voice.aws-profile-polly",
+    "label": "AWS Profile (Polly)",
     "labelKey": "pages.settings.voicePanel.aws_profile_polly",
-    "description": "AWS credentials profile for Amazon Polly",
+    "description": "AWS credentials profile for Polly",
     "tab": "voice",
     "type": "input",
     "occurrence": 1
@@ -1744,10 +1744,10 @@ export const SETTINGS_REGISTRY: SettingEntry[] =
     "occurrence": 1
   },
   {
-    "id": "voice.aws-region-amazon-polly",
-    "label": "AWS Region (Amazon Polly)",
+    "id": "voice.aws-region-polly",
+    "label": "AWS Region (Polly)",
     "labelKey": "pages.settings.voicePanel.aws_region_polly",
-    "description": "AWS region for Amazon Polly API",
+    "description": "AWS region for Polly API",
     "tab": "voice",
     "type": "input",
     "occurrence": 1
@@ -1783,7 +1783,7 @@ export const SETTINGS_REGISTRY: SettingEntry[] =
     "id": "voice.engine",
     "label": "Engine",
     "labelKey": "pages.settings.voicePanel.engine",
-    "description": "Amazon Polly engine type",
+    "description": "AWS Polly engine type",
     "tab": "voice",
     "type": "select",
     "occurrence": 1
@@ -1861,7 +1861,7 @@ export const SETTINGS_REGISTRY: SettingEntry[] =
     "id": "voice.provider-2",
     "label": "Provider",
     "labelKey": "pages.settings.voicePanel.provider",
-    "description": "Piper runs locally and offline; Amazon Polly uses AWS credentials + network",
+    "description": "Piper runs locally and offline; Polly uses AWS credentials + network",
     "tab": "voice",
     "type": "select",
     "occurrence": 2
@@ -1914,7 +1914,7 @@ export const SETTINGS_REGISTRY: SettingEntry[] =
     "id": "voice.voice",
     "label": "Voice",
     "labelKey": "pages.settings.voicePanel.voice",
-    "description": "Amazon Polly voice for TTS",
+    "description": "AWS Polly voice for TTS",
     "tab": "voice",
     "type": "select",
     "occurrence": 1

@@ -135,7 +135,7 @@ subprocess, reusing the same runner as the `whisper` and `mlx` providers.
 
 ## Voice Output (Text-to-Speech)
 
-Junction can speak responses aloud using Amazon Polly. Two modes are available:
+Junction can speak responses aloud using AWS Polly. Two modes are available:
 
 ### Auto-Speak (Non-Interruptive Streaming)
 
@@ -146,7 +146,7 @@ synthesizes each sentence as soon as it's complete.
 **How it works:**
 1. The assistant starts streaming a response.
 2. As each sentence completes (detected by `.` `!` `?` boundaries), it's sent
-   to Amazon Polly for synthesis.
+   to AWS Polly for synthesis.
 3. Audio chunks arrive via WebSocket and play sequentially.
 4. When the response finishes, any remaining text is spoken.
 
@@ -218,7 +218,7 @@ Settings are in **Settings → Chat → Voice (TTS)**, or directly in
 | `provider` | `"polly"` | TTS backend: `"polly"` (AWS, cloud) or `"piper"` (local, offline). Invalid values fall back to `polly` with a warning logged. |
 | `auto_reply_to_voice` | _follows `enabled`_ | **Voice-triggered**: when the user sends a voice memo, auto-respond with voice. Defaults to whatever `enabled` is — set explicitly to override. |
 | **Polly-specific** | | ignored when `provider="piper"` |
-| `voice_id` | `Ruth` | Any [Amazon Polly voice](https://docs.aws.amazon.com/polly/latest/dg/voicelist.html) |
+| `voice_id` | `Ruth` | Any [AWS Polly voice](https://docs.aws.amazon.com/polly/latest/dg/voicelist.html) |
 | `engine` | `generative` | `generative`, `neural`, `long-form`, `standard` |
 | `rate` | `100%` | 50%–200% |
 | `pitch` | `+0%` | -20% to +20% (neural/standard only) |
@@ -270,7 +270,7 @@ Responses are cleaned for natural speech before synthesis:
 - Emoji, markdown formatting → stripped
 - Credentials → redacted
 
-### Prerequisites — Amazon Polly (`provider: "polly"`)
+### Prerequisites — AWS Polly (`provider: "polly"`)
 
 - **AWS credentials** with `polly:SynthesizeSpeech` permission. Junction
   calls the AWS CLI (`aws polly synthesize-speech`) under the hood, so any
@@ -286,7 +286,7 @@ Responses are cleaned for natural speech before synthesis:
 ### Prerequisites — Piper (`provider: "piper"`)
 
 Piper is a local, offline neural TTS — no credentials, no network. Good when
-you can't or don't want to use Amazon Polly.
+you can't or don't want to use AWS Polly.
 
 1. **Install piper-tts** into a Python 3.11 venv (PyPI wheels don't yet
    support Python 3.12):

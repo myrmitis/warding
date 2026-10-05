@@ -59,10 +59,10 @@ describe('SimpleSelect on a touch device', () => {
   it('optionLabels drive the row text while the value stays the option', () => {
     const onChange = vi.fn()
     render(
-      <SimpleSelect options={['piper', 'polly']} optionLabels={['Piper (local)', 'Amazon Polly']}
+      <SimpleSelect options={['piper', 'polly']} optionLabels={['Piper (local)', 'AWS Polly']}
         value="piper" onChange={onChange} aria-label="Provider" />
     )
-    expect(screen.getByRole('option', { name: 'Amazon Polly' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'AWS Polly' })).toBeInTheDocument()
     fireEvent.change(screen.getByRole('combobox', { name: 'Provider' }), { target: { value: 'polly' } })
     expect(onChange).toHaveBeenCalledWith('polly')
   })

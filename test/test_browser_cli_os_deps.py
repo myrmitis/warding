@@ -47,9 +47,9 @@ class TestFamilyDetection:
             ({"ID": "debian"}, mod.FAMILY_DEBIAN),
             # A derivative names itself in ID and its base only in ID_LIKE.
             ({"ID": "linuxmint", "ID_LIKE": "ubuntu debian"}, mod.FAMILY_DEBIAN),
-            # Amazon Linux 2023: the host this whole module exists for.
+            # AL2023: the host this whole module exists for.
             ({"ID": "amzn", "ID_LIKE": "fedora", "VERSION_ID": "2023"}, mod.FAMILY_RPM),
-            # Amazon Linux 2 omits ID_LIKE, so ID alone must resolve it.
+            # AL2 omits ID_LIKE, so ID alone must resolve it.
             ({"ID": "amzn", "VERSION_ID": "2"}, mod.FAMILY_RPM),
             ({"ID": "centos", "ID_LIKE": "rhel fedora"}, mod.FAMILY_RPM),
             ({"ID": "fedora"}, mod.FAMILY_RPM),
@@ -156,7 +156,7 @@ class TestTheManualRemedy:
 class TestTheHostValidationWarningIsAFailure:
     """Playwright reports a browser that cannot launch as a WARNING, and exits 0.
 
-    MEASURED on Amazon Linux 2023: with libraries missing, ``install-browser``
+    MEASURED on AL2023: with libraries missing, ``install-browser``
     prints the box below and exits 0. Reading the exit code alone reports the
     install as green and defers the real error to the user's first browse.
     """

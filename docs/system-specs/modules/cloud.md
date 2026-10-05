@@ -83,7 +83,7 @@ claim that a hostile in-process agent is fully contained.
 
 CloudFormation stack, one `aws cloudformation deploy` (change-set based), atomic
 rollback, one-command `delete-stack` teardown. AMI resolves from the public
-`resolve:ssm` Amazon-Linux-2023 alias per arch (no hardcoded AMI ids). A
+`resolve:ssm` AL2023 alias per arch (no hardcoded AMI ids). A
 `WaitCondition` + `cfn-signal` blocks the deploy until the gateway is healthy; a
 failed bootstrap folds the on-box setup-log tail into the signal reason so the
 cause survives the rollback.

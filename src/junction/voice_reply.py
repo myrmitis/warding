@@ -1,12 +1,12 @@
 """Junction voice reply — generate TTS audio and deliver it to the requesting surface.
 
 Post-response hook: strips markdown, generates audio via the configured
-TTS provider (Amazon Polly or local Piper), then delivers it back to the
+TTS provider (AWS Polly or local Piper), then delivers it back to the
 requesting surface (Slack thread upload, dashboard playback).
 Fire-and-forget — never blocks the text response.
 
 Supported providers:
-- ``polly``: OPTIONAL Amazon Polly via the ``aws polly synthesize-speech`` CLI.
+- ``polly``: OPTIONAL AWS Polly via the ``aws polly synthesize-speech`` CLI.
   Produces MP3. Requires the ``aws`` CLI on PATH plus valid AWS credentials +
   network. This module never imports ``boto3``/``botocore`` — Polly is driven
   entirely through the CLI subprocess, so the module imports cleanly on a
@@ -467,7 +467,7 @@ async def _synthesize_polly(
     aws_profile: str = "",
     region: str = "",
 ) -> str | None:
-    """Call Amazon Polly to generate MP3.  Returns temp file path or ``None``.
+    """Call AWS Polly to generate MP3.  Returns temp file path or ``None``.
 
     ``ssml`` may be SSML (starting with ``<speak``) or plain text;
     text-type is auto-detected from the leading ``<speak`` tag.

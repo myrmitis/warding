@@ -4686,7 +4686,7 @@
       },
       "voicePanel": {
         "failed_to_save_voice_config": "Failed to save voice config",
-        "amazon_polly_cloud": "Amazon Polly (cloud)",
+        "aws_polly_cloud": "AWS Polly (cloud)",
         "faster": "Faster",
         "fastest": "Fastest",
         "normal": "Normal",

@@ -4,8 +4,8 @@ Must run before any library (aiohttp, slack_sdk, requests) caches its
 default SSL context, otherwise every HTTPS call fails with
 CERTIFICATE_VERIFY_FAILED.
 
-Two distinct gaps, one fix: on Amazon Linux hosts, mise-installed
-Python looks for certs at ``/etc/ssl/`` but Amazon Linux stores them at
+Two distinct gaps, one fix: on AL2/AL2023 hosts, mise-installed
+Python looks for certs at ``/etc/ssl/`` but those distros store them at
 ``/etc/pki/tls/`` (the ``_CA_CANDIDATES`` file paths below). On macOS, a
 python.org/Homebrew/pyenv-built CPython ships no bundled CA store at all and
 does not read the OS Keychain via any of these file paths — the standard

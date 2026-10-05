@@ -189,7 +189,7 @@ class TestFeedbackIsConstrained(RoutesTestCase):
 
 class TestSitesShapeValidation(RoutesTestCase):
     async def test_sites_must_be_an_array_of_objects(self) -> None:
-        resp = await self.client.put(f"{_PREFIX}/sites", json={"sites": ["amazon"]})
+        resp = await self.client.put(f"{_PREFIX}/sites", json={"sites": ["example"]})
         self.assertEqual(resp.status, 400)
         self.assertEqual((await resp.json())["code"], "invalid_field_type")
 

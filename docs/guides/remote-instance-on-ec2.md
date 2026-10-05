@@ -17,7 +17,7 @@ plus the EC2-specific gotchas people actually hit (from `junction doctor`).
 | Inbound port on the box | needs inbound SSH (22), or a bastion | **none** |
 | Client secret | an SSH key | none — IAM (`ssm:StartSession`) |
 | Client tooling | `ssh` | `aws` CLI + `session-manager-plugin` |
-| On the box | `sshd` | the SSM agent (preinstalled on Amazon Linux) + an instance role for SSM |
+| On the box | `sshd` | the SSM agent (preinstalled on AL2023) + an instance role for SSM |
 | Access control | key possession | IAM, centrally grantable/revocable, CloudTrail-audited |
 | Best when | you already SSH to the box | the box has zero SSH ingress (the hardened default) |
 
@@ -62,7 +62,7 @@ These map to warnings in `junction doctor`.
 ### MCP tools all fail: "Sandbox backend unavailable … `allow_unsandboxed_exec` is not set"
 
 On Linux, agent subprocesses run inside a **user-namespace sandbox**. Many hardened
-Amazon Linux 2023 / corporate AMIs ship with **unprivileged user namespaces
+AL2023 / corporate AMIs ship with **unprivileged user namespaces
 disabled**, so no sandbox backend is available and every MCP server — and every
 spawn — fails closed. Pick one:
 

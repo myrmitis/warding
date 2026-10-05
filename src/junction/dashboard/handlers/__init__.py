@@ -580,8 +580,8 @@ def _list_prompts() -> list[dict[str, Any]]:
     return [dict(p) for p in result]
 
 
-# Paid-AWS-service consent — the operator's confirmation surface for Amazon
-# Polly (TTS) and Amazon Transcribe (STT). Sole writer of the keystone grant
+# Paid-AWS-service consent — the operator's confirmation surface for AWS
+# Polly (TTS) and AWS Transcribe (STT). Sole writer of the keystone grant
 # alongside the ``junction aws-consent`` CLI.
 from junction.dashboard.handlers.aws_consent import (  # noqa: E402, F401
     api_aws_consent_delete,

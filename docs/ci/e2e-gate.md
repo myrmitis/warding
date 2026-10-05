@@ -164,7 +164,7 @@ test_e2e`.
 
 ### The browser install is budgeted, and installs no apt packages
 
-The job's ceiling is `timeout-minutes: 25`, and the browser install is the step
+The job's ceiling is `timeout-minutes: 15`, and the browser install is the step
 that historically consumed it. It carries three constraints, all in service of
 leaving the specs enough of that budget to actually run:
 

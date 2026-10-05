@@ -120,7 +120,7 @@ spinner() {
 has() { command -v "$1" >/dev/null 2>&1; }
 
 # True only when a usable node is on PATH: present AND at or above the build's
-# supported floor. `has node` alone was not enough -- Amazon Linux 2023 ships
+# supported floor. `has node` alone was not enough -- AL2023 ships
 # node 18, so the "already installed" branch matched, every install branch
 # (including nvm) was skipped, and the frontend build then ran under an
 # unsupported node and produced no usable dist. A broken binary reports v0 and

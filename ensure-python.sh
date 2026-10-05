@@ -1,12 +1,12 @@
 #!/bin/bash
 # Ensure a Python >= 3.10 interpreter is available for the backend venv.
 # Called by: Makefile (backend), setup.sh
-# Platforms: macOS, Amazon Linux 2 (system python3 is 3.7), Amazon Linux 2023
+# Platforms: macOS, AL2 (system python3 is 3.7), AL2023
 #            (system python3 is 3.9), Linux
 #
 # The package requires Python >= 3.10 (pyproject `requires-python`; the code
-# uses stdlib features such as contextlib.aclosing that need 3.10). Amazon
-# Linux 2 ships Python 3.7 and Amazon Linux 2023 ships 3.9 as `python3`, so
+# uses stdlib features such as contextlib.aclosing that need 3.10). AL2
+# ships Python 3.7 and AL2023 ships 3.9 as `python3`, so
 # `python3 -m venv` produces a too-old venv and either `pip install -e .` fails
 # to resolve modern deps (AL2/3.7) or the install "succeeds" and then crashes at
 # import (AL2023/3.9). Prefer any already-usable system Python >= 3.10;
@@ -66,8 +66,8 @@ _mise_bin() {
 # named 'encodings'", failing ensurepip and the build. That is fatal wherever
 # venv copies the interpreter instead of symlinking it, which is the default for
 # framework builds on macOS. Resolve with Python rather than realpath(1) or
-# `readlink -f`, whose presence and flags differ across the macOS and Amazon
-# Linux targets above; the interpreter is already known to run by this point.
+# `readlink -f`, whose presence and flags differ across the macOS and AL2/AL2023
+# targets above; the interpreter is already known to run by this point.
 _resolve() {
     local real
     real="$("$1" -c 'import os, sys; print(os.path.realpath(sys.executable))' 2>/dev/null)"

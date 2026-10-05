@@ -14,6 +14,8 @@
     "mypy src/junction/",
     "python3 scripts/check_brand_name.py --test",
     "BASE=\"$(git merge-base HEAD origin/main)\" && BRAND_BASE_REF=\"$BASE\" python3 scripts/check_brand_name.py",
+    "python3 scripts/check_company_names.py --test",
+    "python3 scripts/check_company_names.py",
     "python3 scripts/check_harness_parity.py --test",
     "BASE=\"$(git merge-base HEAD origin/main)\" && HARNESS_BASE_REF=\"$BASE\" python3 scripts/check_harness_parity.py",
     "python3 scripts/check_loop_bound_locks.py --test",

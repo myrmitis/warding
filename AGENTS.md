@@ -119,6 +119,13 @@ This repo is a public OSS tree. Never re-add:
   Seal mark, the paper-and-night palette, Fraunces and IBM Plex Sans) is
   generated from [`assets/brand/build.py`](assets/brand/build.py); change it
   there, not by hand-editing a raster.
+- **The former parent company's name.** Prose, comments, docs and UI text name
+  the service or the distro (S3, Polly, AL2023), never the company.
+  `scripts/check_company_names.py` fails any tracked line that names it, except
+  the functional identifiers an external system defines and the code must spell
+  exactly (AWS hostnames, package and model ids, kiro-cli's own file names),
+  which are listed in `scripts/company-name-allowlist.txt`. Run it before
+  pushing; add an allowlist entry only with a reason in the PR.
 
 `scripts/scrub-lint.sh` gates `src/`, `website/src/`, `scripts/`, `config/`,
 `packaging/`, and the top level; keep `docs/` clean by convention. Rationale for
