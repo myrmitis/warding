@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check_company_names.py -- keep the former parent company's name out of the tree.
+"""check_company_names.py -- keep the retired company name out of the tree.
 
 Warding names the *service* or the *distro* it means (S3, Polly, AL2023), never
 the company that sells it. Some spellings still contain the name because an

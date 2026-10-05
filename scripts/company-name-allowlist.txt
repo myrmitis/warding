@@ -1,6 +1,6 @@
 # Allowlist for scripts/check_company_names.py.
 #
-# The gate fails on the former parent company's name anywhere in a tracked
+# The gate fails on the retired company name anywhere in a tracked
 # file, EXCEPT for the functional identifiers below: names that an external
 # system defined and that this code must spell exactly to work. Prose, comments,
 # docs and UI text name the service or the distro instead (S3, Polly, AL2023).

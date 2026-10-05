@@ -232,7 +232,7 @@ jobs:
           python3 scripts/check_brand_name.py --test
           python3 scripts/check_brand_name.py
 
-      - name: Check that no tracked line names the former parent company
+      - name: Check that no tracked line names the retired company name
         # Whole-tree on purpose, unlike the brand gate above: the tree is clean,
         # so any mention is a regression, and reading every tracked file takes a
         # few seconds. Functional identifiers an external system defines (AWS

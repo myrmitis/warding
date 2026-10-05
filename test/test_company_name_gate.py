@@ -1,6 +1,6 @@
 """Unit tests for scripts/check_company_names.py.
 
-The gate keeps the former parent company's name out of the tree except for the
+The gate keeps the retired company name out of the tree except for the
 functional identifiers an external system defines. Both directions get tests: a
 rule that silently stops matching turns the gate into a rubber stamp, and one
 that silently widens starts flagging the hostnames, package names and model ids

@@ -119,7 +119,7 @@ This repo is a public OSS tree. Never re-add:
   Seal mark, the paper-and-night palette, Fraunces and IBM Plex Sans) is
   generated from [`assets/brand/build.py`](assets/brand/build.py); change it
   there, not by hand-editing a raster.
-- **The former parent company's name.** Prose, comments, docs and UI text name
+- **The retired company name.** Prose, comments, docs and UI text name
   the service or the distro (S3, Polly, AL2023), never the company.
   `scripts/check_company_names.py` fails any tracked line that names it, except
   the functional identifiers an external system defines and the code must spell
