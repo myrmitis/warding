@@ -332,13 +332,17 @@ class TestKillProcessTree:
 
             return R()
 
+        trusted_taskkill = r"C:\Windows\System32\taskkill.exe"
         monkeypatch.setattr(ssm_mod.os, "name", "nt")
+        monkeypatch.setattr(
+            ssm_mod.platform_compat, "trusted_system_bin", lambda name: trusted_taskkill
+        )
         monkeypatch.setattr(ssm_mod.subprocess, "run", fake_run)
         ssm_mod.kill_port_forward(FakeProc())
 
         assert calls, "Windows must attempt a tree kill"
         argv = calls[0]
-        assert argv[0] == "taskkill"
+        assert argv[0] == trusted_taskkill, "taskkill must come from the trusted system dirs"
         assert "/T" in argv, "/T is what reaps the plugin child"
         assert "/F" in argv
         assert str(FakeProc.pid) in argv
