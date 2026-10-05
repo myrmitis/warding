@@ -1,0 +1,79 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import WardSeal from "../components/WardSeal.astro";
+import WardBars from "../components/WardBars.astro";
+import { site, siteHost } from "../data/site";
+import { organization } from "../lib/seo";
+
+/**
+ * /about/: the name explained once (brand-book §1), one person, one rule. No founder photo, no bio beyond the GitHub handle.
+ */
+const title = "About Warding Labs";
+const description = "One person, one rule: say what is true. The name explained once, and how to reach us.";
+const contact = `hello@${siteHost}`;
+---
+<PageLayout title={title} description={description} h1="About" lead="One person, one rule: say what is true." breadcrumbs={[{ label: "About", href: "/about/" }]} jsonLd={[organization()]}>
+  <div class="about">
+    <section class="block" aria-labelledby="name-h">
+      <div class="block-head">
+        <WardSeal size={56} />
+        <div>
+          <p class="eyebrow">The name</p>
+          <h2 id="name-h">Warding</h2>
+          <p class="caption">WAR-ding, like "warding off". One word, two syllables. Never Warden, never Ward.</p>
+        </div>
+      </div>
+      <div class="prose">
+        <p>In a lock, the <em>wards</em> are the fixed ridges that stop every wrong key from turning. They do not detect a bad key, log it, or ask it to leave: the key simply cannot rotate.</p>
+        <p>That is the shape of the product. The policy file lives on the keystone list, so Warding's own gate refuses every tool call that names it, read or write, before anyone is asked. The OS sandbox does not also hide it, and the cases where the gate can be bypassed are listed on <a href="/security/#scope">/security</a> rather than left for you to find.</p>
+        <p>The older sense is <em>warding off</em> harm, and <em>a ward</em>: something under protection. Your repository is the ward; Warding is what keeps watch over the house while you are out. That is why the lamp is in the tagline: the story is the night, and the name is the lock.</p>
+      </div>
+    </section>
+
+    <WardBars align="left" />
+
+    <section class="block" aria-labelledby="person-h">
+      <p class="eyebrow">One person</p>
+      <h2 id="person-h">Warding Labs is one person.</h2>
+      <div class="prose">
+        <p>The founder is <a href={`https://github.com/${new URL(site.githubRepo).pathname.split("/")[1]}`} rel="noopener">laqaer</a> on GitHub. There is no team page because there is no team, no office and no investors to name. The commits, the issues and the release notes are the record.</p>
+        <p>Warding has no token or coin, and never will.</p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="rule-h">
+      <p class="eyebrow">One rule</p>
+      <h2 id="rule-h">Say what is true.</h2>
+      <div class="prose">
+        <p>Every claim on this site is either true today or labelled: "in development", "planned", "unverified", or a status word next to an icon. A checkmark links to a dated row on <a href="/verified/">the verification log</a>, and a capability with no row is written as unverified even when we expect it to work.</p>
+        <p>The build enforces the rule. A test reads every rendered page and fails on the phrases we have decided never to use: the numbers we have not measured, the features that are not built, and the words other companies own. The list is in the repository, next to the pages.</p>
+        <p>What we do not claim is written down too, and signed: <a href="/#dont-claim">on the home page</a>.</p>
+      </div>
+    </section>
+
+    <WardBars align="left" />
+
+    <section class="block" aria-labelledby="contact-h">
+      <p class="eyebrow">Contact</p>
+      <h2 id="contact-h">Reach us.</h2>
+      <ul class="contact">
+        <li><span class="ui">Email</span> <a href={`mailto:${contact}`}>{contact}</a></li>
+        <li><span class="ui">Code, issues, discussions</span> <a href={site.githubRepo} rel="noopener">{site.githubRepo.replace("https://", "")}</a></li>
+        <li><span class="ui">Report a bypass</span> <a href={site.links.securityMd} rel="noopener">SECURITY.md</a></li>
+      </ul>
+      <p class="caption">Replies come from one person, so they arrive when the lamp is on.</p>
+    </section>
+  </div>
+</PageLayout>
+
+<style>
+  .about { display: grid; gap: 48px; max-width: 76ch; }
+  .block { display: grid; gap: 16px; }
+  .block-head { display: flex; gap: 20px; align-items: center; }
+  .block h2 { font-size: clamp(1.75rem, 1.4rem + 1vw, 2.25rem); }
+  .prose { display: grid; gap: 14px; color: var(--fg-2); font-size: 1.0625rem; }
+  .prose em { font-style: italic; color: var(--fg); }
+  .contact { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .contact li { display: grid; gap: 2px; }
+  .contact .ui { color: var(--fg-3); }
+</style>

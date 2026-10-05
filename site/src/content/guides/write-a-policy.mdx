@@ -1,0 +1,100 @@
+---
+title: "Write a policy your coding agent can't edit"
+description: "The keystone, profiles, POLICY ∩ PROFILE, deny rules and the audit log, with a worked example and how to read the effective permissions."
+h1: "Write the rules once. The agent can't open them."
+author: "laqaer"
+published: 2026-09-29
+harness: ""
+ogRegister: paper
+ogQualifier: "Keystone · POLICY ∩ PROFILE · a worked nightly-job profile"
+verified: []
+---
+
+Warding enforces its rules at its own gate, before a tool call runs, whatever the agent's own config says. Everything below works on every docked harness. It is unaudited by a third party; [/security/#scope](/security/#scope) lists where each control stops.
+
+The CLI is `warding`; <span data-alias>`junction`</span> is a silent alias for it.
+
+## Where the policy lives, and why the agent can't read it
+
+Two kinds of file, both in the data home:
+
+- `~/.junction/security_policy.json`: the **policy**, the ceiling for everything on this machine.
+- `~/.junction/profiles/*.json`: **profiles**, each one narrowing the ceiling for a single surface (a cron job, a chat channel, a subagent), an app, or a task.
+
+Both paths are on the keystone: the deny list of secret and policy paths the agent is refused at read and at write, through file tools and through shell read, write and extract verbs. You edit these files yourself, in your editor; the agent cannot open them, so it cannot learn where the edges are or move them. Profiles are reloaded when the file changes; the policy is read at start.
+
+With no policy file, the ceiling is the built-in secure defaults, and profiles narrow those. `warding policy show` says which is in force.
+
+## The two levels, and effective = POLICY ∩ PROFILE
+
+A call is allowed only when both the policy and the active profile allow it. The tightest answer wins. A profile can only narrow; it cannot grant what the policy withholds, and a few keys (update pins, the fallback) are policy-only and rejected in a profile.
+
+Rules are rulesets with a mode:
+
+- `"mode": "allow"` is a closed set: only what is listed is permitted.
+- `"mode": "deny"` is an open set: everything except what is listed is permitted.
+
+Command and path patterns are shell-style globs, case-sensitive; `*` also crosses `/`. A profile that fails to parse becomes deny-all, never the ceiling, so a typo locks the surface down rather than opening it.
+
+## A worked profile for a nightly job
+
+Save this as `~/.junction/profiles/nightly-build.json`. It binds to the cron surface, so it applies to scheduled runs only.
+
+```json
+{
+  "name": "nightly-build",
+  "bind": { "type": "surface", "id": "cron" },
+  "commands": {
+    "mode": "allow",
+    "allow": [
+      "npm test*", "npm run build*", "pytest*",
+      "git status*", "git diff*", "git add *", "git commit *",
+      "git push origin fix/*",
+      "gh pr create *"
+    ]
+  },
+  "filesystem": {
+    "read":  { "mode": "deny", "deny": ["~/.ssh/*", "~/.aws/*"] },
+    "write": { "mode": "deny", "deny": ["~/.ssh/*", "~/.aws/*"] }
+  }
+}
+```
+
+What it does at night:
+
+| The agent tries | Result |
+|---|---|
+| `npm test` | allowed by the profile |
+| `gh pr create --fill` | allowed by the profile |
+| `git push origin fix/auth-flake` | allowed by the profile; with tool approval on Interactive it still waits for your Approve in chat |
+| `git push origin main` | refused by a built-in deny rule before anyone is asked |
+| `curl https://example.com` | refused: not in the profile's allow set |
+| `cat ~/.ssh/id_ed25519` | refused: on the keystone, and denied by the profile too |
+
+The `~/.ssh` and `~/.aws` lines repeat what the keystone already refuses. They are there so the profile reads correctly on its own, and so it still says so if you ever copy it somewhere with a different ceiling.
+
+## Reading the effective permissions
+
+`warding charter` (in development) will render the effective permissions, profile by profile, as one page. Until it ships, use the policy CLI:
+
+```bash
+warding policy show          # the active policy and the deny-rule categories
+warding policy show --ids    # the same, with rule ids
+warding security deny-list   # every built-in denied-command pattern
+```
+
+The dashboard's **Settings → Security** page shows the same posture live.
+
+## Reading the audit log and verifying the chain
+
+Every decision at the gate is appended to `~/.junction/security_events.jsonl`. Each entry carries an HMAC-SHA256 over the entry before it, and the key lives in `~/.junction/trust/`, outside the log's directory. The log and the key are on the keystone too, so the agent can neither read nor rewrite them.
+
+`warding security audit` scans recent history for suspicious tool use. `warding security verify` checks the chain and reports how many entries verify and how many were tampered with. A green chain shows that nothing without the key edited the log afterwards; it does not show that every action was logged.
+
+## What this does not cover
+
+Some controls fail open, and they are listed in one table: [/security/#scope](/security/#scope). The two most relevant to a profile: a tool the harness pre-authorised can skip the gate, and app manifest permissions are advisory today. If you rely on a control that reads "open" there, do not run unattended.
+
+## Forwarding to a SIEM
+
+Central policy pushed to every machine and audit forwarding to your SIEM are not built. They are part of the Team tier, which is a free waitlist today: [/pricing/#team](/pricing/#team).

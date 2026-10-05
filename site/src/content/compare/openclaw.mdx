@@ -1,0 +1,49 @@
+---
+title: "OpenClaw alternative for coding: sandboxed, self-hosted"
+description: "Want an agent you can text from Telegram, but for real code work? Compare on agents, channels, sandboxing, policy and audit. Sources cited."
+h1: "Chat-reachable like OpenClaw, built for coding agents."
+competitor: "OpenClaw"
+ogRegister: paper
+ogQualifier: "OpenClaw's strengths first · primary sources only"
+verified: []
+sources:
+  - { label: "OpenClaw repository", url: "https://github.com/openclaw/openclaw" }
+  - { label: "NVD: CVE-2026-25253", url: "https://nvd.nist.gov/vuln/detail/CVE-2026-25253" }
+---
+import ChTable from "../../components/ChTable.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+OpenClaw is a general personal agent: it runs its own agent loop and skills, and you reach it from a long list of chat apps. If you want one assistant for life admin as well as code, OpenClaw is the bigger and more general project, with a very large community around it. {site.name} does something narrower. It docks the coding CLI you already pay for, and puts a policy the agent cannot open in front of it.
+
+## Where OpenClaw is ahead
+
+- **Breadth.** It is a general assistant, not only a coding tool, with a skills ecosystem to match.
+- **Channels.** It reaches more chat apps than our ten.
+- **Community.** A very large one, with the documentation, guides and fixes that brings. We have none yet.
+
+## The comparison
+
+<ChTable
+  head={["", "OpenClaw", site.name]}
+  rows={[
+    ["What runs", "its own agent loop and skills", "your coding agent's official CLI (Claude Code, Codex, Cursor and others; one chosen for chat) over ACP"],
+    ["Chat apps", "more than ours; see its repository", "ten: five with approve buttons, one typed, four chat-only"],
+    ["What it is for", "a general personal assistant", "coding work, scheduled and unattended"],
+    ["A policy the agent cannot read or edit", "not something we found documented; tell us if we missed it", "the policy files are keystone paths, refused at our own gate"],
+    ["Approval before a risky tool call", "see its documentation", "a gate before the tool runs; buttons in five chat apps"],
+    ["Audit log", "see its documentation", "hash-chained, of what was allowed and refused"],
+    ["Security record", "<a href=\"https://nvd.nist.gov/vuln/detail/CVE-2026-25253\" rel=\"noopener\">CVE-2026-25253</a> on the NVD", "unaudited; <a href=\"/security/\">the security page</a> states what is and is not enforced"],
+    ["Community", "very large", "none yet"],
+  ]}
+/>
+
+We cite only primary sources here. Figures about OpenClaw that circulate in secondary reports disagree with each other, so this page repeats none of them.
+
+## When to pick which
+
+Pick OpenClaw if you want one assistant for everything, reached from as many apps as possible. Pick {site.name} if what you want to text is a coding agent, and the thing you need is a written policy it cannot open, approvals before the risky step, and a log you can check the next morning.
+
+We do not try to out-channel OpenClaw. We try to be the one your security team can read.

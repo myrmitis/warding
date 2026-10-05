@@ -1,0 +1,17 @@
+[Unit]
+Description=Junction Gateway
+After=network.target
+StartLimitBurst=5
+StartLimitIntervalSec=300
+
+[Service]
+Type=simple
+ExecStart=JUNCTION_BIN up
+WorkingDirectory=/home/%u
+Restart=on-failure
+RestartSec=10
+Environment=HOME=/home/%u
+Environment=PATH=/home/%u/.local/bin:/home/%u/.nvm/versions/node/NVM_NODE_VERSION/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=default.target

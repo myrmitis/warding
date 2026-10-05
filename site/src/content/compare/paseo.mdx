@@ -1,0 +1,50 @@
+---
+title: "Paseo vs Warding: at the keyboard vs on the box"
+description: "Paseo runs several agents at once while you watch. Warding runs the agent you choose unattended, under a policy it can't edit. Use both."
+h1: "If you are at the keyboard, use Paseo."
+competitor: "Paseo"
+ogRegister: paper
+ogQualifier: "Paseo's strengths first · use both"
+verified: []
+sources:
+  - { label: "paseo.sh", url: "https://paseo.sh" }
+  - { label: "Paseo repository", url: "https://github.com/getpaseo/paseo" }
+---
+import ChTable from "../../components/ChTable.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+Paseo calls itself <q>The control plane for coding agents</q>, and at the keyboard it earns it. It runs agents in parallel while you watch, from more providers than we dock, with native clients for your phone, your desktop, the web and the terminal. It is free and Apache-2.0. If you are sitting in front of the work, it is the better tool, and we would rather say so here than have you find out later.
+
+## Where Paseo is ahead
+
+- **Breadth of providers.** More than thirty, against our eleven registered and mostly unverified.
+- **Several agents at once.** In parallel, while you watch. {site.name} runs the one harness you choose for chat; its router can send a spawned subagent to another installed harness in the background, unwatched and not yet verified.
+- **Clients.** A mobile app, a desktop client, the web and a CLI, and voice input. We have a web dashboard, a CLI and chat apps.
+- **Triggers.** Scheduling, and GitHub, Slack and Discord events.
+
+## The comparison
+
+<ChTable
+  head={["", "Paseo", site.name]}
+  rows={[
+    ["Built for", "working alongside several agents at the keyboard", "the agent you choose, working unattended, on a box that stays on"],
+    ["Agents at once", "several, in parallel", "one harness for chat, chosen in one setting; a spawned subagent can be routed to another (registered, unverified)"],
+    ["Providers", "more than thirty", "eleven registered, mostly unverified"],
+    ["Clients", "mobile, desktop, web, CLI, voice", "web dashboard, CLI, ten chat apps"],
+    ["Scheduling", "yes", "yes: cron and a template gallery"],
+    ["A policy the agent cannot read or edit", "not something we found documented", "keystone paths, refused at our own gate"],
+    ["Audit log", "not something we found documented", "hash-chained, of what was allowed and refused"],
+    ["OS sandbox", "not something we found documented", "where the host supports one; <a href=\"/security/\">the security page</a> says where"],
+  ]}
+/>
+
+If Paseo documents any of the rows we could not find, tell us and we will correct the table.
+
+## Use both
+
+Paseo when you are there to watch. {site.name} when you are not: the nightly build, the dependency bump, the triage that should be waiting for you at 07:00, each behind a policy the agent cannot open.
+
+Paseo for the day; {site.name} for the night.

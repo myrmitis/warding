@@ -1,0 +1,76 @@
+---
+title: "Run Claude Code or Codex from WhatsApp, self-hosted"
+description: "Pair WhatsApp with a QR code and send tasks to the agent on your own machine. Approvals are typed replies on WhatsApp, stated plainly."
+h1: "Your coding agent, in a WhatsApp chat"
+channel: whatsapp
+approval: typed
+ogRegister: paper
+ogQualifier: "QR pairing · typed approvals · owner-only"
+verified: []
+---
+import ChExchange from "../../components/ChExchange.astro";
+import StatusChip from "../../components/StatusChip.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+Scan a QR code once and the gateway joins your WhatsApp as a linked device, the same mechanism WhatsApp Web uses. There is no bot account and no Business API: you open "Message yourself", type a task, and the agent on your own machine answers in that chat. Approvals are typed: the agent asks a numbered question and you reply `1`, `2` or `3`. There are no tappable buttons on this channel, and we say so up front.
+
+<ChExchange
+  channel="WhatsApp · Message yourself"
+  harness="Codex"
+  time="23:05"
+  note="Codex on WhatsApp is not verified yet; see the dated log"
+  messages={[
+    { from: "you", text: "bump the lockfile, run the tests, open a PR if green", time: "23:05" },
+    { from: "agent", text: "Updating 14 packages. Running the suite.", time: "23:06" },
+    { from: "agent", text: "Approve <code>npm test</code>?<br />Reply <strong>1</strong> approve · <strong>2</strong> deny · <strong>3</strong> trust this session", time: "23:09" },
+    { from: "you", text: "1", time: "23:10" },
+    { from: "agent", text: "All green. PR opened: deps: weekly bump.", time: "23:24" },
+  ]}
+/>
+
+What each harness has been run with is on <a href="/verified/">the verification log</a>; a cell without a dated row there is unverified.
+
+## Read this before you link a number
+
+This channel speaks the unofficial WhatsApp Web protocol. Automating a personal account is against WhatsApp's terms, and WhatsApp does ban numbers for abusive automation. Personal-scale use has a long community track record, but the risk is not zero: do not link a number you cannot afford to lose. The channel ships no bulk-send features and rate-limits what it sends.
+
+## What works from WhatsApp today
+
+- **Your self-chat is the command line.** The agent answers there with your session's context. Its own replies are tracked by ID, so they are never mistaken for your commands.
+- **Typed approvals.** A tool that needs your say-so arrives as a numbered question. Reply `1` to approve, `2` to deny, or `3` to trust the rest of the session. No reply within five minutes is a deny. Only the linked account can answer; nobody else in a chat can approve anything.
+- **Replies stream** by editing the message in place, and long answers split at paragraph and code boundaries.
+- **Photos, voice notes and documents** work in both directions. A voice note is transcribed.
+- **Scheduled results can land here.** Cron jobs can deliver to a WhatsApp chat, from your own number.
+- **Commands**: `/new`, `/compact`, `/status`, `/stop` and `/help`.
+
+## Set it up
+
+1. **Install the WhatsApp extra** into the gateway's environment. From a source checkout:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{".venv/bin/pip install -e '.[whatsapp]'"}</code></pre>
+2. **Enable the channel.** This reports whether the extra is installed and turns `whatsapp.enabled` on; there is no token to collect:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`${site.cli} setup --whatsapp`}</code></pre>
+3. **Restart the gateway.** With the channel enabled and no session on disk, it starts pairing and holds a rotating code.
+4. **Pair.** In the dashboard, open **Settings → Channels → WhatsApp** and click **Show pairing code**. On your phone: WhatsApp, Settings, Linked devices, Link a device. The code rotates about every 20 seconds and the panel follows it.
+5. **Check the badge.** It reads **Connected** once the scan lands. The pairing is kept in the data home, so you scan once, not on every restart.
+
+To stop, **Unlink this device** in the same panel revokes it; your phone's Linked devices list is the revoke that always works.
+
+## Who can reach it
+
+`whatsapp.dm_policy` defaults to `self`: only the linked account, which is you, can command the agent. You can allow-list other numbers, but they never get approval or session-steering controls, and their turns run without your memory, lessons or history in the prompt. Groups are ignored unless you list them, and a listed group starts in mention-only mode. Unknown policy values deny everyone. Denials are written to the audit log.
+
+## Why not an official plugin?
+
+Anthropic's Channels plugin for Claude Code covers Telegram, Discord and iMessage; WhatsApp is not on its list. Community bridges exist, and we have not reviewed them, so we compare nothing here. What this page can state is what this channel does: the agent is the one you docked, running on your machine as a service; approvals are typed and only you can answer them; and a command on the built-in deny list, or a read of a keystone path such as `~/.ssh`, is refused before any question reaches your phone. <a href="/security/">The security page</a> names each mechanism.
+
+## Limits, stated plainly
+
+- **Typed, not tapped.** Approvals are numbered replies on this channel by design, because whether a button sent from a personal linked device renders is not something we can promise.
+- **Owner-only.** One person runs this gateway. There is no shared or team mode.
+- **One harness for chat**, chosen in one setting; a spawned subagent can be routed to another installed harness (registered, not verified).
+- **Terms of service.** See the warning above. We would rather you read it twice than lose a number.
+
+<StatusChip kind="typed" label="Approvals: typed reply" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/junction/docs/whatsapp-integration.md`} rel="noopener">Full WhatsApp reference in the repository</a>

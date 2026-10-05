@@ -1,0 +1,165 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import StatusChip from "../components/StatusChip.astro";
+import WardBars from "../components/WardBars.astro";
+import ApproveFromChatDemo from "../islands/ApproveFromChatDemo";
+import WaitlistForm from "../islands/WaitlistForm";
+import { site } from "../data/site";
+import { channels, channelCounts, APPROVAL_LABEL, type Channel } from "../data/channels";
+import ArrowRight from "@lucide/astro/icons/arrow-right";
+import Ban from "@lucide/astro/icons/ban";
+
+/**
+ * /approvals/ (site-spec §1): the gated-call flow, the Approve / Deny demo
+ * island, the honest per-channel matrix read from src/data/channels.ts, and a
+ * waitlist on each chat-only app. Counts come from channelCounts, never prose.
+ */
+const title = "Approve your coding agent's next step from chat";
+const description = "When your agent wants to run a command, get Approve / Deny in Slack, Telegram, Discord, Teams or Webex. Built-in deny rules never ask. Honest matrix.";
+const lead = "When the agent wants to run a gated tool call, it stops and the message lands in your chat with Approve and Deny. Your tap is recorded in the hash-chained log. Calls that hit a built-in deny rule or a keystone path are refused before anyone is asked.";
+
+const words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+const w = (n: number) => words[n] ?? String(n);
+const Cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+const how: Record<Channel["approval"], string> = {
+  buttons: "Approve / Deny buttons on the message.",
+  typed: "A numbered question: reply 1 to approve, 2 to deny, 3 to trust the session. No reply within five minutes denies. Only the linked account can answer.",
+  "chat-only": "Chat works. A gated call cannot be approved from this app today.",
+};
+const planned = (c: Channel) =>
+  c.approval !== "chat-only" ? "" : c.planned === "buttons" ? "Planned, not started: buttons." : c.planned === "typed" ? "Planned, not started: typed replies." : "Nothing scheduled; the list decides.";
+const chatOnly = channels.filter((c) => c.approval === "chat-only");
+
+const steps = [
+  { t: "The agent asks for a tool call.", d: "A shell command, a file write, an MCP call." },
+  { t: `${site.name}'s own gate checks it first.`, d: "Keystone paths, the built-in deny rules and POLICY ∩ PROFILE. A refusal here is final and is logged; nobody is asked." },
+  { t: "Anything left that needs approval waits for you.", d: "With tool approval set to Interactive, the call is held and the message goes to the chat the session is running in. The default is Auto: a fresh install runs whatever the gate allows without asking, so switch it in the dashboard's approval picker or set agent.approval_mode to interactive." },
+  { t: "You tap Approve or Deny.", d: "The call runs or it doesn't, and the decision is appended to the audit log." },
+];
+---
+<PageLayout title={title} description={description} h1="Approve before, not after." lead={lead} breadcrumbs={[{ label: "Approvals", href: "/approvals/" }]} ogSlug="approvals">
+  <div class="appr">
+    <section class="block two" aria-labelledby="how-h">
+      <div class="how">
+        <WardBars align="left" />
+        <h2 id="how-h">How a gated call reaches you</h2>
+        <ol class="steps">
+          {steps.map((s, i) => (
+            <li>
+              <span class="clock clock-22 step-n" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
+              <div><p class="step-t">{s.t}</p><p class="caption">{s.d}</p></div>
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div class="demo">
+        <ApproveFromChatDemo client:visible />
+        <p class="caption">Simulated demo: the buttons are real, the chat is not. Telegram approvals on Claude Code are being verified; see the <a href="/verified/">dated log</a>.</p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="never-h">
+      <WardBars align="left" />
+      <h2 id="never-h">Built-in denies never ask</h2>
+      <div class="never">
+        <div class="stamp-seal"><Ban class="lucide" aria-hidden="true" /> Refused · built-in rule</div>
+        <p class="measure">A deny rule is not a question. <code>git push origin main</code>, <code>rm -rf ~</code>, <code>curl … | sh</code> or a read of <code>~/.aws/credentials</code> is refused at the gate, logged, and never sent to your phone. You only get asked about what the rules allow. What is enforced where, and what fails open: <a href="/security/#scope">/security/#scope</a>.</p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="matrix-h">
+      <WardBars align="left" />
+      <h2 id="matrix-h">Which chat apps can approve</h2>
+      <p class="measure">{Cap(w(channelCounts.buttons))} apps with buttons. {Cap(w(channelCounts.typed))} typed. {Cap(w(channelCounts.chatOnly))} chat-only. Every one of the {w(channelCounts.total)} can chat with the agent; not every one can approve.</p>
+      <div class="table-scroll">
+        <table class="matrix appr-table">
+          <thead>
+            <tr><th scope="col">App</th><th scope="col">Approvals</th><th scope="col">How it works</th></tr>
+          </thead>
+          <tbody>
+            {channels.map((c) => (
+              <tr>
+                <th scope="row" data-label="App">{c.name}</th>
+                <td data-label="Approvals">
+                  {c.approval === "buttons" && <StatusChip kind="approved" label={APPROVAL_LABEL.buttons} />}
+                  {c.approval === "typed" && <StatusChip kind="typed" label={APPROVAL_LABEL.typed} />}
+                  {c.approval === "chat-only" && <StatusChip kind="info" label={APPROVAL_LABEL["chat-only"]} />}
+                </td>
+                <td data-label="How it works">{how[c.approval]}{planned(c) && <span class="caption planned"> {planned(c)}</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="caption">Setup for each app: <a href="/channels/">Channels <ArrowRight class="lucide lucide-inline" aria-hidden="true" /></a></p>
+    </section>
+
+    <section class="block" aria-labelledby="chatonly-h">
+      <WardBars align="left" />
+      <h2 id="chatonly-h">Want approvals in a chat-only app?</h2>
+      <p class="measure">None of this is built yet. Each list tells us which app to do first.</p>
+      <div class="wl-grid">
+        {chatOnly.map((c) => (
+          <div class="tile wl-card">
+            <div class="wl-head"><h3>{c.name}</h3><StatusChip kind="info" label="Chat only" /></div>
+            <p class="caption">{planned(c)}</p>
+            <WaitlistForm client:visible list={`approvals-${c.slug}`} label={`Tell me when ${c.name} can approve`} compact />
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="auto-h">
+      <WardBars align="left" />
+      <h2 id="auto-h">Auto-approve, and what it does not lift</h2>
+      <div class="measure prose">
+        <p>Tool approval defaults to Auto: nothing is held for you until you choose Interactive, per session in the dashboard's approval picker or for every session with <code>agent.approval_mode: interactive</code>. The <code>/yolo</code> grant, in a chat that supports it, lifts the question again for the whole process with one expiry, not per channel. Either way it skips the question, not the gate: keystone paths, the policy ceiling and the deny rules still refuse.</p>
+        <p class="allow-line"><StatusChip kind="coming" label="In development" /> <span>Allow until 07:00 is in development: a grant for one command that expires at dawn, then asks again.</span></p>
+      </div>
+    </section>
+  </div>
+</PageLayout>
+
+<style>
+  .appr { display: grid; gap: 72px; }
+  .block { display: grid; gap: 16px; min-width: 0; }
+  .two { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+  .how { display: grid; gap: 16px; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+  .steps li { display: grid; grid-template-columns: 44px 1fr; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .step-n { color: var(--seal); }
+  .step-t { font-weight: 600; }
+  .demo { display: grid; gap: 10px; }
+  .never { display: grid; gap: 12px; justify-items: start; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .appr-table th, .appr-table td { white-space: normal; }
+  .appr-table td:last-child { min-width: 30ch; }
+  .planned { display: block; margin-top: 4px; }
+  .wl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .wl-card { display: grid; gap: 10px; align-content: start; min-width: 0; }
+  .wl-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .wl-head h3 { font-size: 1.25rem; }
+  .prose { display: grid; gap: 12px; }
+  .allow-line { display: grid; gap: 6px; justify-items: start; }
+  :global(.lucide-inline) { width: 16px; height: 16px; vertical-align: -3px; display: inline-block; }
+  :global(.approve-demo) { max-width: 440px; }
+  :global(.approve-actions) { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  :global(.approve-demo .bubble p) { margin: 0; }
+  :global(.waitlist) { display: grid; gap: 8px; }
+  :global(.waitlist-row) { display: flex; gap: 8px; flex-wrap: wrap; }
+  :global(.waitlist input[type="email"]), :global(.waitlist input[type="text"]) {
+    flex: 1; min-width: 200px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 4px;
+    background: var(--surface); color: var(--fg); font: inherit;
+  }
+  :global(.waitlist-error) { color: var(--seal); font-weight: 500; }
+  :global(.copybox) { display: grid; gap: 8px; }
+  :global(.copybox pre) { background: var(--raised); padding: 12px; font-size: 0.875rem; }
+  @media (max-width: 900px) { .two { grid-template-columns: 1fr; } .wl-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) {
+    .appr-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .appr-table, .appr-table tbody, .appr-table tr { display: block; }
+    .appr-table tr { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; background: var(--surface); }
+    .appr-table th, .appr-table td { display: block; border: 0; padding: 4px 0; min-width: 0 !important; }
+  }
+</style>

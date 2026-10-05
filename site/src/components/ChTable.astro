@@ -1,0 +1,56 @@
+---
+/**
+ * A comparison table that stays legible on a phone. Above 720 px it is an
+ * ordinary table; below, each row becomes a small card whose cells carry
+ * their column name, so nothing scrolls sideways.
+ *
+ * Cells are plain strings with a small inline-markup allowance (`code`,
+ * `strong`, `a`), written by page authors in this repository, never user input.
+ * The first column is the row heading.
+ */
+interface Props {
+  head: string[];
+  rows: string[][];
+  caption?: string;
+  class?: string;
+}
+const { head, rows, caption = "", class: cls = "" } = Astro.props;
+---
+<div class={`ch-table ${cls}`}>
+  <table>
+    {caption && <caption class="caption">{caption}</caption>}
+    <thead>
+      <tr>{head.map((h, i) => (i === 0 ? <td class="corner">{h}</td> : <th scope="col">{h}</th>))}</tr>
+    </thead>
+    <tbody>
+      {rows.map((r) => (
+        <tr>
+          {r.map((cell, i) => (i === 0
+            ? <th scope="row" set:html={cell} />
+            : <td data-label={head[i]}><span set:html={cell} /></td>))}
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+<style>
+  .ch-table { max-width: 100%; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9375rem; }
+  caption { text-align: left; caption-side: top; padding-bottom: 12px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th { font-family: var(--font-sans); font-weight: 600; font-size: 0.8125rem; letter-spacing: 0.02em; color: var(--fg-2); border-bottom-color: var(--fg-3); }
+  thead td.corner { font-size: 0.8125rem; color: var(--fg-3); border-bottom-color: var(--fg-3); }
+  tbody th { font-weight: 500; color: var(--fg); width: 30%; }
+  td { color: var(--fg-2); }
+  td :global(strong) { color: var(--fg); }
+  td :global(code), th :global(code) { font-size: 0.875em; overflow-wrap: anywhere; }
+  @media (max-width: 720px) {
+    table, tbody, tr, th, td { display: block; width: auto; }
+    thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    caption { display: block; }
+    tbody tr { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 12px 14px; margin-bottom: 12px; }
+    tbody th { width: auto; padding: 0 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+    td { padding: 6px 0; border-bottom: 0; display: grid; grid-template-columns: minmax(84px, 38%) 1fr; gap: 12px; }
+    td::before { content: attr(data-label); font-size: 0.75rem; line-height: 1.6; color: var(--fg-3); font-weight: 600; letter-spacing: 0.02em; }
+  }
+</style>

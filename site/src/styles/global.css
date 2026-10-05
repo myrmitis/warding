@@ -1,0 +1,524 @@
+@import "tailwindcss";
+
+/* Self-hosted type (brand-book §8). No fonts.googleapis, ever. */
+@import "@fontsource-variable/fraunces/opsz.css";
+@import "@fontsource-variable/ibm-plex-sans/wght.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@font-face {
+  font-family: "Departure Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/DepartureMono-Regular.woff2") format("woff2");
+}
+
+/* Metric-compatible fallbacks so the swap does not shift layout. */
+@font-face {
+  font-family: "Fraunces Fallback";
+  src: local("Georgia"), local("Times New Roman");
+  size-adjust: 104%;
+  ascent-override: 92%;
+  descent-override: 24%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Plex Sans Fallback";
+  src: local("Arial"), local("Helvetica");
+  size-adjust: 101%;
+  ascent-override: 102%;
+  descent-override: 27%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Plex Mono Fallback";
+  src: local("Courier New");
+  size-adjust: 100%;
+  ascent-override: 102%;
+  descent-override: 26%;
+}
+@font-face {
+  font-family: "Departure Fallback";
+  src: local("Courier New");
+  size-adjust: 92%;
+  ascent-override: 90%;
+  descent-override: 20%;
+}
+
+/* ---------------------------------------------------------------------------
+   Colour tokens (brand-book §7). Paper on :root; Night under the media query
+   guarded by :root:not([data-theme="light"]), again under [data-theme="dark"],
+   and locally inside any `.vault` wrapper.
+   --------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+  --bg: #f3eee3;
+  --surface: #fbf8f1;
+  --raised: #fbf8f1;
+  --fg: #1a1814;
+  --fg-2: #5e584d;
+  --fg-3: #6f685b;
+  --line: #d9d0bf;
+  --seal: #b3301a;
+  --granted: #2e6b45;
+  --held: #8a5a00;
+  --lamp: #b86a00;
+  --lamp-glow: rgba(184, 106, 0, 0.14);
+  --link: #1f4fa8;
+  --foil: #c98a00;
+  --marker: #f5d547;
+  --btn-primary-bg: var(--seal);
+  --btn-primary-fg: var(--surface);
+  --shadow: none;
+  --grain-opacity: 0.045;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b0e14;
+    --surface: #141a26;
+    --raised: #1c2333;
+    --fg: #ece8e1;
+    --fg-2: #9aa3b5;
+    --fg-3: #8b93a7;
+    --line: #2a3244;
+    --seal: #ff7a5c;
+    --granted: #5ee6a0;
+    --held: #f5c542;
+    --lamp: #ffb547;
+    --lamp-glow: rgba(255, 181, 71, 0.15);
+    --link: #8ea8ff;
+    --foil: #c98a00;
+    --marker: #3a3418;
+    --btn-primary-bg: var(--lamp);
+    --btn-primary-fg: var(--bg);
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    --grain-opacity: 0;
+  }
+}
+
+:root[data-theme="dark"],
+.vault {
+  color-scheme: dark;
+  --bg: #0b0e14;
+  --surface: #141a26;
+  --raised: #1c2333;
+  --fg: #ece8e1;
+  --fg-2: #9aa3b5;
+  --fg-3: #8b93a7;
+  --line: #2a3244;
+  --seal: #ff7a5c;
+  --granted: #5ee6a0;
+  --held: #f5c542;
+  --lamp: #ffb547;
+  --lamp-glow: rgba(255, 181, 71, 0.15);
+  --link: #8ea8ff;
+  --foil: #c98a00;
+  --marker: #3a3418;
+  --btn-primary-bg: var(--lamp);
+  --btn-primary-fg: var(--bg);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --grain-opacity: 0;
+}
+
+/* The paper half of the homepage (and any `.paper` wrapper) stays paper in the
+   night scheme: the day/night split is the brand, so these are the Paper tokens
+   verbatim, re-declared locally the way `.vault` re-declares Night. */
+.paper {
+  color-scheme: light;
+  --bg: #f3eee3;
+  --surface: #fbf8f1;
+  --raised: #fbf8f1;
+  --fg: #1a1814;
+  --fg-2: #5e584d;
+  --fg-3: #6f685b;
+  --line: #d9d0bf;
+  --seal: #b3301a;
+  --granted: #2e6b45;
+  --held: #8a5a00;
+  --lamp: #b86a00;
+  --lamp-glow: rgba(184, 106, 0, 0.14);
+  --link: #1f4fa8;
+  --foil: #c98a00;
+  --marker: #f5d547;
+  --btn-primary-bg: var(--seal);
+  --btn-primary-fg: var(--surface);
+  --shadow: none;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* Tailwind theme mapping so utilities can reach the tokens. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-line: var(--line);
+  --color-seal: var(--seal);
+  --color-granted: var(--granted);
+  --color-held: var(--held);
+  --color-lamp: var(--lamp);
+  --color-link: var(--link);
+  --color-foil: var(--foil);
+  --color-marker: var(--marker);
+  --font-display: "Fraunces Variable", "Fraunces Fallback", Georgia, serif;
+  --font-sans: "IBM Plex Sans Variable", "Plex Sans Fallback", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", "Plex Mono Fallback", "Courier New", monospace;
+  --font-clock: "Departure Mono", "Departure Fallback", "Courier New", monospace;
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------- */
+html {
+  background: var(--bg);
+  scroll-behavior: auto;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  font-feature-settings: "kern", "liga";
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+/* Paper grain: static, tiled, never animated (brand-book §9). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.09 0 0 0 0 0.08 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+.vault {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 0, "WONK" 0;
+  font-optical-sizing: auto;
+  font-weight: 600;
+  margin: 0;
+  color: var(--fg);
+  letter-spacing: -0.012em;
+}
+h1 { font-size: clamp(2.75rem, 2rem + 3.2vw, 4.5rem); line-height: 1; text-wrap: balance; }
+h2 { font-size: clamp(2rem, 1.6rem + 1.4vw, 2.5rem); line-height: 1.1; text-wrap: balance; font-variation-settings: "SOFT" 0, "WONK" 0, "opsz" 96; }
+/* Display cuts: Fraunces at its largest optical size, no soft or wonky forms. */
+h1, .wordmark, .final h2 { font-variation-settings: "SOFT" 0, "WONK" 0, "opsz" 144; }
+h3 { font-size: 1.5rem; line-height: 1.25; font-weight: 500; }
+p { margin: 0; text-wrap: pretty; }
+a { color: var(--link); text-decoration-thickness: 1px; text-underline-offset: 0.15em; }
+a:hover { text-decoration-thickness: 2px; }
+code, kbd, pre { font-family: var(--font-mono); font-size: 0.9375rem; }
+:not(pre) > code {
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+  font-size: 0.92em;
+}
+pre {
+  margin: 0;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: auto;
+  line-height: 1.55;
+  border-radius: 4px;
+}
+*:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+::selection { background: var(--marker); color: var(--fg); }
+img, canvas, svg { display: block; max-width: 100%; }
+button { font: inherit; color: inherit; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Type roles (brand-book §8 scale)
+   --------------------------------------------------------------------------- */
+.lead { font-size: 1.25rem; line-height: 1.5; color: var(--fg-2); }
+.ui { font-size: 0.9375rem; line-height: 1.4; font-weight: 500; }
+.caption { font-size: 0.8125rem; line-height: 1.4; color: var(--fg-3); }
+/* Code inside a caption sits on a tinted chip, which drops fg-3 under 4.5:1. */
+.caption code, figcaption code { color: var(--fg-2); }
+.mono { font-family: var(--font-mono); }
+.clock {
+  font-family: var(--font-clock);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.clock-22 { font-size: 22px; line-height: 1; }
+.clock-33 { font-size: 33px; line-height: 1; }
+.clock-44 { font-size: 44px; line-height: 1; }
+.eyebrow {
+  font-family: var(--font-clock);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--lamp);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.display-italic { font-variation-settings: "SOFT" 0, "WONK" 1; font-style: italic; }
+.measure { max-width: 68ch; }
+.lucide-inline { display: inline-block; width: 1em; height: 1em; vertical-align: -0.15em; }
+
+/* ---------------------------------------------------------------------------
+   Layout
+   --------------------------------------------------------------------------- */
+.wrap { width: 100%; max-width: 1200px; margin-inline: auto; padding-inline: 24px; box-sizing: border-box; }
+.wrap-wide { width: 100%; max-width: 1360px; margin-inline: auto; padding-inline: 24px; box-sizing: border-box; }
+.section { padding-block: 96px; position: relative; }
+/* A grid column sized to its widest item lets one long <pre> push every line of
+   prose past a phone's edge; pin the track to the container instead. */
+.prose, .block, .reg, .vlog, .appr { grid-template-columns: minmax(0, 1fr); }
+.prose > *, .refusal > * { min-width: 0; }
+.refusal { grid-template-columns: minmax(0, 1fr); }
+/* Positioned so a visually hidden span inside a scrolled table stays clipped by it. */
+.table-scroll { position: relative; }
+.section-tight { padding-block: 64px; }
+@media (max-width: 720px) {
+  .wrap, .wrap-wide { padding-inline: 16px; }
+  .section { padding-block: 64px; }
+  .section-tight { padding-block: 48px; }
+}
+
+/* ---------------------------------------------------------------------------
+   Components
+   --------------------------------------------------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 10px 18px; border-radius: 4px;
+  font-family: var(--font-sans); font-size: 0.9375rem; font-weight: 500; line-height: 1.2;
+  text-decoration: none; border: 1px solid transparent; cursor: pointer;
+  transition: background-color 240ms cubic-bezier(.22,1,.36,1), border-color 240ms, transform 240ms;
+  box-sizing: border-box;
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
+.btn-primary:hover { filter: brightness(1.06); }
+.btn-outline { background: transparent; color: var(--fg); border-color: var(--fg); }
+.btn-outline:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.btn-quiet { background: transparent; color: var(--fg-2); border-color: var(--line); }
+.btn-quiet:hover { color: var(--fg); border-color: var(--fg-2); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; filter: none; }
+/* A "coming soon" state: legible text on a dashed outline, so it reads as a
+   status rather than a broken primary button. */
+.btn-soon, .btn-soon:hover {
+  background: transparent; color: var(--fg-2); cursor: default; filter: none; transform: none;
+  border: 1px dashed color-mix(in srgb, var(--fg) 30%, transparent);
+}
+.btn .lucide { width: 18px; height: 18px; stroke-width: 1.75; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line);
+  font-size: 0.8125rem; line-height: 1.4; font-weight: 500; color: var(--fg-2);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  white-space: nowrap;
+}
+.chip .lucide { width: 14px; height: 14px; stroke-width: 1.75; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: 0.9375rem; }
+.status .lucide { width: 16px; height: 16px; stroke-width: 1.75; flex: none; }
+.status-refused { color: var(--seal); }
+.status-approved, .status-granted { color: var(--granted); }
+.status-held, .status-pending { color: var(--held); }
+.status-running { color: var(--granted); }
+.status-info { color: var(--fg-2); }
+
+.ward-bars { display: flex; justify-content: center; gap: 4.5px; padding: 8px 0; }
+.ward-bars i { display: block; width: 14px; height: 2.5px; background: var(--seal); }
+.ward-bars-left { justify-content: flex-start; }
+
+.sheet {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  position: relative;
+}
+.sheet-foil::after {
+  content: ""; position: absolute; inset: 6px; pointer-events: none;
+  border: 0.5px solid var(--foil); opacity: 0.6;
+}
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+
+.plate { margin: 0; }
+.plate-frame { border: 1px solid var(--line); background: var(--surface); padding: 8px; position: relative; }
+.plate-frame::before {
+  content: ""; position: absolute; inset: 3px; border: 0.5px solid var(--line); pointer-events: none;
+}
+.plate figcaption { margin-top: 10px; font-size: 0.8125rem; line-height: 1.4; color: var(--fg-3); }
+.plate-num { font-family: var(--font-display); font-weight: 500; font-style: italic; color: var(--fg-2); }
+.plate-placeholder {
+  display: grid; place-items: center; min-height: 240px; text-align: center; padding: 24px;
+  color: var(--fg-3); background: repeating-linear-gradient(45deg, transparent 0 10px, color-mix(in srgb, var(--line) 50%, transparent) 10px 11px);
+}
+
+.phone {
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+  box-shadow: var(--shadow); padding: 14px; max-width: 360px; width: 100%; box-sizing: border-box;
+}
+.phone-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.8125rem; color: var(--fg-3); margin-bottom: 10px; }
+.bubble {
+  display: inline-block; max-width: 92%; padding: 9px 12px; border-radius: 8px;
+  background: var(--raised); color: var(--fg); font-size: 0.9375rem; line-height: 1.4;
+  border: 1px solid var(--line);
+}
+.bubble-you { background: var(--lamp-glow); border-color: transparent; }
+.bubble-time { display: block; margin-top: 4px; font-family: var(--font-clock); font-size: 11px; color: var(--fg-3); }
+.bubble-you .bubble-time { color: var(--fg-2); }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 16px;
+  border-radius: 999px; border: 1px solid transparent; font-weight: 600; font-size: 0.9375rem; cursor: pointer;
+}
+.pill .lucide { width: 16px; height: 16px; }
+.pill-approve { background: var(--granted); color: var(--bg); }
+.pill-deny { background: var(--seal); color: var(--bg); }
+.pill-dim { background: transparent; color: var(--fg-3); border-color: var(--line); cursor: not-allowed; }
+:root:not([data-theme="dark"]) .paper .pill-approve { color: var(--surface); }
+
+.terminal {
+  background: var(--raised); color: var(--fg); border: 1px solid var(--line); border-radius: 4px;
+  padding: 16px 18px; font-family: var(--font-mono); font-size: 0.875rem; line-height: 1.6; overflow-x: auto;
+}
+.terminal .prompt { color: var(--fg-3); user-select: none; }
+.terminal .ok { color: var(--granted); }
+.terminal .dim { color: var(--fg-3); }
+.terminal .amber { color: var(--lamp); }
+.paper .terminal { background: var(--surface); }
+/* Lamp amber is 3.9:1 on paper; held is the paper-safe amber. */
+.paper .terminal .amber { color: var(--held); }
+/* One-line evidence (an audit line, a rule excerpt, the quickstart) wraps rather
+   than hiding its tail behind a scrollbar nobody sees on a phone. */
+.terminal.sel-line code, .terminal.rule-block code { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* CLI output with prose values wraps at spaces rather than clipping. */
+.terminal.planes code { white-space: pre-wrap; }
+
+.stamp-seal {
+  display: inline-flex; align-items: center; gap: 10px; flex-wrap: nowrap; white-space: nowrap; max-width: 100%; box-sizing: border-box;
+  font-family: var(--font-clock); font-size: clamp(15px, 4.6vw, 22px); color: var(--seal);
+  border: 2.5px solid var(--seal); padding: 6px 12px; letter-spacing: 0.04em;
+  transform-origin: center; text-transform: uppercase;
+}
+.stamp-seal .lucide { width: 22px; height: 22px; stroke-width: 2; }
+@media (max-width: 480px) {
+  .stamp-seal { white-space: normal; flex-wrap: wrap; row-gap: 2px; }
+}
+
+.redact { position: relative; display: inline-block; }
+.redact::after {
+  content: ""; position: absolute; inset: -1px -2px; background: var(--fg); border-radius: 2px;
+  transform-origin: left; transform: scaleX(1);
+}
+
+details.faq { border-top: 1px solid var(--line); }
+details.faq:last-of-type { border-bottom: 1px solid var(--line); }
+details.faq summary {
+  cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center;
+  gap: 16px; padding: 16px 0; font-weight: 500; font-size: 1.0625rem;
+}
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq summary::after { content: "+"; font-family: var(--font-mono); color: var(--fg-3); }
+details.faq[open] summary::after { content: "–"; }
+details.faq .faq-body { padding: 0 0 18px; color: var(--fg-2); max-width: 68ch; }
+
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; box-shadow: var(--shadow); }
+.matrix { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+.matrix th, .matrix td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.matrix thead th { font-weight: 600; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-2); }
+.matrix tbody th { font-weight: 500; white-space: nowrap; }
+.matrix td { white-space: normal; }
+.matrix td.unv { color: var(--fg-3); font-size: 0.875rem; }
+
+.keystone-list { font-family: var(--font-mono); font-size: 0.875rem; line-height: 1.7; margin: 0; padding: 0; list-style: none; }
+.keystone-list li { overflow-wrap: anywhere; }
+.keystone-list li::before { content: "deny  "; color: var(--seal); white-space: pre; }
+
+/* The Night Office frame: a faint lamp glow over the upper-left of the room,
+   drawn above the canvas and ignored by the pointer. */
+.world-frame::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(55% 45% at 30% 28%, rgba(255, 181, 71, 0.12), transparent 70%);
+  mix-blend-mode: screen;
+}
+
+/* Islands (install tabs, approve demo, waitlist) — shared by every page that renders one. */
+.install { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); background: var(--surface); border-radius: 4px; }
+.install-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tabs { display: flex; gap: 4px; }
+.tab { min-height: 44px; padding: 6px 12px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; font-family: var(--font-mono); font-size: 0.875rem; color: var(--fg-2); }
+.tab.on { background: var(--raised); color: var(--fg); border-color: var(--line); }
+.install-pre { background: var(--raised); padding: 14px 16px; font-size: 0.9375rem; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+.install-pre .line { display: block; }
+.install-pre .prompt { color: var(--fg-3); user-select: none; }
+.panel { display: grid; gap: 10px; }
+.panel-note { margin: 0; }
+.install-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.copied { color: var(--granted); }
+.approve-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+.approve-demo .bubble p { margin: 0; }
+.waitlist { display: grid; gap: 8px; }
+.waitlist-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.waitlist input[type="email"], .waitlist input[type="text"] {
+  flex: 1; min-width: 200px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 4px;
+  background: var(--surface); color: var(--fg); font: inherit;
+}
+.waitlist-error { color: var(--seal); font-weight: 500; }
+.waitlist-q { display: grid; gap: 4px; }
+.copybox { display: grid; gap: 8px; }
+.copybox pre { background: var(--raised); padding: 12px; font-size: 0.875rem; }
+
+/* ---------------------------------------------------------------------------
+   Motion (brand-book §10). Nothing is at opacity 0 before JS: reveals only
+   arm once html.js-ready is present, and reduced motion disables them.
+   --------------------------------------------------------------------------- */
+.reveal { opacity: 1; }
+/* The observed element only fades: Chromium applies a target's own clip-path when
+   computing intersections, so the wipe lives on the children instead. */
+.js-ready .reveal:not(.in) { opacity: 0.001; }
+.js-ready .reveal:not(.in) > * { clip-path: inset(0 0 100% 0); }
+.js-ready .reveal.in { opacity: 1; transition: opacity 700ms cubic-bezier(.22,1,.36,1); }
+.js-ready .reveal.in > * { clip-path: inset(0 0 0 0); transition: clip-path 800ms cubic-bezier(.22,1,.36,1); }
+.js-ready .stamp:not(.stamped) { transform: scale(1.12); opacity: 0.001; }
+.js-ready .stamp.stamped { transform: scale(1); opacity: 1; transition: transform 180ms cubic-bezier(.2,1.4,.4,1), opacity 120ms; }
+.js-ready .redact::after { transform: scaleX(0); }
+.js-ready .redact.in::after { transform: scaleX(1); transition: transform 480ms steps(12); }
+.js-ready .slide-in:not(.in) { transform: translateX(32px); opacity: 0.001; }
+.js-ready .slide-in.in { transform: none; opacity: 1; transition: transform 400ms cubic-bezier(.22,1,.36,1), opacity 300ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .js-ready .reveal:not(.in), .js-ready .stamp:not(.stamped), .js-ready .slide-in:not(.in) { opacity: 1; transform: none; }
+  .js-ready .reveal:not(.in) > * { clip-path: none; }
+  .js-ready .redact::after { transform: scaleX(1); }
+  .js-ready .reveal.in, .js-ready .reveal.in > *, .js-ready .stamp.stamped, .js-ready .redact.in::after, .js-ready .slide-in.in { transition: none; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+/* Dawn: the page eases from night into paper between sections 6 and 7. */
+.dawn {
+  height: 220px;
+  /* Literal ends, not tokens: the band sits between a .vault and a .paper, so
+     neither token set applies to it and the page scheme must not leak in. */
+  background: linear-gradient(to bottom, #0b0e14 0%, #141a26 30%, #5e584d 64%, #d9d0bf 86%, #f3eee3 100%);
+}

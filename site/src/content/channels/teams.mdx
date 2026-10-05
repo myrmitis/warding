@@ -1,0 +1,53 @@
+---
+title: "Microsoft Teams for your coding agent, with approve buttons"
+description: "Owner-only coding agent in a Microsoft Teams 1:1 chat, with Approve / Deny cards on gated tool calls. Needs a public HTTPS URL you provide."
+h1: "Your coding agent in Microsoft Teams"
+channel: teams
+approval: buttons
+ogRegister: paper
+ogQualifier: "Approve cards · 1:1 chat only · needs a public HTTPS URL"
+verified: []
+---
+import StatusChip from "../../components/StatusChip.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+Teams works differently from the other channels, so read this first. Microsoft's Bot Framework pushes messages to an endpoint you host, which means the gateway needs a **public HTTPS URL** that reaches it: a reverse proxy that terminates TLS, a host with a public name, or a tunnel you run. {site.name} does not provide one. Once that is in place, you chat with the agent in a 1:1 personal chat.
+
+What has been run on which harness is on <a href="/verified/">the verification log</a>; a feature without a dated row there is unverified.
+
+## What works from Teams today
+
+- **Approve cards**: **Approve**, **Approve + auto-approve** and **Deny**. No answer within five minutes is a deny. Each card carries a one-time token, so an old one in your history reports that it is no longer waiting.
+- **Files you send are read**: images, text files, PDFs and Word documents; voice messages are transcribed when speech-to-text is installed.
+- **A progress message** that updates while tools run, then the final answer in the same message.
+
+## Set it up
+
+1. **Give the gateway a public HTTPS URL**, as above.
+2. **Install the Teams extra** into the gateway's environment. From a source checkout:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{".venv/bin/pip install -e '.[teams]'"}</code></pre>
+3. **Register an Azure Bot** in the Azure Portal. Note the App ID, create a client secret, add the **Microsoft Teams** channel, and set the messaging endpoint to your public URL plus `/api/messaging/teams`.
+4. **Save the credentials** in the data home's `.env`: `MICROSOFT_APP_ID`, `MICROSOFT_APP_PASSWORD` and, for a single-tenant bot, `MICROSOFT_APP_TENANT_ID`. The password is read from the environment only, never from `config.json`.
+5. **Allow yourself** in `config.json`:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`"teams": { "enabled": true, "allowed_emails": ["you@yourcompany.com"] }`}</code></pre>
+6. **Package the Teams app** in the Teams Developer Portal (a bot with your App ID, scope Personal, `supportsFiles` set to true), upload it, restart the gateway and open a 1:1 chat:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`${site.cli} restart`}</code></pre>
+
+## Who can reach it
+
+Anyone in your organisation can find a Teams bot, so the allow-list is the gate, and an empty one denies everyone. Channel and group chats are refused, because a reply there would show tool output to people who are not on the list. Every inbound request's token is checked against the Bot Framework signing keys before anything runs.
+
+## Limits, stated plainly
+
+- **Owner-only.** One person runs this gateway, as themselves, with their files and credentials. There is no shared or team mode.
+- **One harness for chat.** The docked harness answers every channel; switching is one setting. A spawned subagent can be routed to another installed harness; that is registered, not verified.
+- **Your box has to stay on.** Nothing of ours runs in the cloud.
+- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) relies on the agent's own tools, which reach kiro-cli only today. On other harnesses, schedule from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
+- **A public HTTPS URL is on you.** There is no tunnel built in.
+- **Approve + auto-approve is machine-wide.** It is the same grant as the dashboard toggle and `/yolo`, and it still cannot approve what a deny rule refuses.
+- **No token streaming and no model picker in Teams**, and only PNG or JPEG images can be sent back as files.
+
+<StatusChip kind="approved" label="Approvals: buttons" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/junction/docs/teams-integration.md`} rel="noopener">Full reference in the repository</a>

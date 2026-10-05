@@ -1,0 +1,12 @@
+---
+/** The charter sheet: --surface, square corners, hairline, optional 0.5 px foil rule. */
+interface Props { foil?: boolean; class?: string; padded?: boolean }
+const { foil = false, class: cls = "", padded = true } = Astro.props;
+---
+<div class={`sheet ${foil ? "sheet-foil" : ""} ${padded ? "sheet-pad" : ""} ${cls}`}>
+  <slot />
+</div>
+<style>
+  .sheet-pad { padding: 32px; }
+  @media (max-width: 720px) { .sheet-pad { padding: 20px 16px; } }
+</style>

@@ -1,0 +1,53 @@
+---
+/**
+ * A chat exchange drawn in the PhoneCard frame, for the channel pages. It is
+ * an illustration written from the channel's documented behaviour, not a
+ * capture, and says so in its caption every time. Message text allows small
+ * inline markup (`code`, `strong`) written by page authors in this repository.
+ *
+ * `choices` renders the in-chat controls a message carries (Approve / Deny /
+ * Trust on a button channel) as inert labels: they are part of the picture,
+ * not something the reader can press.
+ */
+import PhoneCard from "./PhoneCard.astro";
+
+interface Message {
+  from: "you" | "agent";
+  text: string;
+  time: string;
+  choices?: string[];
+}
+interface Props {
+  channel: string;
+  harness: string;
+  time?: string;
+  messages: Message[];
+  note?: string;
+}
+const { channel, harness, time = "", messages, note = "" } = Astro.props;
+---
+<figure class="ch-exchange">
+  <PhoneCard channel={channel} harness={harness} time={time}>
+    <div class="thread">
+      {messages.map((m) => (
+        <div class={`bubble ${m.from === "you" ? "bubble-you" : ""}`}>
+          <span set:html={m.text} />
+          {m.choices && m.choices.length > 0 && (
+            <span class="choices" role="list" aria-label="In-chat controls, illustrated">
+              {m.choices.map((c) => <span class="choice" role="listitem">{c}</span>)}
+            </span>
+          )}
+          <span class="bubble-time">{m.time} · {m.from === "you" ? "you" : harness}</span>
+        </div>
+      ))}
+    </div>
+  </PhoneCard>
+  <figcaption class="caption">Illustration of the exchange · not a recording{note && <> · {note}</>}</figcaption>
+</figure>
+<style>
+  .ch-exchange { margin: 8px 0; max-width: 420px; display: grid; gap: 8px; }
+  .thread { display: grid; gap: 8px; }
+  .bubble-you { justify-self: end; }
+  .choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .choice { font-size: 0.8125rem; font-weight: 500; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--raised); color: var(--fg); }
+</style>

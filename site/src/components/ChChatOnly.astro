@@ -1,0 +1,31 @@
+---
+/**
+ * The chat-only notice for the four channels without in-chat approvals. Reads
+ * the planned mode from src/data/channels.ts so the page never promises more
+ * than the backlog says, then offers the waitlist.
+ */
+import StatusChip from "./StatusChip.astro";
+import WaitlistForm from "../islands/WaitlistForm";
+import { channels } from "../data/channels";
+
+interface Props { slug: string }
+const { slug } = Astro.props;
+const ch = channels.find((c) => c.slug === slug);
+if (!ch) throw new Error(`ChChatOnly: unknown channel ${slug}`);
+const plan = ch.planned === "buttons"
+  ? "Approve / Deny buttons for this app are planned, not built."
+  : ch.planned === "typed"
+    ? "Typed approvals for this app (reply 1 or 2, as on WhatsApp) are planned, not built."
+    : "In-chat approvals for this app are not planned yet. If the list asks, that sets the order.";
+---
+<aside class="ch-chatonly sheet" aria-labelledby={`chatonly-${slug}`}>
+  <p id={`chatonly-${slug}`} class="head"><StatusChip kind="info" label="Chat only today" /></p>
+  <p>{ch.name} can talk to your agent, but it cannot answer an approval prompt. When the agent wants to run a tool that needs your say-so, the request is declined, unless you have turned on the machine-wide auto-approve grant from the dashboard. That grant expires on its own, and the built-in deny rules and the keystone paths still refuse what they refuse.</p>
+  <p>{plan}</p>
+  <WaitlistForm client:visible list={`channel-approvals-${slug}`} label={`Tell me when approvals reach ${ch.name}`} compact />
+</aside>
+<style>
+  .ch-chatonly { display: grid; gap: 12px; padding: 20px; margin: 8px 0; }
+  .ch-chatonly p { color: var(--fg-2); }
+  .head { margin: 0; }
+</style>

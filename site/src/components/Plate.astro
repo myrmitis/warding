@@ -1,0 +1,61 @@
+---
+/**
+ * An engraved plate: a figure whose caption MUST name the harness (or the
+ * dashboard capture with "no agent connected") and the date. The structure
+ * test asserts it on every `figure[data-shot]`.
+ *
+ * With `src` (an imported image) the plate renders a real, current capture,
+ * compressed to AVIF/WebP at build and cropped by CSS to `crop` (a fraction of
+ * the source width to drop from the left, e.g. the dashboard sidebar) so the
+ * content area, not the chrome, is what shows.
+ */
+import { Picture } from "astro:assets";
+import type { ImageMetadata } from "astro";
+
+interface Props {
+  num: string; // "I", "II"
+  title: string;
+  caption: string; // e.g. "Dashboard · Schedule calendar · 2026-09-26 · no agent connected"
+  note?: string;
+  src?: ImageMetadata;
+  alt?: string;
+  /** Fraction of the source width hidden on the left. */
+  crop?: number;
+  /** Fraction of the source height hidden on the top. */
+  cropTop?: number;
+  /** Fraction of the source width hidden on the right. */
+  cropRight?: number;
+  /** Fraction of the source height hidden on the bottom. */
+  cropBottom?: number;
+  class?: string;
+  sizes?: string;
+}
+const { num, title, caption, note = "", src, alt = "", crop = 0, cropTop = 0, cropRight = 0, cropBottom = 0, class: cls = "", sizes = "(min-width: 1200px) 560px, 92vw" } = Astro.props;
+const visibleW = src ? src.width * (1 - crop - cropRight) : 4;
+const visibleH = src ? src.height * (1 - cropTop - cropBottom) : 3;
+const ratio = visibleW / visibleH;
+const scaleX = 1 / (1 - crop - cropRight);
+const scaleY = 1 / (1 - cropTop - cropBottom);
+const style = `--ratio:${ratio.toFixed(4)};--ox:${(-crop * scaleX * 100).toFixed(3)}%;--oy:${(-cropTop * scaleY * 100).toFixed(3)}%;--sx:${(scaleX * 100).toFixed(3)}%;--sy:${(scaleY * 100).toFixed(3)}%`;
+---
+<figure class={`plate ${cls}`} data-shot style={style}>
+  <div class="plate-frame">
+    {src ? (
+      <div class="plate-crop">
+        <Picture src={src} alt={alt || `${title}: ${caption}`} formats={["avif"]} fallbackFormat="webp" widths={[720, 1120, 1600]} sizes={sizes} loading="lazy" decoding="async" />
+      </div>
+    ) : (
+      <div class="plate-placeholder">
+        <p><span class="plate-num">Plate {num}.</span> {title}<br /><span class="caption">Capture pending: this plate will hold a real screenshot with its harness and date in the frame.</span></p>
+      </div>
+    )}
+  </div>
+  <figcaption><span class="plate-num">Plate {num}.</span> {title} — {caption}{note && <><br /><span>{note}</span></>}</figcaption>
+</figure>
+<style>
+  .plate-crop { position: relative; overflow: hidden; aspect-ratio: var(--ratio); background: var(--raised); }
+  .plate-crop :global(picture) {
+    position: absolute; left: var(--ox); top: var(--oy); width: var(--sx); height: var(--sy); display: block;
+  }
+  .plate-crop :global(img) { position: static; display: block; width: 100%; height: 100%; max-width: none; object-fit: fill; }
+</style>

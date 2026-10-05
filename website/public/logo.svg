@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="ward-seal" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Warding">
+  <title>Warding</title>
+  <!-- The Ward Seal. Colours come from the surface it sits on: an inlined copy picks
+       up --ink / --seal from the page, a standalone file follows the colour scheme.
+       The shaft is drawn in segments so the ward bars cut through it on any background. -->
+  <style>
+    .ward-seal { --ward-ink: var(--ink, #1A1814); --ward-seal: var(--seal, #B3301A); }
+    @media (prefers-color-scheme: dark) {
+      .ward-seal { --ward-ink: var(--ink, #ECE8E1); --ward-seal: var(--seal, #FF7A5C); }
+    }
+  </style>
+  <circle cx="32" cy="32" r="28" fill="none" stroke="var(--ward-ink)" stroke-width="2.5"/>
+  <circle cx="32" cy="32" r="24" fill="none" stroke="var(--ward-ink)" stroke-width="0.75"/>
+  <circle cx="32" cy="25" r="6" fill="var(--ward-ink)"/>
+  <rect x="29" y="28" width="6" height="5" fill="var(--ward-ink)"/>
+  <rect x="29" y="35.5" width="6" height="2" fill="var(--ward-ink)"/>
+  <rect x="29" y="40" width="6" height="2" fill="var(--ward-ink)"/>
+  <rect x="29" y="44.5" width="6" height="1.5" fill="var(--ward-ink)"/>
+  <rect x="25" y="33" width="4" height="2.5" fill="var(--ward-seal)"/>
+  <rect x="35" y="33" width="4" height="2.5" fill="var(--ward-seal)"/>
+  <rect x="25" y="37.5" width="4" height="2.5" fill="var(--ward-seal)"/>
+  <rect x="35" y="37.5" width="4" height="2.5" fill="var(--ward-seal)"/>
+  <rect x="25" y="42" width="4" height="2.5" fill="var(--ward-seal)"/>
+  <rect x="35" y="42" width="4" height="2.5" fill="var(--ward-seal)"/>
+  <rect x="44" y="18" width="3" height="3" fill="var(--ward-seal)"/>
+</svg>

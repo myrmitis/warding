@@ -1,0 +1,72 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import WardBars from "../components/WardBars.astro";
+import { site, siteHost } from "../data/site";
+
+/**
+ * /privacy/ (site-spec §8): a plain-language summary. What the site collects
+ * reads the live config (analytics provider, waitlist chain), so the page
+ * changes when the owner configures one rather than drifting from it.
+ */
+const title = `${site.name} privacy`;
+const description = "A plain-language summary: this site collects nothing unless cookieless analytics is on, where a waitlist email goes, and what the product sends.";
+const contact = `hello@${siteHost}`;
+const analytics = site.analytics.provider;
+const wl = site.waitlist;
+const updated = "2026-09-29";
+---
+<PageLayout endBand={false} title={title} description={description} h1="Privacy" lead={`A plain-language summary, not a contract drafted by a lawyer. It covers this website and the ${site.name} software. Updated ${updated}.`} breadcrumbs={[{ label: "Privacy", href: "/privacy/" }]} ogSlug="privacy">
+  <div class="legal prose measure">
+    <section aria-labelledby="site-h">
+      <WardBars align="left" />
+      <h2 id="site-h">This website</h2>
+      <p>The site collects nothing about you unless analytics is configured.{" "}
+        {analytics
+          ? <>Analytics is configured today ({analytics}): it is cookieless, counts page views and a few named clicks (copying the install command, a demo button), and never receives an email address.</>
+          : <>No analytics script is configured today, so none is loaded.</>}
+        {" "}If analytics is turned on later, it will be a cookieless provider, and this page will name it.</p>
+      <p>There are no tracking cookies. Your theme choice and any waitlist address you type are kept in your own browser's storage so a reload remembers them; they are not sent anywhere by that.</p>
+      <p>The static host that serves these pages keeps its own standard request logs, under its own policy.</p>
+    </section>
+
+    <section aria-labelledby="wl-h">
+      <WardBars align="left" />
+      <h2 id="wl-h">Where a waitlist email goes</h2>
+      <p>There is no mailing-list backend yet. When you join a list, the form tries these in order and uses the first one that is set up:</p>
+      <ol>
+        <li>A list endpoint we configure{wl.endpoint ? " (set up today)" : " (not set up today)"}: it receives your email, the list name and any answers you typed.</li>
+        <li>Your own mail app, with a message to us prefilled{wl.mailto ? " (set up today)" : " (not set up today)"}. Nothing is sent until you press send.</li>
+        <li>A GitHub Discussion{wl.discussionUrl ? " (set up today)" : " (not set up today)"}: you post the reply yourself, under your GitHub account, in public.</li>
+        <li>With none of those set up, the form does not take an address at all and points you to the repository.</li>
+      </ol>
+      <p>We use a waitlist address only to tell you about the thing you signed up for. We do not sell, rent or share it.</p>
+    </section>
+
+    <section aria-labelledby="product-h">
+      <WardBars align="left" />
+      <h2 id="product-h">The software</h2>
+      <p>{site.name} runs on your machine. Its data home, sessions, memory and audit log stay there. The default build sends nothing to us: there is no server of ours in the loop and no telemetry to us by default.</p>
+      <p>It does talk to the services you point it at: your agent vendor, through the vendor's own CLI under your login, and the chat apps you connect. What those services do with the data is covered by their terms, not ours.</p>
+      <p>One download is not yours to choose by default: the embedding model is fetched from a third-party CDN address the first time embeddings are used, and checked against a pinned hash. You can point <code>memory.embed_model_url</code> at a mirror, or supply your own model file, to avoid it.</p>
+    </section>
+
+    <section aria-labelledby="pay-h">
+      <WardBars align="left" />
+      <h2 id="pay-h">If you pay us</h2>
+      <p>Founding Supporter checkouts run on Polar; setup sessions and pilots on Stripe. They handle the card details; we receive your name, email and what you bought.</p>
+    </section>
+
+    <section aria-labelledby="contact-h">
+      <WardBars align="left" />
+      <h2 id="contact-h">Contact</h2>
+      <p>Questions, or a request to delete what we hold about you: <a href={`mailto:${contact}`}>{contact}</a>. {site.company} is one person; you will get a person.</p>
+    </section>
+  </div>
+</PageLayout>
+
+<style>
+  .legal { display: grid; gap: 48px; }
+  .legal section { display: grid; gap: 12px; }
+  .legal p, .legal li { color: var(--fg-2); }
+  .legal ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+</style>

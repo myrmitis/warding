@@ -1,0 +1,52 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import WardBars from "../components/WardBars.astro";
+import { site, siteHost } from "../data/site";
+
+/** /terms/ (site-spec §8): a plain-language summary of the licence and the paid items' refund terms. */
+const title = `${site.name} terms`;
+const description = "A plain-language summary: Apache-2.0 software with no warranty, refund terms for setup, pilots and Founding Supporter, and what is not promised.";
+const contact = `hello@${siteHost}`;
+const updated = "2026-09-29";
+---
+<PageLayout endBand={false} title={title} description={description} h1="Terms" lead={`A plain-language summary of the terms, not a contract drafted by a lawyer. Where a checkout or a written scope says more, that document wins. Updated ${updated}.`} breadcrumbs={[{ label: "Terms", href: "/terms/" }]} ogSlug="terms">
+  <div class="legal prose measure">
+    <section aria-labelledby="lic-h">
+      <WardBars align="left" />
+      <h2 id="lic-h">The software</h2>
+      <p>{site.name} is free and open source under the <a href="https://www.apache.org/licenses/LICENSE-2.0" rel="noopener">Apache License 2.0</a>.</p>
+      <p>As the licence says, it comes as is, without warranty. It is unaudited by a third party and maintained by a single owner. Read <a href="/security/#scope">what is enforced where</a> before you let it run unattended.</p>
+      <p>Your agent vendor's plan limits and their terms for unattended use apply to anything you run through it, and may change.</p>
+    </section>
+
+    <section aria-labelledby="refund-h">
+      <WardBars align="left" />
+      <h2 id="refund-h">Paid items and refunds</h2>
+      <ul>
+        <li><strong>Setup sessions and design-partner pilots</strong> (paid through Stripe) have a written scope agreed before you pay. If the written outcome is not reached, you get a full refund.</li>
+        <li><strong>Founding Supporter</strong> (paid through Polar, the merchant of record): a full refund within 14 days, no questions.</li>
+        <li>Anything labelled "in development" or "Waitlist" is not what you are buying. Joining a waitlist is free and commits you to nothing.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="site-h">
+      <WardBars align="left" />
+      <h2 id="site-h">This website</h2>
+      <p>The pages describe the software as it is on the date they were built. Where a capability is unverified or in development, the page says so; the dated record is on <a href="/verified/">/verified</a>. If you find a claim that overstates, <a href={site.githubRepo} rel="noopener">open an issue</a>.</p>
+    </section>
+
+    <section aria-labelledby="contact-h">
+      <WardBars align="left" />
+      <h2 id="contact-h">Contact</h2>
+      <p>{site.company}: <a href={`mailto:${contact}`}>{contact}</a>. Security reports go through <a href={site.links.securityMd} rel="noopener">SECURITY.md</a>, not email.</p>
+    </section>
+  </div>
+</PageLayout>
+
+<style>
+  .legal { display: grid; gap: 48px; }
+  .legal section { display: grid; gap: 12px; }
+  .legal p, .legal li { color: var(--fg-2); }
+  .legal ul { margin: 0; padding-left: 20px; display: grid; gap: 10px; }
+  .legal strong { color: var(--fg); }
+</style>

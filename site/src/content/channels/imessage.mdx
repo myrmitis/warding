@@ -1,0 +1,58 @@
+---
+title: "iMessage chat for your coding agent (chat only today)"
+description: "Chat with your coding agent from iMessage today. In-chat approvals are planned, not built: typed replies for iMessage. Join the list."
+h1: "Chat from iMessage. Approvals are planned."
+channel: imessage
+approval: chat-only
+ogRegister: paper
+ogQualifier: "Chat only today · the gateway runs on your Mac"
+verified: []
+---
+import StatusChip from "../../components/StatusChip.astro";
+import ChChatOnly from "../../components/ChChatOnly.astro";
+import ChPluginCompare from "../../components/ChPluginCompare.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+Message your agent from the Messages app on your iPhone, iPad, Watch or the Mac itself. There is no bot to register and no token: the gateway talks to Messages.app on the same Mac, so the conversation is not relayed through anyone else's server. You can message your own handle from another device.
+
+<ChChatOnly slug="imessage" />
+
+What has been run on which harness is on <a href="/verified/">the verification log</a>; a feature without a dated row there is unverified.
+
+## What works from iMessage today
+
+- **Chat**: you send a task, the agent answers with its final reply, split across messages if it is long. A typing indicator shows while it works; tool activity stays in the gateway.
+- **Commands**: `/new`, `/compact` and `/help`.
+- **Code blocks pass through exactly**, so what you copy out of a message is what the agent wrote.
+
+## Set it up
+
+1. **Run the gateway on the Mac that is signed in to Messages** (macOS 14 or newer). The channel refuses to start anywhere else, because sends would fail.
+2. **Install the `imsg` bridge**, a small open-source CLI:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>brew install steipete/tap/imsg</code></pre>
+3. **Grant two permissions** to whatever launches the gateway: Full Disk Access, to read the Messages database, and Automation → Messages, to send.
+4. **Allow your own handle** in `config.json`, a phone number or your Apple Account email:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`"imessage": { "enabled": true, "allowed_handles": ["+15551234567"] }`}</code></pre>
+5. **Restart the gateway** and say hi:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`${site.cli} restart`}</code></pre>
+
+## Who can reach it
+
+Anyone who knows your number can text it, so the allow-list is the whole gate: an empty one authorises nobody, and a message from an unlisted handle gets no reply at all. Group chats are refused, because a reply would deliver tool output to everyone in the thread.
+
+## Why not the official plugin?
+
+<ChPluginCompare slug="imessage" />
+
+## Limits, stated plainly
+
+- **Owner-only.** One person runs this gateway, as themselves, with their files and credentials. There is no shared or team mode.
+- **One harness for chat.** The docked harness answers every channel; switching is one setting. A spawned subagent can be routed to another installed harness; that is registered, not verified.
+- **Mac only**, and the gateway must run on that Mac, which has to stay awake.
+- **No attachments, tapbacks, edits or group chats** in this version.
+- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) relies on the agent's own tools, which reach kiro-cli only today. On other harnesses, schedule from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
+
+<StatusChip kind="info" label="Approvals: chat only" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/junction/docs/imessage-integration.md`} rel="noopener">Full reference in the repository</a>

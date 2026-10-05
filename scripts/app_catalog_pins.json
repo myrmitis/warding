@@ -1,0 +1,34 @@
+{
+  "todo-ledger": {
+    "ref": "f2bb1bf270cf28e8ebe5835d442a2db41b69c7fd",
+    "manifest": {
+      "displayName": "Todo Ledger",
+      "description": "Shared markdown todo lists. Humans and agent sessions create ledgers, claim items, and complete them — one source of truth across all sessions.",
+      "version": "0.1.0",
+      "tags": [
+        "todo",
+        "tasks",
+        "collaboration",
+        "agents"
+      ],
+      "author": "qihang-dai"
+    }
+  },
+  "todo-txt": {
+    "ref": "38770920da964c89252384dbe29ac998b3ffde12",
+    "manifest": {
+      "displayName": "todo.txt",
+      "description": "Edits a todo.txt file: one task per line, no database. Point it at a folder you already sync, or use the one it creates. Priorities, projects, contexts and due dates colour as you type, and the format's semantics actually run rather than just highlight: rec: rollover on completion, t: thresholds, h:1 hidden tasks. Palette verbs match the todo.txt CLI. Archiving moves completed tasks to done.txt. AI rewrites the lines you select, and stages any deletion as a diff you approve.",
+      "version": "1.0.0",
+      "tags": [
+        "todo",
+        "todo.txt",
+        "plaintext",
+        "editor",
+        "vim",
+        "productivity"
+      ],
+      "author": "LeTeutz"
+    }
+  }
+}

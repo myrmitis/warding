@@ -1,0 +1,67 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import CharterSheet from "../components/CharterSheet.astro";
+import WardSeal from "../components/WardSeal.astro";
+import LinkButton from "../components/LinkButton.astro";
+import { site } from "../data/site";
+import { offers } from "../data/pricing";
+
+/**
+ * /supporters/: the opt-in wall. Honest empty state until the tier opens;
+ * names appear only when a supporter chose that at checkout.
+ */
+const title = "Founding Supporters of Warding";
+const description = "Opt-in names and seal numbers of the people funding the late desk. Nobody yet: the tier has not opened.";
+const supporter = offers.find((o) => o.id === "supporter");
+const opens = supporter?.status === "waitlist";
+---
+<PageLayout title={title} description={description} h1="Founding Supporters" lead="The people funding the part of the late desk that is not code yet. Names appear here only when a supporter opts in." breadcrumbs={[{ label: "Supporters", href: "/supporters/" }]}>
+  <CharterSheet foil class="wall">
+    <div class="wall-head">
+      <WardSeal size={48} />
+      <p class="eyebrow">The wall</p>
+    </div>
+    <table class="matrix ledger">
+      <thead>
+        <tr><th scope="col">Seal</th><th scope="col">Name</th><th scope="col">Since</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td colspan="3" class="empty">No Founding Supporters yet. The seal numbers start at № 0001 when the tier opens.</td>
+        </tr>
+      </tbody>
+    </table>
+  </CharterSheet>
+
+  <div class="how">
+    <section aria-labelledby="how-h">
+      <h2 id="how-h">How a name gets here</h2>
+      <ol class="steps measure">
+        <li>You become a Founding Supporter on <a href="/pricing/#supporter">the pricing page</a>{opens ? " (a free waitlist until the tier opens)" : ""}.</li>
+        <li>At checkout you choose whether your name appears on this wall. The default is off. The numbered seal badge in your dashboard is yours either way.</li>
+        <li>Opted-in names are listed in the order they joined, with the seal number and the month. No photos, no amounts, no company logos.</li>
+        <li>Change your mind later and the line is removed at the next build. Nothing else about you is published.</li>
+      </ol>
+    </section>
+    <section aria-labelledby="what-h">
+      <h2 id="what-h">What the money is for</h2>
+      <p class="measure">{supporter?.blurb}</p>
+      <p class="measure caption">It is not a pre-order. Future paid features are added to a supporter's key as they ship and are labelled "in development"; they are not what is sold.</p>
+      <LinkButton href="/pricing/#supporter">See the offer</LinkButton>
+    </section>
+  </div>
+  <p class="caption">{site.name} is one person; the seal count is the whole ledger, and it is rendered from the same data the badge uses.</p>
+</PageLayout>
+
+<style>
+  .wall { display: grid; gap: 20px; }
+  .wall-head { display: flex; align-items: center; gap: 16px; }
+  .ledger th, .ledger td { white-space: normal; }
+  .ledger .empty { color: var(--fg-2); padding-block: 28px; font-family: var(--font-display); font-size: 1.25rem; }
+  .how { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 56px; }
+  .how section { display: grid; gap: 16px; align-content: start; justify-items: start; }
+  .how h2 { font-size: 1.5rem; }
+  .steps { margin: 0; padding-left: 1.25em; display: grid; gap: 10px; color: var(--fg-2); }
+  .steps li::marker { font-family: var(--font-clock); color: var(--lamp); }
+  @media (max-width: 800px) { .how { grid-template-columns: 1fr; gap: 40px; } }
+</style>

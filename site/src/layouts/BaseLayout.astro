@@ -1,0 +1,124 @@
+---
+import "../styles/global.css";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+import { site } from "../data/site";
+import { ogSlugForPath } from "../lib/og-pages";
+import frauncesWoff2 from "@fontsource-variable/fraunces/files/fraunces-latin-opsz-normal.woff2?url";
+import plexWoff2 from "@fontsource-variable/ibm-plex-sans/files/ibm-plex-sans-latin-wght-normal.woff2?url";
+
+/**
+ * Every page: one <title> ≤ 60, description ≤ 155, absolute canonical from
+ * site.domain, OG/Twitter tags pointing at the page's own PNG, theme-color for
+ * both schemes, skip link, header/main/footer landmarks, JSON-LD slot.
+ */
+interface Props {
+  title: string;
+  description: string;
+  /**
+   * Page register: "night" or "paper" (the default). It fixes the page's scheme,
+   * header and footer included: the day/night split is the brand, so a page is
+   * never recoloured by the visitor's OS setting.
+   */
+  register?: "paper" | "night";
+  /** The footer's register when a page ends in the other one (the homepage ends on paper). */
+  footerRegister?: "paper" | "night";
+  /** The header spans the wide container; only pages whose content does (the homepage stage). */
+  navWide?: boolean;
+  ogSlug?: string;
+  ogAlt?: string;
+  jsonLd?: Record<string, unknown>[];
+  installHref?: string;
+  noindex?: boolean;
+  bodyClass?: string;
+}
+const {
+  title, description, register = "paper", footerRegister, navWide = false, ogSlug = ogSlugForPath(Astro.url.pathname),
+  ogAlt, jsonLd = [], installHref = "/#install", noindex = false, bodyClass = "",
+} = Astro.props;
+const scheme = register === "night" ? "dark" : "light";
+const footerWrap = footerRegister && footerRegister !== register ? (footerRegister === "night" ? "vault" : "paper") : "";
+if (title.length > 60) throw new Error(`<title> over 60 chars: ${title}`);
+if (description.length > 155) throw new Error(`description over 155 chars for ${Astro.url.pathname}`);
+const canonical = new URL(Astro.url.pathname, site.domain).toString();
+const ogImage = new URL(`/og/${ogSlug}.png`, site.domain).toString();
+const alt = ogAlt ?? `${title} — ${site.name}`;
+const analytics = site.analytics.provider !== "" && site.analytics.scriptSrc !== "";
+---
+<!doctype html>
+<html lang="en" data-register={register} data-theme={scheme}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <meta name="theme-color" content={register === "night" ? "#0B0E14" : "#F3EEE3"} />
+    <meta name="color-scheme" content={scheme} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" as="font" type="font/woff2" href={frauncesWoff2} crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href={plexWoff2} crossorigin />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={alt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image:alt" content={alt} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <link rel="alternate" type="application/rss+xml" title={`${site.name} releases`} href="/rss.xml" />
+    {jsonLd.map((obj) => <script type="application/ld+json" set:html={JSON.stringify(obj)} />)}
+    <slot name="head" />
+    {analytics && <script defer data-domain={site.analytics.domain} src={site.analytics.scriptSrc}></script>}
+  </head>
+  <body class={bodyClass}>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <Nav installHref={installHref} wide={navWide} />
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+    {footerWrap ? <div class={footerWrap}><Footer /></div> : <Footer />}
+    <script>
+      // Reveals arm only once JS is here, and anything already in view is
+      // marked visible in the same tick so nothing flashes.
+      const root = document.documentElement;
+      const reveals = Array.from(document.querySelectorAll<HTMLElement>(".reveal, .slide-in, .redact"));
+      const stamps = Array.from(document.querySelectorAll<HTMLElement>(".stamp"));
+      const vh = window.innerHeight;
+      const inView = (el: HTMLElement) => { const r = el.getBoundingClientRect(); return r.top < vh && r.bottom > 0; };
+      reveals.forEach((el) => { if (inView(el)) el.classList.add("in"); });
+      stamps.forEach((el) => { if (inView(el)) el.classList.add("stamped"); });
+      root.classList.add("js-ready");
+      if ("IntersectionObserver" in window) {
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach((e) => {
+            if (!e.isIntersecting) return;
+            const el = e.target as HTMLElement;
+            el.classList.add(el.classList.contains("stamp") ? "stamped" : "in");
+            io.unobserve(el);
+          });
+        }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
+        [...reveals, ...stamps].forEach((el) => io.observe(el));
+      } else {
+        reveals.forEach((el) => el.classList.add("in"));
+        stamps.forEach((el) => el.classList.add("stamped"));
+      }
+    </script>
+  </body>
+</html>
+<style is:global>
+  .skip-link {
+    position: absolute; left: 16px; top: -100px; z-index: 100; padding: 10px 14px; background: var(--fg); color: var(--bg);
+    border-radius: 4px; text-decoration: none; font-weight: 600;
+  }
+  .skip-link:focus { top: 12px; }
+  main { position: relative; z-index: 1; }
+</style>

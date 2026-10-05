@@ -1,0 +1,20 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+import { getCollection } from "astro:content";
+const entries = (await getCollection("compare")).filter((e) => !e.data.draft);
+---
+<PageLayout title="Compare Warding with OpenClaw, Paseo and Routines" description="Fair, sourced comparisons, including what the other tool does better." h1="Compare" lead="The other tool's strengths first. Primary sources only." breadcrumbs={[{ label: "Compare", href: "/compare/" }]}>
+  {entries.length === 0 ? (
+    <p class="caption">Comparisons are being written. Each one cites primary sources and says where the other tool wins.</p>
+  ) : (
+    <ul class="list">
+      {entries.map((e) => (
+        <li><a href={`/compare/${e.id}/`}>{e.data.h1}</a><p class="caption">{e.data.description}</p></li>
+      ))}
+    </ul>
+  )}
+</PageLayout>
+<style>
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 20px; }
+  .list a { font-family: var(--font-display); font-size: 1.375rem; font-weight: 500; }
+</style>

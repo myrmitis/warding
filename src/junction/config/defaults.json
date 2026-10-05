@@ -1,0 +1,54 @@
+{
+  "name": "junction",
+  "description": "Autonomous personal AI agent — schedules recurring tasks, spawns parallel workers, learns from corrections, and operates independently via the dashboard, CLI, and messaging channels",
+  "model": "auto",
+  "tools": [
+    "execute_bash",
+    "fs_read",
+    "fs_write",
+    "code",
+    "grep",
+    "glob",
+    "web_fetch",
+    "web_search",
+    "introspect",
+    "session",
+    "report",
+    "tool_search",
+    "@junction-cron",
+    "@junction-core",
+    "@junction-computer"
+  ],
+  "allowedTools": [
+    "fs_read",
+    "code",
+    "glob",
+    "grep",
+    "web_fetch",
+    "web_search",
+    "introspect",
+    "session",
+    "report",
+    "@junction-cron/cron_list",
+    "@junction-cron/cron_pause",
+    "@junction-cron/cron_resume",
+    "@junction-cron/cron_trigger",
+    "@junction-cron/cron_remove",
+    "@junction-cron/cron_remove_all",
+    "@junction-core"
+  ],
+  "resources": [
+    "file://.kiro/steering/**/*.md"
+  ],
+  "includeMcpJson": false,
+  "hooks": {
+    "auto_approve_tools": [
+    ],
+    "postToolUse": [
+      {
+        "matcher": "execute_bash",
+        "command": "{ echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) BASH:\"; cat; echo; } >> \"${JUNCTION_HOME:-$HOME/.junction}/audit.log\""
+      }
+    ]
+  }
+}
