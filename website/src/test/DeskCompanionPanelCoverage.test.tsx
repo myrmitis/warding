@@ -476,8 +476,13 @@ describe('what the panel reports back so it is not closed on blur', () => {
 })
 
 describe('closing the panel', () => {
+  // The card commits before its effects run, and the Escape listener is attached
+  // in one of them. panelBreathing is reported by the effect declared just before
+  // it in the same component, so once that report lands for the current state the
+  // listener for that state is attached too, and a key event cannot race it.
   it('closes on Escape', async () => {
     await mountPanel()
+    await waitFor(() => expect(api.panelBreathing).toHaveBeenCalledWith(false))
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(api.panelClose).toHaveBeenCalled()
   })
@@ -486,6 +491,7 @@ describe('closing the panel', () => {
     await mountPanel()
     fireEvent.click(control('breathe'))
     await waitFor(() => expect(control('breathing')).not.toBeNull())
+    await waitFor(() => expect(api.panelBreathing).toHaveBeenCalledWith(true))
     api.panelClose.mockClear()
     // Escape belongs to the exercise here — losing a 48-second commitment to a
     // stray key would be hostile.

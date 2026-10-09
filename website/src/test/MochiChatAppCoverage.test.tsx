@@ -281,7 +281,10 @@ describe('Mochi ChatApp — pet name', () => {
   it('passes the stored name to both rails', async () => {
     await mountApp()
 
-    expect(pinnedPanel().getAttribute('data-pet')).toBe('Nimbus')
+    // The rails first render with the active avatar's name, which already
+    // satisfies mountApp's non-empty wait, and the stored name arrives when the
+    // config load resolves. Wait for it rather than asserting that first paint.
+    await waitFor(() => expect(pinnedPanel().getAttribute('data-pet')).toBe('Nimbus'))
     expect(watchPanel().getAttribute('data-pet')).toBe('Nimbus')
   })
 
