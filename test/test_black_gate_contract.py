@@ -161,3 +161,24 @@ def test_black_exiting_one_with_no_findings_is_not_a_clean_tree() -> None:
     # over every recorded path, destroying the ratchet irrecoverably.
     source = SCRIPT.read_text(encoding="utf-8")
     assert "if proc.returncode == 1 and not found:" in source
+
+
+def test_black_runs_in_bounded_batches_that_cover_every_file(monkeypatch) -> None:
+    # black's workers keep memory from every file they format until the pool
+    # exits, so one run over the whole tree outgrows a 7 GB CI runner and the job
+    # is killed mid-check. Every invocation must get at most BLACK_BATCH_SIZE
+    # files, and together the batches must judge each file exactly once.
+    files = [f"src/pkg/m{i:04d}.py" for i in range(gate.BLACK_BATCH_SIZE * 2 + 1)]
+    monkeypatch.setattr(gate, "_python_files", lambda targets: list(files))
+    batches: list[list[str]] = []
+
+    def judge(batch: list[str]) -> set[str]:
+        batches.append(list(batch))
+        return {path for path in batch if path.endswith("0.py")}
+
+    monkeypatch.setattr(gate, "_unformatted_batch", judge)
+    found = gate._unformatted(("src",))
+    assert len(batches) == 3
+    assert all(len(batch) <= gate.BLACK_BATCH_SIZE for batch in batches)
+    assert sorted(path for batch in batches for path in batch) == files
+    assert found == {path for path in files if path.endswith("0.py")}

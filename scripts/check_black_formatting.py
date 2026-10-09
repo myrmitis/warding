@@ -69,6 +69,13 @@ DEFAULT_TARGETS = ("src", "test")
 # Pinned so the gate cannot start disagreeing with the documented command when a
 # contributor's black defaults differ. Matches ci.yml and AGENTS.md.
 TARGET_VERSION = "py310"
+# Files per black invocation. black's workers keep memory from every file they
+# format until the pool exits, several MiB a file, so one run over the whole tree
+# peaks above 10 GiB: more than a 7 GB CI runner has, which then kills the job
+# mid-check. A fresh pool per batch bounds that, and the verdict cannot change
+# because black judges each file on its own. 200 paths also stay well inside the
+# Windows command-line limit.
+BLACK_BATCH_SIZE = 200
 WOULD_REFORMAT = re.compile(r"^would reformat (.+)$")
 HEADER = """\
 # Files that are not black-clean yet. The gate requires every OTHER file to be
@@ -83,11 +90,50 @@ HEADER = """\
 """
 
 
+def _python_files(targets: list[str]) -> list[str]:
+    """Repo-relative ``.py`` files under ``targets`` that black's own walk finds.
+
+    That walk honours ``.gitignore``, so it sees tracked files plus untracked ones
+    git does not ignore, which is exactly what this lists. The vendored tree is
+    left in: ``force-exclude`` in pyproject drops it, and black applies that to
+    explicit paths too.
+    """
+    proc = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", *targets],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        raise SystemExit(f"git ls-files failed with exit code {proc.returncode}")
+    return sorted(
+        {
+            path
+            for path in proc.stdout.split("\0")
+            if path.endswith(".py") and (ROOT / path).is_file()
+        }
+    )
+
+
 def _unformatted(targets: tuple[str, ...]) -> set[str]:
-    """Return repo-relative paths black would reformat, via one black run."""
+    """Return repo-relative paths black would reformat, BLACK_BATCH_SIZE files a run."""
     existing = [name for name in targets if (ROOT / name).exists()]
     if not existing:
         raise SystemExit(f"none of the targets {targets} exist under {ROOT}")
+    files = _python_files(existing)
+    if not files:
+        raise SystemExit(f"no Python files under {existing}")
+    found: set[str] = set()
+    for start in range(0, len(files), BLACK_BATCH_SIZE):
+        found |= _unformatted_batch(files[start : start + BLACK_BATCH_SIZE])
+    return found
+
+
+def _unformatted_batch(files: list[str]) -> set[str]:
+    """Return the paths in ``files`` that black would reformat, via one black run."""
     proc = subprocess.run(
         [
             sys.executable,
@@ -96,7 +142,7 @@ def _unformatted(targets: tuple[str, ...]) -> set[str]:
             "--check",
             "--target-version",
             TARGET_VERSION,
-            *existing,
+            *files,
         ],
         cwd=ROOT,
         capture_output=True,
