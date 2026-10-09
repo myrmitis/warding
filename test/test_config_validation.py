@@ -8,12 +8,32 @@ global.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 
 import pytest
 
 from warding.config import loader as _loader_module
-from warding.config import validation
+from warding.config import schema, validation
+
+
+@pytest.fixture
+def deprecated_map_field(monkeypatch: pytest.MonkeyPatch) -> str:
+    """Register a deprecated map field for one test and return its dotted path.
+
+    A synthetic registry entry keeps the deprecation tests independent of which
+    field, if any, the shipped schema deprecates. ``validate_config_data`` reads
+    ``SCHEMA_REGISTRY`` at call time, which is what lets the patch reach it.
+    """
+    template = next(e for e in schema.SCHEMA_REGISTRY if e.path == "telegram")
+    entry = dataclasses.replace(
+        template,
+        path="telegram.legacy_accounts",
+        deprecated=True,
+        help="Superseded by telegram.bot_token.",
+    )
+    monkeypatch.setattr(schema, "SCHEMA_REGISTRY", [*schema.SCHEMA_REGISTRY, entry])
+    return entry.path
 
 
 class TestConfigCache:
@@ -186,20 +206,25 @@ class TestValidateConfigData:
         assert "meta" not in warnings[0]
 
     @pytest.mark.skipif(not validation._HAS_JSONSCHEMA, reason="jsonschema not installed")
-    def test_deprecated_field_with_a_value_warns(self, caplog: pytest.LogCaptureFixture) -> None:
-        data = {"telegram": {"accounts": {"ops": {"bot_token": "x"}}}}
+    def test_deprecated_field_with_a_value_warns(
+        self, caplog: pytest.LogCaptureFixture, deprecated_map_field: str
+    ) -> None:
+        section, key = deprecated_map_field.split(".")
+        data = {section: {key: {"ops": {"bot_token": "x"}}}}
         with caplog.at_level(logging.WARNING, logger="warding.config.loader"):
             validation.validate_config_data(data)
-        assert any("deprecated field 'telegram.accounts'" in r.message for r in caplog.records)
+        expected = f"deprecated field '{deprecated_map_field}'"
+        assert any(expected in r.message for r in caplog.records)
 
     @pytest.mark.skipif(not validation._HAS_JSONSCHEMA, reason="jsonschema not installed")
     @pytest.mark.parametrize("empty", [{}, None])
     def test_deprecated_field_left_empty_by_save_is_silent(
-        self, caplog: pytest.LogCaptureFixture, empty: object
+        self, caplog: pytest.LogCaptureFixture, deprecated_map_field: str, empty: object
     ) -> None:
-        # save() round-trips the deprecated map as {} on every fresh install;
-        # warning on it printed a deprecation notice before every CLI command.
-        data = {"telegram": {"accounts": empty}}
+        # save() round-trips a deprecated map as {} on every fresh install;
+        # warning on it would print a deprecation notice before every CLI command.
+        section, key = deprecated_map_field.split(".")
+        data = {section: {key: empty}}
         with caplog.at_level(logging.WARNING, logger="warding.config.loader"):
             validation.validate_config_data(data)
         assert not [r for r in caplog.records if "deprecated field" in r.message]
