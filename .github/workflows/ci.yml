@@ -390,9 +390,9 @@ jobs:
     name: Backend Lint & Type Check
     runs-on: ubuntu-latest
     # Sized for 2-vCPU private-repository runners: the black gate checks the
-    # whole tree on every run and takes about 15 minutes there by itself,
+    # whole tree on every run and takes over 20 minutes there by itself,
     # before isort, flake8 and mypy start.
-    timeout-minutes: 35
+    timeout-minutes: 50
     strategy:
       matrix:
         # PRs lint on the newer interpreter only; main covers both.
