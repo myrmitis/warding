@@ -1,0 +1,53 @@
+---
+title: "WeCom chat for your coding agent (chat only today)"
+description: "Chat with your coding agent from WeCom today through an AI bot. In-chat approvals are planned, not built: buttons for WeCom. Join the list."
+h1: "Chat from WeCom. Approvals are planned."
+channel: wecom
+approval: chat-only
+ogRegister: paper
+ogQualifier: "Chat only today · AI bot · outbound connection"
+verified: []
+---
+import StatusChip from "../../components/StatusChip.astro";
+import ChChatOnly from "../../components/ChChatOnly.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+Talk to your agent from WeCom (企业微信), the work edition, through a WeCom AI bot. Create the bot in your admin console, paste two values, and replies stream back live. The gateway opens an outbound WebSocket to WeCom, so there is no callback URL or open port.
+
+<ChChatOnly slug="wecom" />
+
+What has been run on which harness is on <a href="/verified/">the verification log</a>; a feature without a dated row there is unverified.
+
+## What works from WeCom today
+
+- **Chat in a direct message**, with replies streamed live.
+- **Images, files and voice notes you send** reach the agent; a voice note uses WeCom's own transcript.
+- **Commands**: `/new`, `/compact`, `/stop`, `/link`, `/unlink` and `/help`, with Chinese aliases, plus `/steer` while a reply is running.
+- **Choices arrive as a numbered list** you answer by typing.
+
+## Set it up
+
+Set it up by hand; the values go in a file the agent is not allowed to read or write, so asking the agent to do it is refused at the gate:
+
+1. **Create an AI bot** in the WeCom admin console (应用管理 → AI 智能体). Its settings page shows a **Bot ID** and a **Secret**.
+2. **Save them** in the data home's `.env` as `WECOM_BOT_ID` and `WECOM_SECRET`.
+3. **Allow yourself** by your WeCom userid in `config.json`:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`"wecom": { "enabled": true, "allowed_users": [{ "userid": "zhangsan", "name": "Zhang San" }] }`}</code></pre>
+4. **Restart the gateway** and message the bot:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`${site.cli} restart`}</code></pre>
+
+## Who can reach it
+
+The owner and the userids you list; with neither, nobody. A whole-organisation switch exists and is off unless you turn it on. Messages sent in a WeCom group are refused and logged, even from an allowed sender, because your session would replay into the room.
+
+## Limits, stated plainly
+
+- **Owner-only.** One person runs this gateway, as themselves, with their files and credentials. There is no shared or team mode.
+- **One harness for chat.** The docked harness answers every channel; switching is one setting. A spawned subagent can be routed to another installed harness; that is registered, not verified.
+- **Direct messages only**, and an image the agent produces arrives as a file path, not a picture.
+- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) relies on the agent's own tools, which reach kiro-cli only today. On other harnesses, schedule from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
+
+<StatusChip kind="info" label="Approvals: chat only" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/warding/docs/wecom-integration.md`} rel="noopener">Full reference in the repository</a>

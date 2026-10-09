@@ -1,0 +1,52 @@
+---
+title: "Claude Code Routines and Channels alternative, self-hosted"
+description: "Routines run without approvals and have per-account caps. Warding: your box, mid-run approvals in five chat apps, ten channels, the harness you choose."
+h1: "When to use Anthropic's built-ins, and when to use Warding."
+competitor: "Claude Code Routines"
+ogRegister: paper
+ogQualifier: "Anthropic's built-ins first · zero setup is theirs"
+verified: []
+sources:
+  - { label: "Claude Code docs: Routines", url: "https://code.claude.com/docs/en/routines" }
+  - { label: "Claude Code docs: Remote Control", url: "https://code.claude.com/docs/en/remote-control" }
+  - { label: "Claude Help Center: using the Agent SDK with your Claude plan", url: "https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan" }
+  - { label: "MacStories: hands-on with Claude Code's Telegram and Discord integrations", url: "https://www.macstories.net/stories/first-look-hands-on-with-claude-codes-new-telegram-and-discord-integrations/" }
+---
+import ChTable from "../../components/ChTable.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+**If you use only Claude, never need to approve a step in the middle of a run, and are happy with Anthropic's cloud, your organisation's own environment, or Desktop scheduled tasks, use Routines, Channels and Remote Control.** They come with your plan and need no setup. Nothing here beats zero setup.
+
+{site.name} is for the other cases: a harness that is not Claude, a run that has to stop and ask before `git push`, or a box of your own that you want the work to happen on, under a policy the agent cannot edit.
+
+## What Anthropic's built-ins do well
+
+- **Routines** run Claude Code on a schedule, from an API call or on a GitHub event, in Anthropic's cloud or on your organisation's self-hosted environment. Desktop scheduled tasks run on your own machine.
+- **Channels** bring Telegram, Discord and iMessage into a Claude Code session.
+- **Remote Control** lets you continue a local session from your phone or a browser.
+- All three are Anthropic's own, and none needs a server of yours.
+
+## The comparison
+
+<ChTable
+  head={["", "Routines, Channels, Remote Control", site.name]}
+  rows={[
+    ["Harness", "Claude only", "the one you dock for chat: Claude Code, Codex, Cursor, Goose and seven more"],
+    ["Where it runs", "Anthropic's cloud, your organisation's self-hosted environment, or Desktop scheduled tasks on your machine", "your machine, as a service"],
+    ["Approvals during a run", "Routines run without stopping for approval", "Approve / Deny in five chat apps on gated calls; built-in deny rules refuse without asking"],
+    ["Run caps", "a daily cap per account on routine runs; the docs publish no per-plan number; one-off runs do not count", "none from us; your model plan's limits apply"],
+    ["Shortest interval", "one hour", "one minute"],
+    ["Chat apps", "Telegram, Discord and iMessage, while the Claude Code session is open", "ten (five with approve buttons); the gateway stays up as a service"],
+    ["Policy the agent cannot edit", "settings Anthropic and your admin control", "a keystone policy you write, on your machine"],
+    ["Setup", "none", "a gateway on a box that stays on, plus a bot token per chat app"],
+  ]}
+/>
+
+## Metering: paused, not cancelled
+
+Anthropic planned to meter Agent SDK and third-party app use of Claude plans through a separate monthly credit, then paused the plan. For now, that use draws from your subscription's usage limits, and Anthropic says it will announce before any change. Claude Code reached through ACP is that kind of use. If the plan resumes, the "no cap from us" contrast above changes with it, and we will update this page.
+
+The Claude Code session {site.name} starts runs under your own login, through the official CLI. For shared or production automation, use an API key, and read your vendor's terms for unattended use.

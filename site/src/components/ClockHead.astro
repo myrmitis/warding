@@ -1,0 +1,16 @@
+---
+/**
+ * A section head for the night narrative: the clock time in Departure Mono 33 px
+ * --lamp, then the H2. `id` anchors the step for the IntersectionObserver.
+ */
+interface Props { time: string; title: string; step?: number; id?: string; as?: "h2" | "h3" }
+const { time, title, step, id, as: Tag = "h2" } = Astro.props;
+---
+<div class="clock-head" id={id} data-step={step}>
+  <span class="clock clock-33 clock-time" aria-hidden="true">{time}</span>
+  <Tag><span class="sr-only">{time} — </span>{title}</Tag>
+</div>
+<style>
+  .clock-head { display: grid; gap: 12px; }
+  .clock-time { color: var(--lamp); display: block; }
+</style>

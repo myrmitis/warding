@@ -1,0 +1,41 @@
+name: Documentation
+description: Something in the Warding docs is wrong, missing, or misleading.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This covers the Warding README, `CONTRIBUTING.md`, docs under
+        `src/warding/docs/`, skill files, and in-product help. If the docs
+        are correct but the product is wrong, file a bug report instead.
+
+  - type: input
+    id: location
+    attributes:
+      label: Where
+      description: >-
+        File path, doc page, or the UI surface carrying the text. A permalink is
+        ideal.
+      placeholder: src/warding/docs/getting-started.md, or Settings > Planes
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong
+      description: >-
+        Quote the passage if it is short. For missing docs, say what you were
+        trying to find out and where you looked for it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: correction
+    attributes:
+      label: Suggested correction
+      description: >-
+        What it should say, if you know. Leave blank if you only know the current
+        text is wrong.
+    validations:
+      required: false

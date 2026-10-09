@@ -1,0 +1,55 @@
+---
+title: "Discord for your coding agent, with approve buttons"
+description: "Owner-only coding agent in Discord DMs and approved threads, with Approve / Deny buttons on gated tool calls, running on your own box."
+h1: "Your coding agent in Discord"
+channel: discord
+approval: buttons
+ogRegister: paper
+ogQualifier: "Buttons in chat · DMs and approved threads · on your box"
+verified: []
+---
+import StatusChip from "../../components/StatusChip.astro";
+import ChPluginCompare from "../../components/ChPluginCompare.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+Discord connects outbound over its Gateway WebSocket, so it works behind NAT and firewalls with no webhook and no inbound port. Talk to the agent in a DM, or in a server thread you have explicitly approved; every other channel on the server is ignored.
+
+What has been run on which harness is on <a href="/verified/">the verification log</a>; a feature without a dated row there is unverified.
+
+## What works from Discord today
+
+- **Approve / Deny buttons** on a tool call that needs your say-so.
+- **DMs by default.** Server threads only when both your user ID and that exact thread ID are allow-listed. Optionally, allow-listed channels where your message opens a fresh public thread and the turn runs there.
+- **Commands** from the `/` menu, or as `!` text commands (`!help`) that work even without the slash menu installed.
+
+## Set it up
+
+1. **Create an application** in the Discord Developer Portal and name it.
+2. **Copy the bot token** from the **Bot** page (Reset Token). For DMs only, leave the privileged intents off; for server threads, turn on **Message Content Intent**.
+3. **Install the bot** with the `bot` and `applications.commands` scopes. For threads, grant View Channel, Read Message History, Send Messages in Threads and Add Reactions.
+4. **Copy your user ID** (Developer Mode, then right-click your name) and, for threads, the thread's own ID.
+5. **Configure** in **Settings → Discord**, or by hand: `DISCORD_BOT_TOKEN` in the data home's `.env`, and in `config.json`:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`"discord": { "enabled": true, "allowed_user_ids": ["123456789012345678"] }`}</code></pre>
+6. **Restart the gateway**, then DM the bot `!help`:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`${site.cli} restart`}</code></pre>
+
+## Who can reach it
+
+Only the user IDs you allow-list, and an empty list denies everything. The gateway runs as you, so allow-list yourself. In an approved thread, everyone who can view it can read the replies and tool output. Unknown users, threads and channels are denied, and security-relevant attempts are written to the audit log.
+
+## Why not the official plugin?
+
+<ChPluginCompare slug="discord" />
+
+## Limits, stated plainly
+
+- **Owner-only.** One person runs this gateway, as themselves, with their files and credentials. There is no shared or team mode.
+- **One harness for chat.** The docked harness answers every channel; switching is one setting. A spawned subagent can be routed to another installed harness; that is registered, not verified.
+- **Your box has to stay on.** Nothing of ours runs in the cloud.
+- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) relies on the agent's own tools, which reach kiro-cli only today. On other harnesses, schedule from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
+- **No group DMs.** Discord's bot API does not deliver them.
+
+<StatusChip kind="approved" label="Approvals: buttons" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/warding/docs/discord-integration.md`} rel="noopener">Full reference in the repository</a>

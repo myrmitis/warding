@@ -1,0 +1,28 @@
+---
+import PageLayout from "../../layouts/PageLayout.astro";
+import StatusChip from "../../components/StatusChip.astro";
+import { getCollection } from "astro:content";
+import { channels } from "../../data/channels";
+const entries = (await getCollection("channels")).filter((e) => !e.data.draft);
+const bySlug = new Map(entries.map((e) => [e.data.channel, e]));
+---
+<PageLayout title="Chat channels for your coding agent: Slack, Telegram…" description="Ten chat apps, honestly labelled: five with approve buttons, WhatsApp with typed approvals, four chat-only. Setup guides for each." h1="Reach it from the chat you already use." lead="Ten chat apps, and we say which ones can do what: five with approve buttons, one with typed replies, four chat-only." breadcrumbs={[{ label: "Channels", href: "/channels/" }]}>
+  <ul class="grid">
+    {channels.map((c) => {
+      const page = bySlug.get(c.slug as never);
+      return (
+        <li class="tile">
+          <h2>{page ? <a href={`/channels/${c.slug}/`}>{c.name}</a> : c.name}</h2>
+          {c.approval === "buttons" && <StatusChip kind="approved" label="Buttons" />}
+          {c.approval === "typed" && <StatusChip kind="typed" label="Typed reply" />}
+          {c.approval === "chat-only" && <StatusChip kind="info" label="Chat only" />}
+          {!page && <p class="caption">Setup guide coming.</p>}
+        </li>
+      );
+    })}
+  </ul>
+</PageLayout>
+<style>
+  .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .tile h2 { font-size: 1.25rem; margin-bottom: 8px; }
+</style>

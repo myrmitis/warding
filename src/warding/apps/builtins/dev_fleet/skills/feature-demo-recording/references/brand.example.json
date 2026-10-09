@@ -1,0 +1,16 @@
+{
+  "_note": "All optional. Defaults are Warding's factory palette. font_face_local must name a font that actually exists on the render host -- run scripts/deps.py to see which CJK family is available, because an undeclared family fails the render gate instead of degrading quietly.",
+
+  "lang": "en",
+  "accent": "#5c8dff",
+  "accent_hi": "#7ea5ff",
+  "bg": "#0b0e13",
+  "bg_el": "#161b24",
+
+  "font_stack": "\"Overpass\",\"Inter\",\"Droid Sans Fallback\",sans-serif",
+  "font_face_local": "Droid Sans Fallback",
+
+  "outro_eyebrow": "WARDING",
+  "outro_title_lead": "Command",
+  "outro_title_tail": " Bar"
+}

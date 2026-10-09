@@ -1,0 +1,16 @@
+---
+# Copy this file to <channel>.mdx (files starting with "_" are ignored by the loader).
+# The route becomes /channels/<channel>/; `approval` must match src/data/channels.ts.
+title: "Claude Code and Codex from Telegram, with approvals"   # <= 60 chars
+description: "Message your coding agent from Telegram. Sessions live on your own machine; risky tool calls arrive as Approve / Deny buttons."   # <= 155
+h1: "Talk to your coding agent from Telegram"
+channel: telegram
+approval: buttons          # buttons | typed | chat-only
+ogRegister: paper
+ogQualifier: "Buttons in chat · owner-only · on your box"
+verified: []
+draft: true
+---
+
+Chat-only channels say "approvals are planned, not built" and carry a
+`<WaitlistForm list="channel-buttons" … />` island.

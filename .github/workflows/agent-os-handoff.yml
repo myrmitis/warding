@@ -1,0 +1,48 @@
+# Agent OS handoff
+#
+# Reminds, does not merge. Agent-authored PRs need a human to land.
+# Contract: docs/adr/0006-agent-os-no-automerge.md
+#
+# Trigger is issues.labeled only. That event covers both issues and pull
+# requests (a PR is an issue), so listing pull_request.labeled as well would
+# post the reminder twice. opened / ready_for_review never carry
+# github.event.label, so they cannot satisfy the job if.
+
+name: Agent OS handoff
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+
+jobs:
+  remind:
+    if: >
+      github.event.label.name == 'agent-os/ready' ||
+      github.event.label.name == 'agent-os/approved' ||
+      github.event.label.name == 'agent-os/triage'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment the handoff contract
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          script: |
+            const label = context.payload.label && context.payload.label.name;
+            const number = context.payload.issue && context.payload.issue.number;
+            const body = {
+              'agent-os/triage':
+                'Scout finding. A human (or the implementer queue) promotes this to `agent-os/ready`. Agents must not open a PR from the scout turn.',
+              'agent-os/ready':
+                'Implementer pickup. Open a draft PR on a `cursor/*` branch. Do not merge. Do not push to main.',
+              'agent-os/approved':
+                'Reviewer approved. A human merges. Agents must not merge, auto-merge, or approve their own PRs.',
+            }[label];
+            if (!body || !number) return;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number,
+              body,
+            });

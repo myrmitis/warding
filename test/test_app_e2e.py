@@ -1,0 +1,168 @@
+"""End-to-end integration tests for the app platform.
+
+Tests the full lifecycle: manifest parsing → install → register → enable →
+disable → deregister → uninstall.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from warding.apps.bridges import deregister_app, register_app
+from warding.apps.manager import (
+    APP_MANIFEST_FILENAME,
+    _read_installed,
+    disable_app,
+    enable_app,
+    get_app,
+    install_app,
+    list_apps,
+    uninstall_app,
+)
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+def _make_full_app(tmp_path, name="e2e-app"):
+    """Create a full app with agents, skills, crons, and backend."""
+    src = tmp_path / "source" / name
+    src.mkdir(parents=True)
+    manifest = {
+        "name": name,
+        "version": "1.2.3",
+        "displayName": "E2E Test App",
+        "description": "Full lifecycle test app",
+        "author": "tester",
+        "agents": ["agents/analyst.json", "agents/fetcher.json"],
+        "skills": ["skills/triage", "skills/diagnosis"],
+        "sops": ["sops/runbook.sop.md"],
+        "crons": [
+            {"name": "refresh", "every": 3600, "agent": "fetcher", "message": "refresh data"},
+            {"name": "daily-report", "cron_expr": "0 9 * * MON-FRI", "message": "daily report"},
+        ],
+        "permissions": {
+            "mcpTools": ["ToolA", "ToolB"],
+            "storage": True,
+            "cron": True,
+        },
+        "tags": ["testing", "e2e"],
+    }
+    (src / APP_MANIFEST_FILENAME).write_text(json.dumps(manifest, indent=2))
+
+    # Agents
+    (src / "agents").mkdir()
+    (src / "agents" / "analyst.json").write_text(json.dumps({"name": "analyst", "model": "auto"}))
+    (src / "agents" / "fetcher.json").write_text(json.dumps({"name": "fetcher", "model": "auto"}))
+
+    # Skills
+    for skill in ("triage", "diagnosis"):
+        d = src / "skills" / skill
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text(f"# {skill.title()}\nDomain knowledge for {skill}.")
+
+    # SOPs
+    (src / "sops").mkdir()
+    (src / "sops" / "runbook.sop.md").write_text("# Runbook\nStep 1: Check logs.")
+
+    return src
+
+
+@pytest.fixture()
+def app_env(tmp_path, monkeypatch):
+    home = tmp_path / "warding-home"
+    home.mkdir()
+    monkeypatch.setenv("WARDING_HOME", str(home))
+    kiro_agents = tmp_path / "kiro-agents"
+    kiro_agents.mkdir()
+    import warding.apps.bridges as bridges_mod
+
+    monkeypatch.setattr(bridges_mod, "KIRO_AGENTS_DIR", kiro_agents)
+    # Patch _mcp_json_path to avoid file descriptor errors in tests
+    mcp_path = tmp_path / "mcp.json"
+    monkeypatch.setattr(bridges_mod, "_mcp_json_path", lambda: mcp_path)
+    import warding.apps.backend as bmod
+
+    bmod._processes.clear()
+    bmod._allocated_ports.clear()
+    monkeypatch.setattr("warding.apps.execution.third_party_execution_allowed", lambda: True)
+    return {"home": home, "kiro_agents": kiro_agents}
+
+
+# ---------------------------------------------------------------------------
+# Full lifecycle test
+# ---------------------------------------------------------------------------
+
+
+class TestFullLifecycle:
+    def test_install_register_enable_disable_uninstall(self, tmp_path, app_env):
+        src = _make_full_app(tmp_path)
+
+        # 1. Install
+        result = install_app(src)
+        assert result.ok, result.error
+        assert result.name == "e2e-app"
+
+        # Verify installed
+        meta = _read_installed("e2e-app")
+        assert meta is not None
+        assert meta.version == "1.2.3"
+        assert meta.enabled is False
+
+        # 2. Register resources
+        reg = register_app("e2e-app")
+        assert len(reg.agents) == 2
+        assert len(reg.skills) == 2
+        assert len(reg.crons) == 2
+        assert reg.errors == []
+
+        # Verify agent configs. These are MATERIALIZED COPIES, not symlinks:
+        # the registered file merges the app's per-user MCP policy into the
+        # template, and a builtin's template lives in the read-only package.
+        kiro = app_env["kiro_agents"]
+        assert (kiro / "e2e-app--analyst.json").is_file()
+        assert not (kiro / "e2e-app--analyst.json").is_symlink()
+        assert (kiro / "e2e-app--fetcher.json").is_file()
+
+        # Verify skill symlinks
+        skills_dir = app_env["home"] / "skills" / "e2e-app"
+        assert (skills_dir / "triage" / "SKILL.md").is_file()
+        assert (skills_dir / "diagnosis" / "SKILL.md").is_file()
+
+        # 3. Enable
+        enable_result = enable_app("e2e-app")
+        assert enable_result.ok
+        meta = _read_installed("e2e-app")
+        assert meta.enabled is True
+
+        # 4. Listing
+        apps = list_apps()
+        assert len(apps) == 1
+        assert apps[0]["name"] == "e2e-app"
+        assert apps[0]["enabled"] is True
+
+        # 5. Get app info
+        info = get_app("e2e-app")
+        assert info is not None
+        assert info["manifest"]["agents"] == ["agents/analyst.json", "agents/fetcher.json"]
+
+        # 6. Disable
+        disable_result = disable_app("e2e-app")
+        assert disable_result.ok
+        meta = _read_installed("e2e-app")
+        assert meta.enabled is False
+
+        # 7. Deregister
+        dereg = deregister_app("e2e-app")
+        assert dereg.errors == []
+        assert not (kiro / "e2e-app--analyst.json").exists()
+        assert not (skills_dir).exists()
+
+        # 8. Uninstall
+        uninstall_result = uninstall_app("e2e-app")
+        assert uninstall_result.ok
+        assert get_app("e2e-app") is None
+        assert list_apps() == []

@@ -1,0 +1,179 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import StatusChip from "../components/StatusChip.astro";
+import WardBars from "../components/WardBars.astro";
+import Plate from "../components/Plate.astro";
+import ChTable from "../components/ChTable.astro";
+import { site } from "../data/site";
+import { softwareApplication } from "../lib/seo";
+import Moon from "@lucide/astro/icons/moon";
+import Siren from "@lucide/astro/icons/siren";
+import MessageSquareText from "@lucide/astro/icons/message-square-text";
+import Bug from "@lucide/astro/icons/bug";
+import ListChecks from "@lucide/astro/icons/list-checks";
+import FlaskConical from "@lucide/astro/icons/flask-conical";
+import Wrench from "@lucide/astro/icons/wrench";
+import ShieldCheck from "@lucide/astro/icons/shield-check";
+import Tag from "@lucide/astro/icons/tag";
+import BookOpenCheck from "@lucide/astro/icons/book-open-check";
+import GitPullRequest from "@lucide/astro/icons/git-pull-request";
+import templatesShot from "../assets/shots/default-schedule-templates.png";
+import calendarShot from "../assets/shots/default-schedule-calendar.png";
+
+/**
+ * /schedule/ (site-spec §1): cron jobs and the dashboard's template gallery.
+ * The gallery is DOM, not a picture, with the product's own template names,
+ * descriptions and cadences (website/src/utils/schedulePresets.tsx and the
+ * English catalog). "Writes" marks the presets that push branches or file
+ * issues. Creating a job from chat needs the agent's own cron tool, which is
+ * passed to kiro-cli only, and the page says so.
+ */
+const title = "Schedule Claude Code and Codex with cron, on your box";
+const description = "Cron jobs and a template gallery for recurring agent work, run on your own hardware. No run cap from us; your model plan's limits still apply.";
+
+type Tpl = { name: string; desc: string; cadence: string; writes: boolean; icon: typeof Moon };
+const groups: { label: string; items: Tpl[] }[] = [
+  {
+    label: "Code quality",
+    items: [
+      { name: "Nightly Build Watch", desc: "Builds and tests main overnight; reports failures and likely fixes.", cadence: "Daily · 02:00", writes: false, icon: Moon },
+      { name: "CI Failure Triage", desc: "Reproduces newly failed checks and opens a fix PR with test evidence.", cadence: "Every 30 min", writes: true, icon: Siren },
+      { name: "Review Follow-Through", desc: "Summarizes new review comments and what each would take to address.", cadence: "Every 30 min", writes: false, icon: MessageSquareText },
+      { name: "Bug Intake & Repro", desc: "Turns new bug issues into a reproduction and a failing test.", cadence: "Every 30 min", writes: true, icon: Bug },
+      { name: "Merged-PR Checklist", desc: "Grades yesterday's merges against the team checklist, read-only.", cadence: "Daily · 08:30", writes: false, icon: ListChecks },
+      { name: "Coverage Backfill", desc: "Writes real tests for the most under-covered recently changed files.", cadence: "Weekly · Wednesday 09:00", writes: true, icon: FlaskConical },
+      { name: "Lint & Type-Check Sweep", desc: "Fixes lint and type regressions on the default branch, no suppressions.", cadence: "Daily · 07:00", writes: true, icon: Wrench },
+    ],
+  },
+  {
+    label: "Repo hygiene",
+    items: [
+      { name: "Dependency Guardian", desc: "Upgrades packages, runs tests, and opens a PR only when green.", cadence: "Weekly · Monday 06:00", writes: true, icon: ShieldCheck },
+      { name: "Issue Labeler & Stale Sweep", desc: "Labels new issues and runs a courteous two-step stale process.", cadence: "Daily · 08:00", writes: true, icon: Tag },
+      { name: "Docs Drift Detector", desc: "Diffs merged changes against docs and opens fix PRs for drift.", cadence: "Weekly · Tuesday 10:00", writes: true, icon: BookOpenCheck },
+    ],
+  },
+];
+const count = groups.reduce((n, g) => n + g.items.length, 0);
+const cli = site.cli;
+const cliLines = [
+  `${cli} cron add "nightly-build" "build and test main; report failures" --cron "0 2 * * *"`,
+  `${cli} cron add "ci-watch" "triage new CI failures" --every 1800`,
+  `${cli} cron list`,
+  `${cli} cron remove <id>`,
+];
+---
+<PageLayout
+  title={title}
+  description={description}
+  h1="Put your coding agent on a schedule"
+  lead="Cron jobs and a template gallery for the recurring work: the nightly build, the dependency bump, the stale-issue sweep. They run on your own machine, under the same policy as everything else. No run cap from us; your model plan's limits, and your vendor's terms for unattended use, still apply and may change."
+  breadcrumbs={[{ label: "Schedule", href: "/schedule/" }]}
+  jsonLd={[softwareApplication()]}
+>
+  <div class="sched">
+    <section class="block" aria-labelledby="gallery-h">
+      <WardBars align="left" />
+      <h2 id="gallery-h">Start from a template</h2>
+      <p class="measure">The dashboard's Schedule page opens a gallery of {count} ready-made jobs for coding work. Picking one fills in the form; you review the prompt and the cadence and save it before anything runs. The ones marked <em>Writes to your repos</em> push branches, open pull requests or change issues, so they sit behind the same approval gate as any other tool call.</p>
+      {groups.map((g) => (
+        <div class="group">
+          <h3 class="group-h caption">{g.label}</h3>
+          <ul class="gallery" role="list">
+            {g.items.map((t) => {
+              const Icon = t.icon;
+              return (
+                <li class="tile card">
+                  <Icon class="lucide card-icon" aria-hidden="true" />
+                  <h4>{t.name}</h4>
+                  <p class="caption desc">{t.desc}</p>
+                  <p class="foot">
+                    <span class="caption mono">{t.cadence}</span>
+                    {t.writes && <span class="chip writes"><GitPullRequest class="lucide" aria-hidden="true" /> Writes to your repos</span>}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+      <p class="caption">Template names, descriptions and default cadences as they ship in the dashboard today. Every cadence is editable before you save.</p>
+    </section>
+
+    <section class="block two" aria-labelledby="plates-h">
+      <div class="copy">
+        <WardBars align="left" />
+        <h2 id="plates-h">The week, on one page</h2>
+        <p>The calendar view lays each job across the week, so a 02:00 build and a 06:00 dependency bump do not land on the same hour by accident. The executions view keeps each run's result.</p>
+        <p>No night has been recorded for this page yet: the plates show the dashboard with seeded jobs and no agent connected, and they say so. A recorded night will carry its harness and date in the caption.</p>
+      </div>
+      <div class="plates">
+        <Plate num="I" title="The template gallery" caption="Dashboard · Schedule templates · 2026-09-26 · no agent connected" src={templatesShot} alt="The dashboard's Schedule templates dialog: Nightly Build Watch, CI Failure Triage, Review Follow-Through, Bug Intake & Repro, Merged-PR Checklist, Coverage Backfill and Lint & Type-Check Sweep, several marked Writes to your repos." crop={0.2} cropRight={0.2} cropTop={0.045} cropBottom={0.17} sizes="(min-width: 1200px) 560px, 92vw" />
+        <Plate num="II" title="The week's schedule" caption="Dashboard · Schedule calendar · 2026-09-26 · no agent connected" note="Seeded jobs, not runs." src={calendarShot} alt="The dashboard's schedule calendar: a week grid with jobs marked at 02:00, 03:00, 08:00, 09:00, 15:00 and 21:00 each day." crop={0.125} cropTop={0.16} sizes="(min-width: 1200px) 560px, 92vw" />
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="where-h">
+      <WardBars align="left" />
+      <h2 id="where-h">Where you can create a job, on which harness</h2>
+      <p class="measure">A job is created by one of three surfaces. Two of them work with any harness you dock. The third, asking in chat, needs the agent to call its own scheduling tool, and those tools reach kiro-cli only today.</p>
+      <ChTable
+        head={["Surface", "Works with", "How"]}
+        rows={[
+          ["Dashboard", "every docked harness", "Schedule page: a template, or the form (name, prompt, interval or cron expression, optional agent)"],
+          ["CLI", "every docked harness", `<code>${cli} cron add</code>, <code>${cli} cron list</code>, <code>${cli} cron remove</code>`],
+          ["Chat: create a job", "kiro-cli only, today", "\"check the build every night at two\"; the agent calls its scheduling tool"],
+          ["Chat: manage jobs", "every docked harness", "<code>/cron list | pause | resume | remove</code> on Telegram; <code>cron list</code> and friends on Slack"],
+        ]}
+      />
+      <pre class="terminal"><code>{cliLines.map((l) => <span><span class="prompt" aria-hidden="true">$ </span>{l}{"\n"}</span>)}</code></pre>
+    </section>
+
+    <section class="block" aria-labelledby="how-h">
+      <WardBars align="left" />
+      <h2 id="how-h">What a scheduled run is</h2>
+      <ul class="facts measure">
+        <li><strong>Three kinds of schedule.</strong> An interval (at least 60 seconds), a five-field cron expression, or a one-shot at a set time.</li>
+        <li><strong>A fresh agent session per job</strong>, reused across runs by default so a digest can refer to last night; set it to start clean each run for scanners and polling.</li>
+        <li><strong>Under the same gate.</strong> A run's tool calls go through the approval ladder and the deny rules like any other session. A job can be set to auto-approve; a deny rule still refuses.</li>
+        <li><strong>Results go where the job came from</strong>: the dashboard bell, and the chat conversation a job was created in. A failed run delivers its reason, not only a log line; repeated failures pause the job.</li>
+        <li><strong>Skip dates and a time zone</strong> per job, for holidays. Daily and hourly jobs get a small random start delay; mark a job strict to fire on the minute.</li>
+        <li><strong>A time limit per run</strong>: 30 minutes by default, up to 24 hours per job. Longer, checkpointed work belongs in the task runner.</li>
+      </ul>
+    </section>
+
+    <section class="block" aria-labelledby="limits-h">
+      <WardBars align="left" />
+      <h2 id="limits-h">Limits, stated plainly</h2>
+      <ul class="facts measure">
+        <li><strong>No run cap from us; your model plan's limits still apply.</strong> We add no daily count. Your vendor's usage limits and its terms for unattended use are theirs, and they can change.</li>
+        <li><strong>The box has to be on.</strong> A job fires only while the gateway is running. Nothing of ours runs in the cloud.</li>
+        <li><strong>One harness for jobs.</strong> Every job runs on the harness docked for chat when it fires; switching is one setting.</li>
+        <li><strong>Unverified overnight.</strong> No scheduled night has been recorded on any harness yet. <a href="/verified/">The verification log</a> gets the dated row when one is. <StatusChip kind="coming" label="Being verified" /></li>
+      </ul>
+      <p class="measure">Already on Claude Code? Anthropic has Routines and Desktop scheduled tasks, with no setup. <a href="/compare/claude-code-routines/">When to use those, and when to use this</a>.</p>
+    </section>
+  </div>
+</PageLayout>
+
+<style>
+  .sched { display: grid; gap: 64px; }
+  .block { display: grid; gap: 16px; }
+  .group { display: grid; gap: 10px; margin-top: 8px; }
+  .group-h { font-family: var(--font-sans); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .gallery { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .card { display: grid; gap: 8px; align-content: start; padding: 18px; }
+  .card h4 { font-family: var(--font-sans); font-size: 1rem; font-weight: 600; margin: 0; }
+  .card-icon { width: 22px; height: 22px; stroke-width: 1.75; color: var(--lamp); }
+  .desc { color: var(--fg-2); font-size: 0.875rem; }
+  .foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 0; }
+  .writes { font-size: 0.75rem; color: var(--held); }
+  .two { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 40px; align-items: start; }
+  .copy { display: grid; gap: 14px; color: var(--fg-2); }
+  .copy h2 { color: var(--fg); }
+  .plates { display: grid; gap: 28px; min-width: 0; }
+  .terminal { overflow-x: auto; margin: 0; }
+  .facts { margin: 0; padding-left: 1.25em; display: grid; gap: 10px; color: var(--fg-2); }
+  .facts strong { color: var(--fg); }
+  @media (max-width: 880px) { .two { grid-template-columns: 1fr; } }
+</style>

@@ -1,0 +1,52 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import WardBars from "../components/WardBars.astro";
+import { site } from "../data/site";
+import { loadChangelog } from "../data/rev-changelog";
+
+/**
+ * /changelog/: the repository's CHANGELOG.md parsed at build. Only shipped
+ * `## [X.Y.Z] — date` sections, newest first, never an Unreleased section.
+ */
+const title = "Warding changelog";
+const description = "Every shipped release, parsed from the repository's CHANGELOG.md at build. Only shipped sections; nothing unreleased.";
+const sections = loadChangelog();
+const dateFmt = new Intl.DateTimeFormat("en-GB", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+const pretty = (iso: string) => (iso ? dateFmt.format(new Date(`${iso}T00:00:00Z`)) : "undated");
+---
+<PageLayout title={title} description={description} h1="Changelog" lead="Shipped releases, in the words written when they shipped. Nothing unreleased appears here." breadcrumbs={[{ label: "Changelog", href: "/changelog/" }]}>
+  <div class="log">
+    {sections.length === 0 ? (
+      <section class="empty tile" aria-labelledby="empty-h">
+        <p class="eyebrow">Releases</p>
+        <h2 id="empty-h">No tagged release yet.</h2>
+        <p class="measure">The first release writes its section to <code>CHANGELOG.md</code> under its final version number and appears here at the next build. Until then, the commit log is the record: <a href={`${site.githubRepo}/commits/main`} rel="noopener">commits on GitHub</a>.</p>
+        <p class="caption">Subscribe to <a href="/rss.xml">the RSS feed</a> for releases and guides.</p>
+      </section>
+    ) : (
+      sections.map((s) => (
+        <article class="release" id={`v${s.version.replace(/\./g, "-")}`} aria-labelledby={`rel-${s.version.replace(/\./g, "-")}`}>
+          <header class="release-head">
+            <WardBars align="left" />
+            <h2 id={`rel-${s.version.replace(/\./g, "-")}`}><span class="clock clock-33">{s.version}</span></h2>
+            <p class="caption"><time datetime={s.date || undefined}>{pretty(s.date)}</time></p>
+          </header>
+          <div class="release-body" set:html={s.html} />
+        </article>
+      ))
+    )}
+  </div>
+</PageLayout>
+
+<style>
+  .log { display: grid; gap: 56px; max-width: 76ch; }
+  .empty { display: grid; gap: 12px; padding: 28px; }
+  .empty h2 { font-size: 1.75rem; }
+  .release { display: grid; gap: 20px; }
+  .release-head { display: grid; gap: 8px; }
+  .release-body { display: grid; gap: 14px; color: var(--fg-2); }
+  .release-body :global(h3) { margin-top: 12px; color: var(--fg); }
+  .release-body :global(h4) { font-size: 1.125rem; color: var(--fg); }
+  .release-body :global(ul) { margin: 0; padding-left: 1.25em; display: grid; gap: 8px; }
+  .release-body :global(strong) { color: var(--fg); font-weight: 600; }
+</style>

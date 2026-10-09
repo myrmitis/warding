@@ -1,0 +1,95 @@
+---
+title: "How to run Claude Code 24/7 on a home server or VPS"
+description: "Step by step: install Claude Code, run Warding as a service, connect Telegram, add a schedule, lock it down with the sandbox and a policy."
+h1: "Run Claude Code around the clock, and reach it from your phone"
+author: "laqaer"
+published: 2026-09-29
+harness: "Claude Code"
+ogRegister: paper
+ogQualifier: "Service, Telegram, a schedule, the sandbox and a policy"
+verified: []
+---
+
+This guide puts Claude Code on a machine that stays on, runs Warding as a service in front of it, and connects Telegram so you can reach it from your phone. Nothing here is verified overnight yet: the dated record lives on [/verified](/verified/), and the last section says what is still pending.
+
+The CLI is `warding`.
+
+## What you need
+
+- macOS or Linux. A Mac mini, a home server or a small VPS all work; Windows is source-install only and its agent processes fail closed until you opt in.
+- Python 3.10 or newer, and Node.js 22 or newer.
+- Claude Code installed and signed in under your own account, with `claude` on your `PATH`.
+- A Telegram account, and a bot token from @BotFather (below).
+- The adapter: Warding talks to Claude Code through the ACP project's `claude-agent-acp`, which is fetched with `npx` on first run. To pin it instead, install it once with `npm i -g @agentclientprotocol/claude-agent-acp`.
+
+Your Claude plan's limits, and Anthropic's terms for unattended use, apply exactly as they do in the terminal. Warding adds no run cap of its own. For shared or production automation, use an API key.
+
+## Install
+
+The one-line installer is in development; today it is a clone and a script.
+
+```bash
+git clone https://github.com/myrmitis/warding.git && cd warding
+bash minimal_install.sh
+warding setup && warding up
+```
+
+`warding setup` docks the first harness it finds. To make it Claude Code whatever else is installed, set one key in `~/.warding/config.json`:
+
+```json
+"agent": { "acp_backend": "claude" }
+```
+
+Chat runs this one harness; switching later keeps your schedules, memory and channels. `warding planes` prints which one is docked. A spawned subagent can be routed to another installed harness by the harness router; that is registered, not verified.
+
+## Run it as a service
+
+```bash
+warding service install
+```
+
+This installs and starts the gateway as a user service (systemd on Linux, launchd on macOS), so it comes back after a reboot. On Linux it asks for sudo.
+
+## Connect Telegram
+
+1. Message **@BotFather**, send `/newbot`, and follow the prompts. You get a token like `123456789:AA…`.
+2. Message **@userinfobot** to get your numeric user ID. It is the only account the bot will answer.
+3. Put the token in `~/.warding/.env`:
+
+   ```
+   TELEGRAM_BOT_TOKEN=123456789:AA…
+   ```
+
+4. Turn the channel on in `~/.warding/config.json`:
+
+   ```json
+   "telegram": { "enabled": true, "allowed_user_ids": [123456789] }
+   ```
+
+5. Restart with `warding restart` and message your bot.
+
+An empty `allowed_user_ids` means nobody; anyone not on the list is dropped and recorded in the audit log. Telegram is one of the five chat apps with Approve / Deny buttons: see [/approvals](/approvals/).
+
+## Write a policy profile
+
+Before it runs unattended, decide what a nightly job may do. The next guide walks through a worked profile: [Write a policy your coding agent can't edit](/guides/write-a-policy/).
+
+## Add a schedule
+
+Open **Schedule** in the dashboard, pick the *Nightly Build Watch* template, and set the time. It runs on your machine, under the harness you docked. Creating a job by asking in chat is kiro-cli-only today; on Claude Code, use the dashboard or the CLI.
+
+## Turn the sandbox on (Ubuntu 23.10 and newer)
+
+On Ubuntu 23.10 and newer, the default AppArmor setting blocks the user namespace the sandbox needs, so the agent refuses to start rather than run unconfined. `warding service install` fixes it: it installs a narrow AppArmor profile that grants only `userns` to the service. A gateway started by hand is not covered. Other Linux hosts and macOS need nothing extra. What each OS does: [/security/#sandbox](/security/#sandbox).
+
+## What a night looks like
+
+This section fills in when [/verified](/verified/) has the rows: a recorded overnight run on Claude Code, with the transcript, the approvals it asked for, and what it was refused. There is no recorded night yet.
+
+## Known limits
+
+- Chat runs one harness, chosen in one setting; routing a spawned subagent to another harness is registered, not verified.
+- Single owner: one person's chat accounts, one machine.
+- Your Claude plan's limits and Anthropic's terms for unattended use apply and may change.
+- On Claude Code, the agent cannot ask you a question mid-turn, and cron jobs and subagents are created from the dashboard or CLI, not from chat.
+- Memory use over a long night is not measured yet; the numbers will be published here once they are.

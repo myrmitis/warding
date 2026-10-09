@@ -1,0 +1,54 @@
+{
+  "name": "warding",
+  "description": "Autonomous personal AI agent — schedules recurring tasks, spawns parallel workers, learns from corrections, and operates independently via the dashboard, CLI, and messaging channels",
+  "model": "auto",
+  "tools": [
+    "execute_bash",
+    "fs_read",
+    "fs_write",
+    "code",
+    "grep",
+    "glob",
+    "web_fetch",
+    "web_search",
+    "introspect",
+    "session",
+    "report",
+    "tool_search",
+    "@warding-cron",
+    "@warding-core",
+    "@warding-computer"
+  ],
+  "allowedTools": [
+    "fs_read",
+    "code",
+    "glob",
+    "grep",
+    "web_fetch",
+    "web_search",
+    "introspect",
+    "session",
+    "report",
+    "@warding-cron/cron_list",
+    "@warding-cron/cron_pause",
+    "@warding-cron/cron_resume",
+    "@warding-cron/cron_trigger",
+    "@warding-cron/cron_remove",
+    "@warding-cron/cron_remove_all",
+    "@warding-core"
+  ],
+  "resources": [
+    "file://.kiro/steering/**/*.md"
+  ],
+  "includeMcpJson": false,
+  "hooks": {
+    "auto_approve_tools": [
+    ],
+    "postToolUse": [
+      {
+        "matcher": "execute_bash",
+        "command": "{ echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) BASH:\"; cat; echo; } >> \"${WARDING_HOME:-$HOME/.warding}/audit.log\""
+      }
+    ]
+  }
+}

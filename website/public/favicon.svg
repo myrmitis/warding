@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="ward-favicon" viewBox="0 0 16 16" width="16" height="16" role="img" aria-label="Warding">
+  <title>Warding</title>
+  <!-- The Ward Seal at 16 px: rim only, shaft in three segments, two ward bars,
+       no inner rule and no wax drop. Follows the browser colour scheme. -->
+  <style>
+    .ward-favicon { --ward-ink: #1A1814; --ward-seal: #B3301A; }
+    @media (prefers-color-scheme: dark) {
+      .ward-favicon { --ward-ink: #ECE8E1; --ward-seal: #FF7A5C; }
+    }
+  </style>
+  <circle cx="8" cy="8" r="7" fill="none" stroke="var(--ward-ink)" stroke-width="1.5"/>
+  <circle cx="8" cy="6" r="1.5" fill="var(--ward-ink)"/>
+  <rect x="6.5" y="7" width="3" height="1" fill="var(--ward-ink)"/>
+  <rect x="6.5" y="9" width="3" height="1" fill="var(--ward-ink)"/>
+  <rect x="6.5" y="11" width="3" height="1" fill="var(--ward-ink)"/>
+  <rect x="4.5" y="8" width="2" height="1" fill="var(--ward-seal)"/>
+  <rect x="9.5" y="8" width="2" height="1" fill="var(--ward-seal)"/>
+  <rect x="4.5" y="10" width="2" height="1" fill="var(--ward-seal)"/>
+  <rect x="9.5" y="10" width="2" height="1" fill="var(--ward-seal)"/>
+</svg>

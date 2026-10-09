@@ -1,0 +1,475 @@
+const { test } = require("node:test");
+const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
+const {
+  parseNetstatListenPids,
+  windowsGatewayExecutablePaths,
+  windowsSystemToolPaths,
+  windowsListenPids,
+  windowsProcessCommand,
+  windowsTaskkill,
+} = require("../windows-port");
+const {
+  classifyPortOwner,
+  forceStopPort,
+  isWardingCommand,
+} = require("../gateway-stop");
+
+const TEST_TOOLS = windowsSystemToolPaths("D:\\Windows");
+
+test("windowsSystemToolPaths resolves every utility beneath the system root", () => {
+  assert.deepStrictEqual(TEST_TOOLS, {
+    netstat: "D:\\Windows\\System32\\netstat.exe",
+    powershell:
+      "D:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    wmic: "D:\\Windows\\System32\\wbem\\wmic.exe",
+    taskkill: "D:\\Windows\\System32\\taskkill.exe",
+  });
+  assert.throws(
+    () => windowsSystemToolPaths(".\\hostile"),
+    /system root must be a drive-root Windows directory/
+  );
+  assert.throws(
+    () => windowsSystemToolPaths("D:\\hostile\\Windows"),
+    /system root must be a drive-root Windows directory/
+  );
+});
+
+test("windowsGatewayExecutablePaths resolves the executables a launcher can spawn", () => {
+  assert.deepStrictEqual(
+    windowsGatewayExecutablePaths(
+      "D:\\Warding\\resources\\backend-dist\\warding-backend\\bin\\warding.cmd"
+    ),
+    ["D:\\Warding\\resources\\backend-dist\\warding-backend\\python.exe"]
+  );
+  assert.deepStrictEqual(
+    windowsGatewayExecutablePaths("D:\\venv\\Scripts\\warding.exe"),
+    [
+      "D:\\venv\\Scripts\\warding.exe",
+      "D:\\venv\\Scripts\\python.exe",
+      "D:\\venv\\python.exe",
+    ]
+  );
+  assert.deepStrictEqual(
+    windowsGatewayExecutablePaths("warding.exe", { pathEnv: "" }),
+    []
+  );
+});
+
+test("windowsGatewayExecutablePaths resolves a PATH-launched executable", () => {
+  const expected = "D:\\Warding\\Scripts\\warding.exe";
+  const probed = [];
+  const resolved = windowsGatewayExecutablePaths("warding.exe", {
+    pathEnv: 'C:\\Other;"D:\\Warding\\Scripts"',
+    accessSync: (candidate) => {
+      probed.push(candidate);
+      if (candidate !== expected) throw new Error("ENOENT");
+    },
+  });
+  assert.deepStrictEqual(resolved, [
+    expected,
+    "D:\\Warding\\Scripts\\python.exe",
+    "D:\\Warding\\python.exe",
+  ]);
+  assert.deepStrictEqual(probed, [
+    "C:\\Other\\warding.exe",
+    expected,
+  ]);
+});
+
+test("a venv launcher trusts the Python listener it delegates to", () => {
+  const launcher = "D:\\venv\\Scripts\\warding.exe";
+  const trustedExecutablePaths = windowsGatewayExecutablePaths(launcher);
+  assert.strictEqual(
+    isWardingCommand(
+      '"D:\\venv\\Scripts\\python.exe" '
+        + '"D:\\venv\\Scripts\\python.exe" -s -m warding gateway',
+      { trustedExecutablePaths }
+    ),
+    true
+  );
+});
+
+test("parseNetstatListenPids finds IPv4 and IPv6 listeners without reading state text", () => {
+  const output = [
+    "  Proto  Local Address          Foreign Address        State           PID",
+    "  TCP    127.0.0.1:5476        0.0.0.0:0              ABHÖREN         4242",
+    "  TCP    [::1]:5476            [::]:0                 ÉCOUTE          4343",
+    "  TCP    0.0.0.0:5476          0.0.0.0:0              ESCUCHANDO      4242",
+  ].join("\r\n");
+  assert.deepStrictEqual(parseNetstatListenPids(output, 5476), [4242, 4343]);
+});
+
+test("parseNetstatListenPids requires the exact local port and a wildcard peer", () => {
+  const output = [
+    "  TCP    127.0.0.1:54760       0.0.0.0:0              LISTENING       1111",
+    "  TCP    127.0.0.1:5476        10.0.0.5:443           ESTABLISHED     2222",
+    "  UDP    127.0.0.1:5476        *:*                                    3333",
+  ].join("\r\n");
+  assert.deepStrictEqual(parseNetstatListenPids(output, 5476), []);
+});
+
+test("windowsListenPids queries both address families with a bounded timeout", async () => {
+  let invocation;
+  const execFileFn = (command, args, options, callback) => {
+    invocation = { command, args, options };
+    callback(null, "TCP  [::1]:5476  [::]:0  ECOUTE  4343");
+  };
+  const pids = await windowsListenPids(5476, {
+    execFileFn,
+    timeoutMs: 1234,
+    tools: TEST_TOOLS,
+  });
+  assert.deepStrictEqual(pids, [4343]);
+  assert.deepStrictEqual(invocation, {
+    command: TEST_TOOLS.netstat,
+    args: ["-ano"],
+    options: { timeout: 1234 },
+  });
+});
+
+test("windowsListenPids rejects netstat errors and timeouts", async () => {
+  const timeout = Object.assign(new Error("netstat timed out"), { code: "ETIMEDOUT" });
+  const execFileFn = (_command, _args, _options, callback) => callback(timeout, "");
+  await assert.rejects(
+    windowsListenPids(5476, { execFileFn, tools: TEST_TOOLS }),
+    /netstat timed out/
+  );
+});
+
+test("windowsProcessCommand prefers PowerShell command-line output", async () => {
+  const calls = [];
+  const execFileFn = (command, args, options, callback) => {
+    calls.push({ command, args, options });
+    callback(null, '"C:\\Program Files\\Warding\\warding.exe" gateway\r\n');
+  };
+  const command = await windowsProcessCommand(4242, {
+    execFileFn,
+    tools: TEST_TOOLS,
+  });
+  assert.strictEqual(command, '"C:\\Program Files\\Warding\\warding.exe" gateway');
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].command, TEST_TOOLS.powershell);
+  assert.match(calls[0].args.at(-1), /ProcessId = 4242/);
+  assert.match(calls[0].args.at(-1), /ExecutablePath/);
+});
+
+test("windowsProcessCommand falls back to WMIC and unwraps its value", async () => {
+  const calls = [];
+  const execFileFn = (command, args, _options, callback) => {
+    calls.push({ command, args });
+    if (command === TEST_TOOLS.powershell) {
+      callback(new Error("PowerShell unavailable"), "");
+      return;
+    }
+    callback(
+      null,
+      "\r\nExecutablePath=C:\\Python\\python.exe\r\n"
+        + "CommandLine=C:\\Python\\python.exe -m warding gateway\r\n\r\n"
+    );
+  };
+  const command = await windowsProcessCommand(4242, {
+    execFileFn,
+    tools: TEST_TOOLS,
+  });
+  assert.strictEqual(
+    command,
+    '"C:\\Python\\python.exe" C:\\Python\\python.exe -m warding gateway'
+  );
+  assert.deepStrictEqual(
+    calls.map(({ command: name }) => name),
+    [TEST_TOOLS.powershell, TEST_TOOLS.wmic]
+  );
+  assert.deepStrictEqual(calls[1].args, [
+    "process", "where", "ProcessId=4242", "get",
+    "ExecutablePath,CommandLine", "/FORMAT:LIST",
+  ]);
+});
+
+test("windowsProcessCommand fails closed when neither identity probe works", async () => {
+  const execFileFn = (_command, _args, _options, callback) =>
+    callback(new Error("not available"), "");
+  assert.strictEqual(
+    await windowsProcessCommand(4242, { execFileFn, tools: TEST_TOOLS }),
+    ""
+  );
+});
+
+test("windowsProcessCommand fails closed when WMIC cannot prove the executable path", async () => {
+  const execFileFn = (command, _args, _options, callback) => {
+    if (command === TEST_TOOLS.powershell) {
+      callback(new Error("PowerShell unavailable"), "");
+      return;
+    }
+    callback(null, "CommandLine=warding gateway\r\n");
+  };
+  assert.strictEqual(
+    await windowsProcessCommand(4242, { execFileFn, tools: TEST_TOOLS }),
+    ""
+  );
+});
+
+test("isWardingCommand accepts Windows executable and module shapes", () => {
+  const trustedCli = "C:\\Program Files\\Warding\\warding.exe";
+  const trustedBackend = "C:\\bundle\\warding-backend.exe";
+  const trustedPython = "C:\\Python\\python.exe";
+  assert.strictEqual(
+    isWardingCommand(`"${trustedCli}" gateway`, {
+      trustedExecutablePaths: [trustedCli],
+    }),
+    true
+  );
+  assert.strictEqual(
+    isWardingCommand(`${trustedBackend} gateway`, {
+      trustedExecutablePaths: [trustedBackend],
+    }),
+    true
+  );
+  assert.strictEqual(
+    isWardingCommand(`${trustedPython} -s -m warding gateway`, {
+      trustedExecutablePaths: [trustedPython],
+    }),
+    true
+  );
+  assert.strictEqual(
+    isWardingCommand(
+      `${trustedPython} C:\\venv\\Scripts\\warding gateway`,
+      { trustedExecutablePaths: [trustedPython] }
+    ),
+    true
+  );
+  assert.strictEqual(
+    isWardingCommand(
+      `"${trustedPython}" ${trustedPython} -s -m warding gateway`,
+      { trustedExecutablePaths: [trustedPython] }
+    ),
+    true
+  );
+});
+
+test("isWardingCommand rejects Windows path substrings and unrelated Python", () => {
+  assert.strictEqual(
+    isWardingCommand("C:\\Users\\warding\\OtherApp\\server.exe --port 5476"),
+    false
+  );
+  assert.strictEqual(
+    isWardingCommand("C:\\Users\\warding\\python.exe -m http.server 5476"),
+    false
+  );
+  assert.strictEqual(
+    isWardingCommand("C:\\Python\\python.exe app.py warding"),
+    false
+  );
+  assert.strictEqual(
+    isWardingCommand("C:\\Python\\python.exe app.py C:\\tmp\\warding"),
+    false
+  );
+  assert.strictEqual(
+    isWardingCommand("C:\\Python\\python.exe app.py -m warding"),
+    false
+  );
+  assert.strictEqual(
+    isWardingCommand("C:\\Temp\\warding.exe gateway", {
+      trustedExecutablePaths: [
+        "C:\\Program Files\\Warding\\warding.exe",
+      ],
+    }),
+    false
+  );
+});
+
+test("isWardingCommand rejects SSH aliases and remote gateway commands", () => {
+  assert.strictEqual(
+    isWardingCommand("C:\\Windows\\System32\\OpenSSH\\ssh.exe -NL 5476:localhost:5476 warding"),
+    false
+  );
+  assert.strictEqual(
+    isWardingCommand("ssh.exe host python.exe -m warding gateway"),
+    false
+  );
+});
+
+test("Windows owner classification returns unknown when netstat cannot run", async () => {
+  const owner = await classifyPortOwner(5476, {
+    getListenPids: async () => { throw new Error("netstat unavailable"); },
+    getCommand: async () => "",
+  });
+  assert.strictEqual(owner, "unknown");
+});
+
+test("Windows force-stop refuses an SSH holder even when its alias is warding", async () => {
+  const killed = [];
+  const result = await forceStopPort(5476, {
+    getListenPids: async () => [909],
+    getCommand: async () =>
+      "C:\\Windows\\System32\\OpenSSH\\ssh.exe -NL 5476:localhost:5476 warding",
+    kill: async (pid) => killed.push(pid),
+    sleep: async () => {},
+    failClosedOnProbeError: true,
+  });
+  assert.deepStrictEqual(killed, []);
+  assert.strictEqual(result.freed, false);
+  assert.strictEqual(result.foreignHolder, true);
+});
+
+test("Windows force-stop refuses unrelated Python with a later warding path", async () => {
+  const killed = [];
+  const result = await forceStopPort(5476, {
+    getListenPids: async () => [910],
+    getCommand: async () => "C:\\Python\\python.exe app.py C:\\tmp\\warding",
+    kill: async (pid) => killed.push(pid),
+    sleep: async () => {},
+    failClosedOnProbeError: true,
+  });
+  assert.deepStrictEqual(killed, []);
+  assert.strictEqual(result.freed, false);
+  assert.strictEqual(result.foreignHolder, true);
+});
+
+test("Windows force-stop refuses an untrusted warding.exe basename", async () => {
+  const killed = [];
+  const trustedCli = "C:\\Program Files\\Warding\\warding.exe";
+  const result = await forceStopPort(5476, {
+    getListenPids: async () => [911],
+    getCommand: async () => "C:\\Temp\\warding.exe gateway",
+    kill: async (pid) => killed.push(pid),
+    sleep: async () => {},
+    isWarding: (command) => isWardingCommand(command, {
+      trustedExecutablePaths: [trustedCli],
+    }),
+    failClosedOnProbeError: true,
+  });
+  assert.deepStrictEqual(killed, []);
+  assert.strictEqual(result.freed, false);
+  assert.strictEqual(result.foreignHolder, true);
+});
+
+test("windowsTaskkill revalidates identity before using force on the PID", async () => {
+  let invocation;
+  const trustedCli = "C:\\Program Files\\Warding\\warding.exe";
+  const execFileFn = (command, args, options, callback) => {
+    invocation = { command, args, options };
+    callback(null, "SUCCESS");
+  };
+  await windowsTaskkill(4242, {
+    execFileFn,
+    timeoutMs: 2345,
+    tools: TEST_TOOLS,
+    getCommandFn: async () => `"${trustedCli}" gateway`,
+    isTrustedCommand: (command) => isWardingCommand(command, {
+      trustedExecutablePaths: [trustedCli],
+    }),
+  });
+  assert.deepStrictEqual(invocation, {
+    command: TEST_TOOLS.taskkill,
+    args: ["/T", "/F", "/PID", "4242"],
+    options: { timeout: 2345 },
+  });
+});
+
+test("windowsTaskkill reaps the gateway's whole tree, not just the listening PID", () => {
+  // /T IS LOAD-BEARING ON WINDOWS, and its absence is invisible on POSIX.
+  //
+  // The gateway is not a leaf: it spawns detached kiro-cli ACP runtimes, MCP
+  // servers and app servers, and Windows has no process group a single kill can
+  // reach -- taskkill /T is the only way to take the subtree with the parent.
+  // Killing the listener alone frees the PORT (so the recovery probe reports
+  // success) while leaving those children alive and reparented, holding the data
+  // home's locks and the same .local_secret. The respawned gateway then races
+  // orphans from the generation it just replaced.
+  //
+  // The Python side already reached this conclusion: cli_server.py's stop path
+  // routes through platform_compat.kill_process_tree precisely because "a single
+  // -PID kill_pid would orphan them". This is the JS shell honouring the same
+  // invariant, so the two halves of one product stop the same way.
+  //
+  // Asserted against the SOURCE rather than only through the injected execFile
+  // above, so a refactor that reintroduces a single-PID kill on another code
+  // path fails here too.
+  const src = fs.readFileSync(path.join(__dirname, "..", "windows-port.js"), "utf8");
+  assert.match(
+    src,
+    /"\/T",\s*"\/F",\s*"\/PID"/,
+    "windowsTaskkill must pass /T so the gateway's detached children are reaped " +
+      "with it; a single-PID kill frees the port but orphans the subtree"
+  );
+});
+
+test("the SIGKILL launch hint is not offered as macOS-only advice on Windows", () => {
+  // A gateway child that exits with signalCode "SIGKILL" gets a hint pointing at
+  // macOS Gatekeeper and `xattr -cr`. On macOS that is the single most useful
+  // thing to say. On Windows it is never true and actively misleading, because
+  // OUR OWN teardown produces that signalCode: Node maps .kill("SIGTERM") and
+  // .kill("SIGKILL") onto TerminateProcess, so every wedge recovery and every
+  // fallback stop sets it. The launch log is exactly what the unrecoverable-
+  // gateway dialog tells the user to read, so a mac remedy printed on a Windows
+  // box sends bug reports down the wrong path.
+  //
+  // Asserted on the source because main.js requires electron at load time and so
+  // cannot be imported here -- the same idiom windows-titlebar-contract.test.js
+  // uses. The requirement is only that the hint be PLATFORM-GATED; the wording is
+  // free to change.
+  const src = fs.readFileSync(path.join(__dirname, "..", "main.js"), "utf8");
+  const hint = src.split("\n").findIndex((line) => line.includes("xattr -cr"));
+  assert.notStrictEqual(hint, -1, "the Gatekeeper hint should still exist for macOS");
+  const guarded = src
+    .split("\n")
+    .slice(Math.max(0, hint - 4), hint + 1)
+    .join("\n");
+  assert.match(
+    guarded,
+    /IS_MAC|IS_WIN|platform/,
+    "the macOS Gatekeeper/xattr hint must be platform-gated: on Windows our own " +
+      "teardown sets signalCode SIGKILL, so this prints a mac remedy on every stop"
+  );
+});
+
+test("windowsTaskkill refuses a PID reused by an unrelated process", async () => {
+  let invoked = false;
+  const trustedCli = "C:\\Program Files\\Warding\\warding.exe";
+  await assert.rejects(
+    windowsTaskkill(4242, {
+      execFileFn: () => { invoked = true; },
+      tools: TEST_TOOLS,
+      getCommandFn: async () => "C:\\Windows\\System32\\notepad.exe",
+      isTrustedCommand: (command) => isWardingCommand(command, {
+        trustedExecutablePaths: [trustedCli],
+      }),
+    }),
+    /process identity changed/
+  );
+  assert.strictEqual(invoked, false);
+});
+
+test("Windows force-stop cannot taskkill a PID that changes owners", async () => {
+  const trustedCli = "C:\\Program Files\\Warding\\warding.exe";
+  let taskkillInvoked = false;
+  const result = await forceStopPort(5476, {
+    getListenPids: async () => [4242],
+    getCommand: async () => `"${trustedCli}" gateway`,
+    kill: (pid) => windowsTaskkill(pid, {
+      execFileFn: () => { taskkillInvoked = true; },
+      tools: TEST_TOOLS,
+      getCommandFn: async () => "C:\\Windows\\System32\\notepad.exe",
+      isTrustedCommand: (command) => isWardingCommand(command, {
+        trustedExecutablePaths: [trustedCli],
+      }),
+    }),
+    sleep: async () => {},
+    isWarding: (command) => isWardingCommand(command, {
+      trustedExecutablePaths: [trustedCli],
+    }),
+    failClosedOnProbeError: true,
+  });
+  assert.strictEqual(taskkillInvoked, false);
+  assert.strictEqual(result.killed, 0);
+  assert.strictEqual(result.freed, false);
+  assert.strictEqual(result.foreignHolder, true);
+});
+
+test("Windows process tools reject invalid numeric identifiers", async () => {
+  assert.throws(() => parseNetstatListenPids("", 0), /port must be a positive integer/);
+  await assert.rejects(windowsProcessCommand("4; Stop-Process", {}), /pid must be a positive integer/);
+  await assert.rejects(windowsTaskkill(-1, {}), /pid must be a positive integer/);
+});

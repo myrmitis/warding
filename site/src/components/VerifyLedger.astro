@@ -1,0 +1,81 @@
+---
+/**
+ * The verification ledger: one square per harness × capability, so the honest
+ * count is the picture. A filled seal square is a dated row on /verified (and
+ * links to it); a hollow square is registered and not yet verified. The grid
+ * is decorative to assistive tech; the sentence under the counter says the
+ * same thing in words and names every verified cell.
+ */
+import { harnesses, CAPABILITIES } from "../data/harnesses";
+
+interface Props { class?: string }
+const { class: cls = "" } = Astro.props;
+
+// Claude Code first: it is the one harness with a dated row.
+const rows = [...harnesses].sort((a, b) => Number(b.id === "claude") - Number(a.id === "claude"));
+const total = harnesses.length * CAPABILITIES.length;
+const verified = rows.flatMap((h) =>
+  CAPABILITIES.filter((c) => h.verified[c.key]).map((c) => ({ h, c, date: h.verified[c.key] as string })),
+);
+const pad = (n: number) => String(n).padStart(2, "0");
+---
+<figure class={`ledger ${cls}`}>
+  <div class="ledger-head">
+    <p class="ledger-count clock" aria-hidden="true"><span class="n">{pad(verified.length)}</span><span class="of"> / {total}</span></p>
+    <p class="ledger-say">
+      {verified.length} of {total} harness checks verified{verified.length > 0 && ": "}{verified.map((v, i) => (
+        <>{i > 0 && "; "}{v.h.name} {v.c.label.toLowerCase()}, <span class="nowrap">{v.date}</span></>
+      ))}. Everything else is registered and not yet verified — the full grid is on <a href="/registry/">/registry</a>, and every dated row on <a href="/verified/">/verified</a>.
+    </p>
+  </div>
+  <div class="ledger-grid" aria-hidden="true" style={`--cols: ${CAPABILITIES.length}`}>
+    <span class="corner"></span>
+    {CAPABILITIES.map((c) => <span class="col-label">{c.label}</span>)}
+    {rows.map((h) => (
+      <>
+        <span class="row-label mono">{h.command}</span>
+        {CAPABILITIES.map((c) => {
+          const date = h.verified[c.key];
+          return date ? (
+            <a class="sq sq-on" href={`/verified/#${h.id}-${c.key}`} tabindex="-1" title={`${h.name} · ${c.label} · verified ${date}`}></a>
+          ) : (
+            <span class="sq" title={`${h.name} · ${c.label} · registered, not yet verified`}></span>
+          );
+        })}
+      </>
+    ))}
+  </div>
+  <figcaption class="caption ledger-key">
+    <span class="key"><i class="sq sq-on"></i> verified, dated</span>
+    <span class="key"><i class="sq"></i> registered, not yet verified</span>
+  </figcaption>
+</figure>
+
+<style>
+  .ledger { margin: 48px 0 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 48px; align-items: end; }
+  .ledger-head { display: grid; gap: 12px; align-content: end; }
+  .ledger-count { font-size: clamp(56px, 4vw + 32px, 88px); line-height: 0.9; color: var(--seal); }
+  .ledger-count .of { color: var(--fg-3); font-size: 0.5em; }
+  .ledger-say { max-width: 46ch; color: var(--fg-2); }
+  .nowrap { white-space: nowrap; }
+  .ledger-grid {
+    display: grid; grid-template-columns: auto repeat(var(--cols), 22px); gap: 6px; align-items: center; justify-items: center;
+  }
+  .corner { width: 1px; }
+  .col-label {
+    writing-mode: vertical-rl; transform: rotate(180deg); font-size: 0.75rem; color: var(--fg-3);
+    height: 76px; text-align: left; line-height: 1;
+  }
+  .row-label { justify-self: end; font-size: 0.8125rem; color: var(--fg-2); padding-right: 6px; }
+  .sq { display: block; width: 22px; height: 22px; box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--fg) 28%, transparent); }
+  .sq-on { background: var(--seal); border-color: var(--seal); }
+  a.sq-on:hover { outline: 2px solid var(--seal); outline-offset: 2px; }
+  .ledger-key { grid-column: 1 / -1; display: flex; gap: 20px; flex-wrap: wrap; }
+  .key { display: inline-flex; align-items: center; gap: 8px; }
+  .key .sq { width: 12px; height: 12px; }
+  @media (max-width: 760px) {
+    .ledger { grid-template-columns: minmax(0, 1fr); }
+    .ledger-grid { justify-self: start; grid-template-columns: auto repeat(var(--cols), 18px); gap: 5px; }
+    .sq { width: 18px; height: 18px; }
+  }
+</style>

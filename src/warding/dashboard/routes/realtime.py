@@ -1,0 +1,90 @@
+"""Route registration for websocket, status/system, capability inventory, suggestions and tips.
+
+One contiguous slice of the dashboard's route table, kept in its original
+order. aiohttp resolves routes in REGISTRATION order, and several routes here
+rely on a literal path being registered before a pattern that would otherwise
+swallow it, so neither the lines within this function nor the order in which
+``server.start_dashboard`` calls the registrars may be rearranged.
+"""
+
+from __future__ import annotations
+
+from aiohttp import web
+
+from warding.dashboard import handlers, ws
+from warding.harness_router import api as harness_router_api
+from warding.model_router.api import api_catalog as api_model_router_catalog
+from warding.model_router.api import api_plan as api_model_router_plan
+from warding.model_router.api import api_status as api_model_router_status
+from warding.planes import api_planes
+from warding.suggestions import api_suggestions
+from warding.tips import api_tips_feedback, api_tips_next, api_tips_status
+
+
+def register(app: web.Application) -> None:
+    """Register the realtime routes on *app*."""
+    app.router.add_get("/", handlers.index)
+    app.router.add_get("/logo.png", handlers.logo)
+    app.router.add_get(
+        "/{name:manifest\\.json|sw\\.js|icon-\\d+\\.png|pcm-worklet\\.js}", handlers.pwa_file
+    )
+
+    # WebSocket (multiplexed real-time events)
+    app.router.add_get("/api/ws", ws.api_ws)
+
+    # Status / system
+    app.router.add_get("/api/status", handlers.api_status)
+    app.router.add_get("/api/system", handlers.api_system)
+    app.router.add_get("/api/system/session-storage", handlers.api_session_storage)
+    # The inventory list and its per-row detail. Registered before the {uid} route
+    # so the literal path cannot be swallowed by the pattern.
+    app.router.add_get("/api/system/session-storage/sessions", handlers.api_session_inventory)
+    app.router.add_get(
+        "/api/system/session-storage/sessions/{uid}", handlers.api_session_inventory_detail
+    )
+    app.router.add_post("/api/system/session-storage/trash", handlers.api_session_inventory_trash)
+    app.router.add_post("/api/system/session-storage/cleanup", handlers.api_session_storage_cleanup)
+    app.router.add_post("/api/system/session-storage/restore", handlers.api_session_storage_restore)
+    app.router.add_post("/api/system/session-storage/empty", handlers.api_session_storage_empty)
+    # Progress for the empty above. A GET on the same path, because it reports on
+    # exactly the operation that POST starts.
+    app.router.add_get(
+        "/api/system/session-storage/empty", handlers.api_session_storage_empty_status
+    )
+    app.router.add_get("/api/stream", handlers.api_stream)
+    app.router.add_get("/api/sso-ttl", handlers.api_sso_ttl)
+    app.router.add_get("/api/dashboard/branding", handlers.api_branding)
+    app.router.add_get("/api/model-router/status", api_model_router_status)
+    app.router.add_get("/api/model-router/catalog", api_model_router_catalog)
+    app.router.add_get("/api/model-router/plan", api_model_router_plan)
+    app.router.add_get("/api/planes", api_planes)
+    harness_router_api.register(app)
+    app.router.add_get("/api/health", handlers.api_health)
+    app.router.add_get("/api/live", handlers.api_live)
+    app.router.add_get("/api/ready", handlers.api_ready)
+    app.router.add_get("/api/theme/boot", handlers.api_theme_boot)
+    app.router.add_get("/api/admin/compliance/yolo-status", handlers.api_compliance_yolo_status)
+    app.router.add_get(
+        "/api/kiro-prerequisite",
+        handlers.api_kiro_prerequisite_status,
+    )
+    # POST, not a flag on the status GET: csrf_middleware skips check_origin for
+    # safe methods and sel_audit_middleware logs only mutating ones, so a spec
+    # rewrite reached from the GET would be cross-site triggerable and unaudited.
+    app.router.add_post(
+        "/api/kiro-prerequisite/repair-specs",
+        handlers.api_kiro_prerequisite_repair_specs,
+    )
+    app.router.add_post(
+        "/api/kiro-prerequisite/complete-with-agents",
+        handlers.api_kiro_prerequisite_complete_with_agents,
+    )
+    app.router.add_get("/api/governance/channels", handlers.api_governance_channels)
+
+    # Suggestions (pre-computed contextual prompts)
+    app.router.add_get("/api/suggestions", api_suggestions)
+
+    # Tips (feature discovery)
+    app.router.add_get("/api/tips/next", api_tips_next)
+    app.router.add_get("/api/tips/status", api_tips_status)
+    app.router.add_post("/api/tips/feedback", api_tips_feedback)

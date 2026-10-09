@@ -1,0 +1,707 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import WardSeal from "../components/WardSeal.astro";
+import WardBars from "../components/WardBars.astro";
+import StatusChip from "../components/StatusChip.astro";
+import Plate from "../components/Plate.astro";
+import PhoneCard from "../components/PhoneCard.astro";
+import CharterSheet from "../components/CharterSheet.astro";
+import ClockHead from "../components/ClockHead.astro";
+import VerifyLedger from "../components/VerifyLedger.astro";
+import LinkButton from "../components/LinkButton.astro";
+import GithubMark from "../components/GithubMark.astro";
+import InstallTabs from "../islands/InstallTabs";
+import ApproveFromChatDemo from "../islands/ApproveFromChatDemo";
+import OfficeWorld from "../islands/world/OfficeWorld";
+import Drollery from "../islands/world/Drollery";
+import { site } from "../data/site";
+import { channels, channelCounts } from "../data/channels";
+import { harnesses } from "../data/harnesses";
+import { previewOffers } from "../data/pricing";
+import { collectMetrics } from "../lib/metrics";
+import { organization, softwareApplication, webSite } from "../lib/seo";
+import Ban from "@lucide/astro/icons/ban";
+import Activity from "@lucide/astro/icons/activity";
+import Moon from "@lucide/astro/icons/moon";
+import Sunrise from "@lucide/astro/icons/sunrise";
+import AlertTriangle from "@lucide/astro/icons/triangle-alert";
+import Rocket from "@lucide/astro/icons/rocket";
+import Link2 from "@lucide/astro/icons/link-2";
+import Copy from "@lucide/astro/icons/copy";
+import ArrowRight from "@lucide/astro/icons/arrow-right";
+import Stamp from "@lucide/astro/icons/stamp";
+import calendarShot from "../assets/shots/default-schedule-calendar.png";
+import securityShot from "../assets/shots/default-settings-security.png";
+import planesText from "../assets/cli-warding-planes.txt?raw";
+
+const pre = !site.nightsVerified;
+const title = "Warding: run your coding agent all night on your own box";
+const description = "Run Claude Code, Codex or kiro-cli on your own box, on a schedule. Approve risky steps from Telegram or Slack under a policy it can't edit. Apache-2.0.";
+const h1 = pre ? "One coding agent, all night, on your own box." : "Your coding agent keeps going after you leave.";
+// Two lines on wide screens, broken after the subject ("One coding agent,").
+const h1Lines = pre ? ["One coding agent,", "all night, on your own box."] : [h1];
+const metrics = collectMetrics();
+// Counts in prose are words, derived from the registry so they cannot drift.
+const countWord = (n: number) => ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"][n] ?? String(n);
+const releases = `${site.githubRepo}/releases`;
+const nf = new Intl.NumberFormat("en-US");
+const docs = `${site.githubRepo}/tree/main/docs`;
+const quickstart = [`git clone ${site.githubRepo}.git && cd warding`, "bash minimal_install.sh", `${site.cli} setup && ${site.cli} up`].join("\n");
+// The fold shows the clone+install step on one line; Copy takes the whole quickstart.
+const installLine = `git clone ${site.githubRepo}.git && cd warding && bash minimal_install.sh`;
+const freeOffer = previewOffers.find((o) => o.id === "free");
+const otherOffers = previewOffers.filter((o) => o.id !== "free");
+// The collapsed offers line is dated with the build: every status in it is read from data at build time.
+const offersAsOf = new Date().toISOString().slice(0, 10);
+// The 24-hour dial: job ticks at the gallery's cadences (02:00 nightly, 08:45 standup, every 6 h digest).
+const jobHours = [2, 8.75, 0, 6, 12, 18];
+const polar = (cx: number, r: number, h: number) => {
+  const a = (h / 24) * Math.PI * 2 - Math.PI / 2;
+  return { x: cx + Math.cos(a) * r, y: cx + Math.sin(a) * r };
+};
+// The `planes` output as captured on 2026-09-26; the heading line is rebuilt
+// from the product name.
+const planesLines = planesText.trim().split("\n").filter((l) => !l.trim().startsWith("roles:")).map((l, i) => (i === 0 ? `${site.name} planes` : l));
+// AWS's documented example key id, assembled so a secret scanner reads no key in source.
+const exampleKey = ["AKIA", "IOSFODNN7EXAMPLE"].join("");
+const keystone = [
+  "~/.warding/security_policy.json", "~/.warding/profiles/", "~/.warding/admission_policy.json", "~/.warding/computer_use.json",
+  "~/.ssh", "~/.aws", "~/.gnupg", "~/.kube/config", "~/.netrc", "~/.git-credentials", "…",
+];
+const selEntries = [
+  { n: 3, type: "tool_denial", op: "execute_bash", res: "cat ~/.aws/credentials", prev: "b71e42…", hash: "9f2c8d…" },
+  { n: 2, type: "tool_approval", op: "execute_bash", res: "git push origin fix/auth-flake", prev: "04ad1f…", hash: "b71e42…" },
+  { n: 1, type: "tool_invocation", op: "fs_write", res: "tests/auth_test.py", prev: "000000…", hash: "04ad1f…" },
+];
+const gallery = [
+  { name: "Nightly Build Watch", desc: "Builds and tests main overnight; reports failures and likely fixes.", cadence: "Daily · 02:00", icon: Moon, running: true },
+  { name: "Standup Brief", desc: "Your commits, PRs, CI status, and blockers before standup.", cadence: "Weekdays · 08:45", icon: Sunrise, running: false },
+  { name: "Error Digest", desc: "Clusters new production errors with a suspected cause for each.", cadence: "Every 6 h", icon: AlertTriangle, running: false },
+  { name: "Deploy Verification", desc: "Runs post-deploy smoke checks and posts a go/no-go verdict.", cadence: "Every 30 m", icon: Rocket, running: false },
+];
+const bento = [
+  { title: "Task runner", body: "Plan, execute, validate, and a checkpoint ledger you can resume from.", href: `${docs}/system-specs/modules/task.md`, demo: "ledger" },
+  { title: "Subagents", body: "Fan out from the dashboard or CLI; from chat on kiro-cli.", href: `${docs}/system-specs/modules/subagent.md`, demo: "fanout" },
+  { title: "Memory and lessons", body: "A correction you make once becomes a lesson it keeps.", href: `${docs}/system-specs/modules/memory-skills-hooks.md`, demo: "lesson" },
+  { title: "21 apps", body: "Code Review Sage, Issue Radar, PPTX Maker, Papyrus and more, from a local registry.", href: `${docs}/system-specs/modules/app-kit-platform.md`, demo: "apps" },
+  { title: "18 themes", body: "Eighteen dashboard themes on one set of colour tokens; the plate above recolours to show it.", href: `${docs}/system-specs/modules/themes.md`, demo: "themes" },
+  { title: "12 languages", body: "The dashboard ships translated, dates and numbers included.", href: `${site.githubRepo}/blob/main/website/docs/i18n-catalog.md`, demo: "langs" },
+];
+---
+<BaseLayout title={title} description={description} register="night" footerRegister="paper" navWide ogSlug="home" installHref="#install" jsonLd={[softwareApplication(metrics.latestTag), organization(), webSite()]} bodyClass="home">
+  <div class="vault night" id="night">
+    <!-- 1–6. The hero is step 0 of the night: the world sits in its right column
+         and stays pinned while the clock-time steps scroll beside it on desktop;
+         on phones everything stacks. -->
+    <div class="stage wrap-wide" data-stage data-step="0">
+      <header class="hero-head">
+        <p class="eyebrow">
+          <svg class="eyebrow-dial" viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">
+            <circle cx="22" cy="22" r="19" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.55" />
+            {[0, 6, 12, 18].map((h) => { const o = polar(22, 15, h); const i = polar(22, 19, h); return <line x1={o.x} y1={o.y} x2={i.x} y2={i.y} stroke="var(--fg-2)" stroke-width="1.5" />; })}
+            <line class="dial-hand" data-dial-hand x1="22" y1="22" x2="22" y2="8" stroke="var(--fg)" stroke-width="2" stroke-linecap="round" />
+            <circle cx="22" cy="22" r="2" fill="var(--fg)" />
+          </svg>
+          <svg class="eyebrow-window" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
+            <rect x="2" y="2" width="28" height="28" fill="none" stroke="var(--fg-2)" stroke-width="2" />
+            <line x1="16" y1="2" x2="16" y2="30" stroke="var(--fg-2)" stroke-width="2" />
+            <line x1="2" y1="16" x2="30" y2="16" stroke="var(--fg-2)" stroke-width="2" />
+            <rect x="17" y="17" width="12" height="12" fill="var(--lamp)" />
+          </svg>
+          <span><span class="clock" data-local-time>--:--</span> your time</span>
+        </p>
+        <h1 id="hero-h1">{h1Lines.map((l, i) => (i === 0 ? <span class="h1-line">{l}</span> : <> <span class="h1-line">{l}</span></>))}</h1>
+      </header>
+
+      <div class="steps">
+        <section class="step step-hero" data-step="0" aria-labelledby="hero-h1">
+          <div class="hero-lead">
+            <p class="lead">
+              Warding runs the coding agent you already pay for on your own machine, on a schedule, reports into Telegram or Slack, and can ask you there before it acts when you enable approvals — under a policy it can't read or rewrite.
+            </p>
+            <p class="caption qualifier">
+              {pre ? (
+                <>One Claude Code chat reply is on record. Schedules, channels and overnight runs are not yet verified on any harness — <a href="/verified/">see the dated log</a>. Your model plan's limits still apply; we add none.</>
+              ) : (
+                <>Verified overnight on Claude Code (Mac mini and Ubuntu VPS, dates on <a href="/verified/">/verified</a>); other harnesses as their rows land. Your model plan's limits still apply; we add none.</>
+              )}
+            </p>
+          </div>
+          <div class="hero-install">
+            <div class="strip">
+              <pre class="strip-pre" tabindex="0" aria-label="Install from source"><code><span class="prompt" aria-hidden="true">$ </span>{installLine}</code></pre>
+            </div>
+            <div class="hero-ctas">
+              <button type="button" class="btn btn-primary" data-copy-quickstart={quickstart}><Copy class="lucide" aria-hidden="true" /> {site.installOneLiner ? "Copy the install command" : "Copy the quickstart"}</button>
+              <LinkButton href={site.githubRepo} external track="github_click"><GithubMark /> Star on GitHub</LinkButton>
+              <span class="caption copied" data-copy-status aria-live="polite"></span>
+            </div>
+            <p class="caption strip-note">Then <code>{site.cli} setup && {site.cli} up</code>. Needs Python 3.10+, Node 22+ and your agent's CLI on your PATH · <a class="quiet-link nowrap" href="#install">install notes</a></p>
+            <p class="caption"><a class="nowrap" href="/security/">See the rules it can't open <ArrowRight class="lucide-inline" aria-hidden="true" /></a></p>
+            <p class="caption microcopy">Runs Claude Code, Codex, Goose, Cursor, kiro-cli and {countWord(harnesses.length - 5)} more · Apache-2.0 · macOS and Linux · no account with us</p>
+          </div>
+        </section>
+
+        <!-- The world follows the hero in the markup, so on one column it sits
+             between the install and 22:40 in reading and tab order alike; on
+             desktop it is placed in the right column beside every step. -->
+        <aside class="stage-world" aria-label="The night office, simulated">
+          <OfficeWorld client:idle />
+          <p class="caption plate-cap"><span class="plate-num">Plate I.</span> The Night Office — every sprite is a live session in the product; this one is scripted.</p>
+        </aside>
+
+        <section class="step" data-step="1" aria-labelledby="s1">
+          <ClockHead time="22:40" title="Hand it the work from the chat you already use." id="s1" />
+          <p class="step-body">A Telegram message lands: <em>fix the flaky auth test and open a PR</em>. The sprite stands up. The session is Claude Code, launched under your own login on your own machine.</p>
+          <div class="slide-in">
+            <PhoneCard channel="Telegram" harness="Claude Code" time="22:40">
+              <div class="bubble bubble-you">fix the flaky auth test and open a PR<span class="bubble-time">22:40 · you</span></div>
+              <div class="bubble" style="margin-top:8px">On it. Reading <code>tests/auth_test.py</code>.<span class="bubble-time">22:40 · claude</span></div>
+            </PhoneCard>
+          </div>
+          <p class="caption">Simulated: Claude Code via the ACP project's <code>claude-agent-acp</code> adapter, over Telegram{pre ? <> — the round-trip is being verified (<a href="/verified/">dated log</a>)</> : ""}. Slack, Discord, Teams and Webex too; WhatsApp and four more: <a href="#channels-matrix">see the matrix at 03:05</a>.</p>
+        </section>
+
+        <section class="step" data-step="2" aria-labelledby="s2">
+          <ClockHead time="01:12" title="Schedules run on your box. No run cap from us." id="s2" />
+          <p class="step-body">The <em>Nightly Build Watch</em> template fires. It runs on your hardware, not against a quota. Your model plan's limits still apply; we add none.</p>
+          <div class="dial-wrap">
+            <svg class="dial" viewBox="0 0 160 160" width="160" height="160" aria-hidden="true">
+              <circle cx="80" cy="80" r="70" fill="none" stroke="var(--line)" stroke-width="1" />
+              {Array.from({ length: 24 }, (_, h) => { const p = polar(80, 62, h); return <circle cx={p.x} cy={p.y} r={h % 6 === 0 ? 2 : 1.1} fill="var(--fg-3)" />; })}
+              {jobHours.map((h) => { const o = polar(80, 70, h); const i = polar(80, 52, h); return <line x1={o.x} y1={o.y} x2={i.x} y2={i.y} stroke="var(--lamp)" stroke-width="3" stroke-linecap="round" />; })}
+              <line class="dial-hand" data-dial-hand x1="80" y1="80" x2="80" y2="26" stroke="var(--fg)" stroke-width="2.5" stroke-linecap="round" />
+              <circle cx="80" cy="80" r="4" fill="var(--fg)" />
+            </svg>
+            <span class="caption">ticks are jobs · the hand is your time</span>
+          </div>
+          <div class="gallery">
+            {gallery.map((g) => {
+              const Icon = g.icon;
+              return (
+              <div class={`tile gallery-card ${g.running ? "is-running" : ""}`}>
+                <Icon class="lucide tile-icon" aria-hidden="true" />
+                <h3>{g.name}</h3>
+                <p class="caption">{g.desc}</p>
+                <div class="gallery-foot">
+                  <span class="caption">{g.cadence}</span>
+                  {g.running && <span class="status status-running"><Activity class="lucide" aria-hidden="true" /> Running</span>}
+                </div>
+              </div>
+              );
+            })}
+          </div>
+          <p class="caption">Jobs are created in the dashboard or CLI on every harness. Creating them by asking in chat is kiro-cli-only today — <a href="/verified/">status</a>.</p>
+        </section>
+
+        <section class="step" data-step="3" aria-labelledby="s3">
+          <ClockHead time="02:30" title="Some things it is not allowed to do." id="s3" />
+          <p class="step-body">The agent runs <code>cat ~/.aws/credentials</code>. It is refused before any human is asked, because <code>~/.aws</code> is on the deny list Warding's own gate enforces. The audit line lands in a hash-chained log.</p>
+          <div class="refusal">
+            <div class="stamp-seal stamp"><Ban class="lucide" aria-hidden="true" /> Refused · keystone · 02:30:41</div>
+            <p class="caption"><a href="/security/#keystone">keystone: the deny list for secret and policy paths</a></p>
+            <pre class="terminal sel-line"><code>deny path=~/.aws/credentials rule=sensitive_path sel=… sha256:9f2c…</code></pre>
+            <pre class="terminal rule-block"><code><span class="dim"># security._SENSITIVE_HOME_DIRS (excerpt)</span>
+".aws", ".ssh", ".gnupg", ".gpg", ".config/gcloud", ".azure",
+".docker/config.json", ".kube/config", ".npmrc", ".pypirc",
+".netrc", ".git-credentials"</code></pre>
+          </div>
+          <p class="caption">Refused at Warding's own gate. The default sandbox tier does not also hide this path; the stricter tiers do. What is and isn't covered: <a href="/security/#scope">/security#scope</a>.</p>
+        </section>
+
+        <section class="step" data-step="4" aria-labelledby="s4">
+          <ClockHead time="03:05" title="It asks first." id="s4" />
+          <p class="step-body">It needs <code>git push</code>. The message reaches your phone with two buttons. Tap one.</p>
+          <p class="caption">Approvals are opt-in: a fresh install auto-approves whatever the gate allows. Switch the session to <em>Interactive</em> in the dashboard, or set <code>agent.approval_mode</code> to <code>interactive</code>, and gated calls wait for you.</p>
+          <ApproveFromChatDemo client:visible />
+          <ul class="channel-strip" id="channels-matrix" aria-label="Chat channels and how approvals arrive">
+            {channels.map((c) => (
+              <li class="channel-tile">
+                <span class="channel-name">{c.name}</span>
+                {c.approval === "buttons" && <StatusChip kind="approved" label="Buttons" />}
+                {c.approval === "typed" && <StatusChip kind="typed" label="Typed reply" />}
+                {c.approval === "chat-only" && <StatusChip kind="info" label="Chat only" />}
+              </li>
+            ))}
+          </ul>
+          <p class="caption">{channelCounts.buttons === 5 ? "Five" : channelCounts.buttons} apps with buttons. One typed. Four chat-only.</p>
+          <p class="caption release-note">Get the release note: <a href={releases} rel="noopener">Watch → Custom → Releases on GitHub</a></p>
+        </section>
+
+        <section class="step step-dawn" data-step="5" aria-labelledby="s5">
+          <ClockHead time="07:00" title="What ran, what asked, what was refused." id="s5" />
+          {site.shipped.morningReport ? (
+            <p class="step-body">Posted to your channel and to the dashboard. The refusals are counted from the audit log, not guessed.</p>
+          ) : (
+            <>
+              <p class="step-body">The morning report is <StatusChip kind="coming" label="in development" />. Until it ships, here is the real schedule calendar from the dashboard — no recorded night yet.</p>
+              <Plate num="II" title="The week's schedule" caption="Dashboard · Schedule calendar · 2026-09-26 · no agent connected" note="No recorded night yet: the dots are seeded jobs, not runs." src={calendarShot} alt="The dashboard's schedule calendar: a week grid with jobs marked at 02:00, 03:00, 08:00, 09:00, 15:00 and 21:00 each day." crop={0.125} cropTop={0.16} />
+            </>
+          )}
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="dawn" aria-hidden="true"></div>
+
+  <div class="paper">
+    <!-- 7. Bring the agent -->
+    <section class="section wrap" id="harness" aria-labelledby="h7">
+      <WardBars align="left" />
+      <div class="two-col">
+        <div class="reveal">
+          <h2 id="h7">Bring the agent you already use.</h2>
+          <p class="step-body">
+            Warding launches the official <code>claude</code> (via the ACP project's <code>claude-agent-acp</code> adapter, fetched with <code>npx</code> on first run), <code>codex</code>, <code>goose</code>, <code>cursor</code>, <code>kimi</code>, <code>dsh</code> (DeepSeek Harness), <code>grok</code>, <code>opencode</code>, <code>pi</code>, <code>droid</code> or <code>kiro-cli</code> under your own login. Chat runs the one harness you choose in one setting; your schedules, memory and channels stay when you switch. The harness router can send a spawned subagent to another installed harness, and never forwards provider traffic; that is registered, not yet verified. Warding adds no run cap, and Warding Labs never sees your tokens or keys: there is no server of ours in the loop. Your vendor's plan limits and terms for unattended use apply exactly as in the terminal; for shared or production automation, use an API key.
+          </p>
+          <p class="caption">No Gemini yet. <a href="/registry/">Registry</a>.</p>
+        </div>
+        <figure class="plate reveal" data-shot>
+          <pre class="terminal planes" tabindex="0" role="region" aria-label="warding planes output"><code><span class="prompt">$ </span>{site.cli} planes
+{planesLines.map((l, i) => (i === 0 ? <span class="amber">{l}{"\n"}</span> : <span>{l}{"\n"}</span>))}</code></pre>
+          <figcaption><span class="plate-num">Plate III.</span> <code>{site.cli} planes</code> — CLI · 2026-09-26 · claude docked · one harness selected · one line listing model roles is left out</figcaption>
+        </figure>
+      </div>
+      <VerifyLedger class="reveal" />
+      <p class="caption matrix-note">kiro-cli is the first-class harness: cron, subagents and ask_question from chat work there today, and scheduled runs on it are still unverified here.</p>
+    </section>
+
+    <!-- 8. The charter -->
+    <section class="section wrap" id="charter" aria-labelledby="h8">
+      <WardBars align="left" />
+      <h2 id="h8">The rules it can't open.</h2>
+      <p class="lead measure">Four articles. Each one names the mechanism that holds it.</p>
+      <CharterSheet foil class="charter">
+        <article class="spread">
+          <div class="spread-text reveal">
+            <h3><span class="art">Article 1.</span> The agent cannot read or write its own policy.</h3>
+            <p>The policy, its profiles and the admission and computer-use files live on the keystone list: Warding's own gate refuses any tool call that names them, read or write, before any approval is asked. The OS sandbox does not also hide them; where the gate can be bypassed is written down on <a href="/security/#scope">/security</a>.</p>
+          </div>
+          <div class="spread-proof">
+            <ul class="keystone-list">{keystone.map((k) => <li>{k}</li>)}</ul>
+            <div class="margin-drollery"><Drollery client:visible kind="bounce" /></div>
+          </div>
+        </article>
+        <article class="spread">
+          <div class="spread-text reveal">
+            <h3><span class="art">Article 2.</span> Secrets are redacted before they reach the log.</h3>
+            <p>Credential shapes are replaced at one chokepoint before anything is written. It is always on; there is no policy key to turn it off.</p>
+          </div>
+          <div class="spread-proof">
+            <pre class="terminal" tabindex="0" role="region" aria-label="Tool output, as the agent saw it"><code><span class="dim"># tool output, as the agent saw it</span>
+aws_access_key_id = <span class="redact">{exampleKey}</span>
+<span class="dim"># as the log received it</span>
+aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pre>
+            <div class="margin-drollery"><Drollery client:visible kind="sleep" /></div>
+          </div>
+        </article>
+        <article class="spread">
+          <div class="spread-text reveal">
+            <h3><span class="art">Article 3.</span> Tool decisions are appended to a hash-chained audit log you can verify.</h3>
+            <p>Each decision the gate records is an entry whose hash covers the one before it. Edit one line and the chain breaks at that line.</p>
+            <p class="caption"><code>{site.cli} security verify</code> checks the chain.</p>
+          </div>
+          <div class="spread-proof">
+            <ol class="chain" reversed>
+              {selEntries.map((e) => (
+                <li class="chain-entry">
+                  <span class="mono chain-hash"><Link2 class="lucide" aria-hidden="true" /> {e.hash}</span>
+                  <span class="mono">{e.type} · {e.op}</span>
+                  <span class="mono caption">{e.res}</span>
+                  <span class="mono caption">prev {e.prev}</span>
+                </li>
+              ))}
+            </ol>
+            <div class="margin-drollery"><Drollery client:visible kind="envelope" /></div>
+          </div>
+        </article>
+        <article class="spread">
+          <div class="spread-text reveal">
+            <h3><span class="art">Article 4.</span> Anything not granted by both the policy and the profile is denied.</h3>
+            <p>Tightest wins. Enforced at Warding's own gate, even when the agent's config granted the tool.</p>
+          </div>
+          <div class="spread-proof venn-wrap">
+            <svg class="venn" viewBox="0 0 320 180" role="img" aria-label="Two overlapping circles, POLICY and PROFILE; the overlap is the effective set">
+              <defs>
+                <clipPath id="clipA"><circle cx="120" cy="90" r="70" /></clipPath>
+              </defs>
+              <circle cx="120" cy="90" r="70" fill="none" stroke="var(--fg)" stroke-width="1.5" />
+              <circle cx="200" cy="90" r="70" fill="var(--marker)" clip-path="url(#clipA)" />
+              <circle cx="200" cy="90" r="70" fill="none" stroke="var(--fg)" stroke-width="1.5" />
+              <text x="18" y="40" font-size="12" font-family="IBM Plex Mono, monospace" fill="var(--fg)">POLICY</text>
+              <text x="252" y="40" font-size="12" font-family="IBM Plex Mono, monospace" fill="var(--fg)">PROFILE</text>
+              <text x="160" y="94" font-size="10" text-anchor="middle" font-family="IBM Plex Mono, monospace" fill="var(--fg)">effective</text>
+            </svg>
+            <pre class="terminal" tabindex="0" role="region" aria-label="How the effective policy is computed"><code>effective = POLICY ∩ PROFILE
+<span class="dim"># denied unless BOTH grant it; adding a scope is data, never an evaluator edit</span></code></pre>
+          </div>
+        </article>
+        <footer class="charter-foot">
+          <p class="caption">Unaudited by a third party. The gate is fail-closed for denied paths and commands and fail-open for pre-authorised tools; the sandbox is fail-closed where no backend exists unless you opt in. Read the scope: <a href="/security/">/security</a>.</p>
+          <LinkButton href="/security/">Read the charter</LinkButton>
+        </footer>
+      </CharterSheet>
+      <Plate num="IV" title="The posture page" caption="Dashboard · Settings Security · 2026-09-26 · no agent connected" src={securityShot} alt="The dashboard's Security settings page listing the live posture: process sandbox, tool approval, sensitive path blocking, write-protected paths, denied commands, output redaction and credential patterns." crop={0.5} cropTop={0.48} class="posture-plate" sizes="(min-width: 1200px) 960px, 92vw" />
+    </section>
+
+    <!-- 9. Bento -->
+    <section class="section wrap" id="desk" aria-labelledby="h9">
+      <WardBars align="left" />
+      <h2 id="h9">Everything else on the desk.</h2>
+      <div class="bento">
+        {bento.map((b) => (
+          <a class="tile bento-tile reveal" href={b.href} rel="noopener" data-demo={b.demo}>
+            <div class="demo" aria-hidden="true">
+              {b.demo === "ledger" && <ul class="demo-ledger"><li>plan</li><li>execute</li><li>validate</li><li class="on">checkpoint 3</li></ul>}
+              {b.demo === "fanout" && <div class="demo-fanout"><span></span><i></i><i></i><i></i></div>}
+              {b.demo === "lesson" && <div class="demo-lesson"><span class="strike">use retries here</span><span class="mark">lesson: retry the flaky auth test once, then fail loud</span></div>}
+              {b.demo === "apps" && <div class="demo-apps"><span>Code Review Sage</span><span>Issue Radar</span><span>PPTX Maker</span><span>Papyrus</span></div>}
+              {b.demo === "themes" && <div class="demo-themes"><i style="background:#F3EEE3"></i><i style="background:#0B0E14"></i><i style="background:#2E3440"></i><i style="background:#1A1814"></i><i style="background:#FFB547"></i><i style="background:#B3301A"></i></div>}
+              {b.demo === "langs" && <div class="demo-langs"><span>Schedule</span><span lang="zh-CN">计划</span><span lang="ja">スケジュール</span><span lang="ko">일정</span><span lang="de">Zeitplan</span></div>}
+            </div>
+            <h3>{b.title}</h3>
+            <p class="caption">{b.body}</p>
+            <span class="caption tile-link">Docs <ArrowRight class="lucide" aria-hidden="true" /></span>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <!-- 10. What we don't claim -->
+    <section class="section wrap" id="dont-claim" aria-labelledby="h10">
+      <CharterSheet foil class="signed">
+        <div class="signed-head">
+          <h2 id="h10">What we don't claim.</h2>
+          <WardSeal size={64} class="stamp" />
+        </div>
+        <ul class="signed-list">
+          <li>Chat runs the one harness you choose. Sending a spawned subagent to another installed harness is registered and unit-tested, not verified at runtime; the router picks a harness and forwards no provider traffic.</li>
+          <li>The model catalog lists names; it forwards nothing and holds no keys.</li>
+          <li>Approve buttons on five chat apps; WhatsApp is typed; four apps are chat-only.</li>
+          <li>Cron and subagents <em>from chat</em>, and the agent's mid-turn questions, work on kiro-cli today; on other harnesses create jobs and spawn subagents from the dashboard or CLI, and the agent cannot ask you a question mid-turn.</li>
+          <li>The OS sandbox fails closed — it refuses to run rather than run unconfined — on Windows, in containers without user namespaces, and on Ubuntu ≥ 23.10 until <code>{site.cli} service install</code> (it asks for sudo to install the AppArmor profile); you can opt in to unsandboxed execution with a loud warning.</li>
+          <li>Unaudited by a third party. Single owner. No hosted service. No signed installers yet.</li>
+          <li>Your vendor's terms and any future metering of unattended use apply and may change.</li>
+          <li>The default build contacts no server of ours. One third-party address remains: the embedding model is fetched from it on first embedding use, checked against a pinned hash. The <code>lsof</code> run: <a href="/verified/">/verified</a>.</li>
+        </ul>
+        <p class="caption">How to report a bypass: <a href={site.links.securityMd} rel="noopener">SECURITY.md</a>.</p>
+        <p class="signature">Last checked against the code on 2026-09-30.</p>
+      </CharterSheet>
+    </section>
+
+    <!-- 11. Open source -->
+    <section class="section wrap" id="open-source" aria-labelledby="h11">
+      <WardBars align="left" />
+      <div class="two-col">
+        <div class="reveal">
+          <h2 id="h11">Open source, and measured.</h2>
+          <p class="step-body">Apache-2.0, on your machine. What is in it: kiro-cli optional and last, a registry of {countWord(harnesses.length - 1)} non-Kiro harnesses, no vendor account in the door, no vendor-owned endpoint in the default build (the update feed, app catalog and telemetry are off), and the proof pages on this site.</p>
+          <p class="caption"><a href={site.githubRepo} rel="noopener">Source on GitHub</a> · <a href="/changelog/">Changelog</a></p>
+        </div>
+        <dl class="metrics">
+          <div><dt>Commits, last 30 days</dt><dd class="clock clock-44">{nf.format(metrics.commits30d)}</dd></div>
+          <div><dt>Test files in the tree</dt><dd class="clock clock-44">{nf.format(metrics.testFiles)}</dd></div>
+          <div><dt>Latest release tag</dt><dd class={metrics.latestTag ? "clock clock-44" : "no-tag"}>{metrics.latestTag || "no tagged release yet"}</dd></div>
+        </dl>
+        <p class="caption">Measured from the repository at build time{metrics.live ? "" : ` (snapshot of ${metrics.measuredOn})`}.</p>
+      </div>
+    </section>
+
+    <!-- 12. Pricing preview -->
+    <section class="section wrap" id="pricing" aria-labelledby="h12">
+      <WardBars align="left" />
+      <h2 id="h12">Free, and what funds the rest.</h2>
+      {freeOffer && (
+        <div class="tile offer offer-free">
+          <div class="offer-main">
+            <div class="offer-head">
+              <h3>{freeOffer.name}</h3>
+              <span class="chip chip-ok">{freeOffer.label}</span>
+            </div>
+            <p class="price"><span class="clock clock-22">{freeOffer.price}</span>{freeOffer.priceNote && <span class="caption"> · {freeOffer.priceNote}</span>}</p>
+            <p class="caption offer-blurb">{freeOffer.blurb}</p>
+          </div>
+          <a class="btn btn-primary offer-cta" href="#install">{freeOffer.cta}</a>
+        </div>
+      )}
+      <p class="caption offers-line">
+        As of {offersAsOf}:{" "}
+        {otherOffers.map((o) => (
+          <>{o.id === "team" ? <a class="nowrap" href="/pricing/#team">{o.name} — {o.label}</a> : <span class="nowrap">{o.name} {o.price} — {o.label}</span>}{" · "}</>
+        ))}
+        <a class="nowrap" href="/pricing/">See all offers <ArrowRight class="lucide-inline" aria-hidden="true" /></a>
+      </p>
+    </section>
+  </div>
+
+  <!-- Final band -->
+  <div class="vault">
+    <section class="section wrap final" aria-labelledby="h-final">
+      <Stamp class="lucide final-icon" aria-hidden="true" />
+      <h2 id="h-final">Free, all night.</h2>
+      <div class="final-install">
+        <InstallTabs client:idle version={metrics.latestTag} star />
+      </div>
+      <p class="caption">
+        {site.links.calendar ? <a href={site.links.calendar} rel="noopener" data-track="pilot_call_click">Teams: book a 30-minute call</a> : "Teams: calls open soon."}
+      </p>
+      <p class="caption release-note">Get the release note: <a href={releases} rel="noopener">Watch → Custom → Releases on GitHub</a></p>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  .night { position: relative; }
+
+  /* The stage: the hero head spans both columns; below it the text column (hero
+     body, then the clock-time steps) scrolls beside the pinned world. */
+  .stage {
+    display: grid; grid-template-columns: minmax(480px, 5fr) minmax(0, 7fr); column-gap: 48px;
+    align-items: start; padding-top: 24px; padding-bottom: 96px;
+  }
+  .hero-head { grid-column: 1 / -1; display: grid; gap: 20px; padding-bottom: 28px; }
+  .hero-head h1 { font-size: clamp(2.75rem, 1.5rem + 4.6vw, 4.5rem); line-height: 1; letter-spacing: -0.02em; }
+  .h1-line { display: inline; }
+  @media (min-width: 721px) { .h1-line { display: block; } }
+  .eyebrow { display: flex; align-items: center; gap: 14px; }
+  .eyebrow svg { flex: none; color: var(--fg-2); }
+  .eyebrow .clock { min-width: 5ch; display: inline-block; }
+  /* The steps dissolve into the stage grid: each takes the left column and the
+     world spans their six rows on the right, pinned while they scroll past. */
+  .steps { display: contents; }
+  .step { grid-column: 1; }
+  .stage-world { grid-column: 2; grid-row: 2 / span 6; align-self: start; position: sticky; top: 24px; display: grid; gap: 10px; min-width: 0; }
+  .step { display: grid; gap: 20px; padding-block: 80px; border-top: 1px solid var(--line); }
+  .step > * { min-width: 0; max-width: 100%; }
+  .refusal > * { min-width: 0; max-width: 100%; }
+  .step-hero { border-top: 0; padding-top: 0; gap: 24px; }
+  .hero-lead { display: grid; gap: 16px; }
+  .hero-lead .lead { max-width: 52ch; color: var(--fg-2); }
+  .qualifier { max-width: 60ch; }
+  .hero-install { display: grid; gap: 14px; }
+  .strip { border: 1px solid var(--line); background: var(--raised); border-radius: 4px; min-width: 0; }
+  .strip-pre { padding: 12px 14px; font-size: 0.875rem; white-space: pre; overflow-x: auto; }
+  .strip-pre .prompt { color: var(--fg-3); user-select: none; }
+  .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  @media (max-width: 480px) { .hero-ctas :global(.btn) { flex: 1 1 100%; } }
+  .strip-note code { white-space: nowrap; }
+  .quiet-link { color: var(--fg-2); }
+  .quiet-link:hover { color: var(--fg); }
+  .nowrap { white-space: nowrap; }
+  .microcopy { color: var(--fg-3); }
+  .step-body { font-size: 1.125rem; line-height: 1.55; max-width: 56ch; }
+  .step .caption { max-width: 52ch; }
+  .step-dawn { padding-bottom: 0; }
+  .plate-cap { max-width: 60ch; }
+  @media (max-width: 1100px) {
+    /* One column in markup order: the hero (what it is, then the install),
+       the world, then the steps. */
+    .stage { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
+    .stage-world { grid-column: 1; grid-row: auto; position: static; padding-bottom: 28px; }
+    .step-hero { padding-bottom: 28px; }
+    .step:not(.step-hero) { padding-block: 56px; }
+    .step[data-step="1"] { border-top: 0; }
+  }
+  @media (max-width: 720px) {
+    .stage { padding-top: 8px; padding-bottom: 64px; }
+    .hero-head { gap: 16px; padding-bottom: 20px; }
+    .eyebrow { gap: 10px; }
+    .eyebrow-dial { width: 36px; height: 36px; }
+    .eyebrow-window { width: 26px; height: 26px; }
+  }
+
+  /* The world frame */
+  :global(.world) { display: grid; gap: 12px; justify-items: start; max-width: 100%; min-width: 0; }
+  :global(.world-frame) { position: relative; overflow: hidden; border: 1px solid var(--line); background: #0b0e14; box-shadow: var(--shadow); max-width: 100%; }
+  :global(.world-canvas) { image-rendering: pixelated; display: block; max-width: none; }
+  :global(.world-chip) { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; pointer-events: none; }
+  :global(.world-chip > *) { pointer-events: auto; }
+  :global(.world-chip .chip) { background: rgba(11, 14, 20, 0.82); color: #ece8e1; border-color: #2a3244; white-space: normal; max-width: calc(100% - 112px); }
+  :global(.world-controls) { display: flex; gap: 8px; flex: none; }
+  :global(.world-count) {
+    position: absolute; top: 8px; right: 8px; padding: 2px 8px; border-radius: 4px; font-family: var(--font-clock); font-size: 11px;
+    color: #9aa3b5; background: rgba(11, 14, 20, 0.72); pointer-events: none;
+  }
+  :global(.world-btn) {
+    width: 44px; height: 44px; display: grid; place-items: center; border-radius: 4px; cursor: pointer;
+    background-color: rgba(11, 14, 20, 0.86); color: #ffb547; border: 0; box-shadow: inset 0 0 0 1px #2a3244;
+    /* The ward bars as the control's frame: three short rules along the top edge. */
+    background-image: linear-gradient(#ff7a5c, #ff7a5c), linear-gradient(#ff7a5c, #ff7a5c), linear-gradient(#ff7a5c, #ff7a5c);
+    background-size: 11px 2.5px; background-repeat: no-repeat; background-position: 4px 4px, 16.5px 4px, 29px 4px;
+  }
+  :global(.world-btn .lucide) { width: 20px; height: 20px; stroke-width: 2; margin-top: 4px; }
+  :global(.drollery) { display: block; }
+
+  /* Phone, gallery, refusal, channels */
+  .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+  .gallery-card { display: grid; gap: 6px; padding: 16px; align-content: start; }
+  .gallery-card h3 { font-family: var(--font-sans); font-size: 1rem; font-weight: 600; }
+  .gallery-card.is-running { border-color: var(--granted); }
+  .gallery-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
+  :global(.tile-icon) { width: 20px; height: 20px; color: var(--lamp); stroke-width: 1.75; }
+  .dial-wrap { display: flex; align-items: center; gap: 20px; }
+  .dial { flex: none; }
+  .dial-hand { transform-box: view-box; transform-origin: 50% 50%; transition: transform 600ms cubic-bezier(.22,1,.36,1); }
+  .refusal { display: grid; gap: 12px; justify-items: start; }
+  .sel-line { font-size: 0.8125rem; width: 100%; }
+  .rule-block { width: 100%; font-size: 0.8125rem; }
+  .channel-strip { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; scroll-margin-top: 24px; }
+  @media (min-width: 1101px) { .channel-strip { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+  .channel-tile { display: grid; gap: 4px; align-content: start; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); min-width: 0; }
+  .channel-name { font-weight: 600; font-size: 0.9375rem; }
+  .channel-tile .status { font-size: 0.8125rem; line-height: 1.25; }
+  @media (max-width: 560px) { .gallery { grid-template-columns: 1fr; } .channel-strip { grid-template-columns: 1fr; } }
+
+  /* Paper sections */
+  .paper { position: relative; }
+  .two-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: start; margin-top: 24px; }
+  .two-col h2 { margin-bottom: 20px; }
+  .center { text-align: center; }
+  .mx { margin-inline: auto; margin-top: 12px; }
+  .planes { font-size: 0.9375rem; }
+  .matrix caption { text-align: left; padding-bottom: 12px; caption-side: top; }
+  .matrix sup a { text-decoration: none; padding-inline: 2px; }
+  .matrix-note { margin-top: 12px; }
+  .matrix .status a, .matrix a.status { text-decoration: none; }
+  .two-col > * { min-width: 0; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: minmax(0, 1fr); gap: 32px; } }
+
+  .charter { margin-top: 48px; padding: 0; }
+  .spread { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; padding: 40px 40px; border-bottom: 1px solid var(--line); }
+  .spread:last-of-type { border-bottom: 0; }
+  .spread h3 { font-size: 1.625rem; line-height: 1.2; margin-bottom: 12px; }
+  .art { font-family: var(--font-display); font-style: italic; font-weight: 500; color: var(--seal); display: block; font-size: 1rem; letter-spacing: 0.02em; margin-bottom: 4px; }
+  .spread-text p { color: var(--fg-2); max-width: 48ch; }
+  .spread-proof { position: relative; display: grid; gap: 12px; align-content: start; }
+  /* The drollery walks the margin below the proof, never across it. */
+  .margin-drollery { justify-self: end; margin-right: -24px; }
+  .chain { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .chain-entry { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-left: 3px solid var(--seal); background: var(--bg); font-size: 0.875rem; }
+  .chain-hash { color: var(--seal); display: inline-flex; align-items: center; gap: 6px; }
+  .chain-hash :global(.lucide) { width: 14px; height: 14px; }
+  .venn { width: 100%; max-width: 320px; }
+  .charter-foot { display: grid; gap: 16px; padding: 24px 40px 32px; border-top: 1px solid var(--line); justify-items: start; }
+  /* The dashboard is dark, so on paper its screenshot is framed as a lit window
+     rather than printed through a multiply filter (which turns it to a black slab). */
+  :global(.posture-plate) { margin: 48px auto 0; max-width: 880px; }
+  .paper :global(.posture-plate .plate-frame) { background: #0b0e14; border-color: #2a3244; padding: 12px; }
+  @media (max-width: 900px) { .spread { grid-template-columns: 1fr; padding: 28px 20px; } .margin-drollery { margin-right: 0; } .charter-foot { padding: 20px; } }
+
+  .bento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 40px; }
+  .bento-tile { display: grid; gap: 10px; text-decoration: none; color: var(--fg); align-content: start; min-height: 240px; }
+  .bento-tile h3 { font-size: 1.25rem; }
+  .bento-tile:hover { border-color: var(--fg-2); }
+  .tile-link { display: inline-flex; align-items: center; gap: 4px; color: var(--link); }
+  .tile-link :global(.lucide) { width: 14px; height: 14px; }
+  .demo { height: 96px; overflow: hidden; display: grid; align-content: center; font-family: var(--font-mono); font-size: 0.8125rem; color: var(--fg-2); }
+  .demo-ledger { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+  .demo-ledger li::before { content: "✓ "; color: var(--granted); }
+  .demo-ledger li.on::before { content: "» "; color: var(--seal); }
+  .demo-fanout { position: relative; height: 70px; }
+  .demo-fanout span { position: absolute; left: 0; top: 30px; width: 10px; height: 10px; background: var(--fg); }
+  .demo-fanout i { position: absolute; left: 60px; width: 10px; height: 10px; background: var(--lamp); }
+  .demo-fanout i:nth-child(2) { top: 6px; } .demo-fanout i:nth-child(3) { top: 30px; } .demo-fanout i:nth-child(4) { top: 54px; }
+  .demo-fanout i::before { content: ""; position: absolute; right: 100%; top: 5px; width: 50px; height: 1px; background: var(--line); }
+  .demo-lesson { display: grid; gap: 4px; }
+  .strike { text-decoration: line-through; color: var(--fg-3); }
+  .mark { background: var(--marker); color: var(--fg); padding: 2px 4px; }
+  .demo-apps, .demo-langs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .demo-apps span, .demo-langs span { border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+  .demo-themes { display: flex; gap: 6px; }
+  .demo-themes i { display: block; width: 28px; height: 28px; border: 1px solid var(--line); }
+  @media (max-width: 900px) { .bento { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .bento { grid-template-columns: 1fr; } }
+
+  .signed { max-width: 820px; margin-inline: auto; }
+  .signed-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 20px; }
+  .signed-list { margin: 0; padding-left: 20px; display: grid; gap: 10px; color: var(--fg); }
+  .signature { font-family: var(--font-display); font-style: italic; font-weight: 500; margin-top: 20px; color: var(--fg-2); }
+  .signed .caption { margin-top: 16px; }
+
+  .metrics { display: grid; gap: 16px; margin: 0; padding: 24px; border: 1px solid var(--line); background: var(--surface); }
+  .metrics div { display: grid; gap: 4px; }
+  .metrics dt { font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); }
+  .metrics dd { margin: 0; color: var(--fg); }
+  .no-tag { font-family: var(--font-display); font-style: italic; font-size: 1.25rem; }
+
+  .offer-free { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 32px; align-items: end; margin: 40px 0 20px; border-color: var(--seal); }
+  .offer-main { display: grid; gap: 10px; }
+  .offer-head { display: flex; justify-content: flex-start; align-items: center; gap: 12px; }
+  .offer-free h3 { font-size: 1.5rem; }
+  .chip-ok { color: var(--granted); border-color: var(--granted); }
+  .price { color: var(--fg); }
+  .offer-blurb { max-width: 90ch; }
+  .offers-line { text-align: center; max-width: 90ch; margin-inline: auto; }
+  @media (max-width: 720px) { .offer-free { grid-template-columns: minmax(0, 1fr); } .offer-cta { justify-self: start; } }
+
+  .final { display: grid; justify-items: center; text-align: center; gap: 20px; }
+  .final h2 { font-size: clamp(2.5rem, 2rem + 3vw, 4rem); }
+  .final-icon { width: 40px; height: 40px; color: var(--lamp); stroke-width: 1.5; }
+  .final-install { width: 100%; max-width: 640px; text-align: left; }
+  .release-note { text-align: inherit; }
+
+</style>
+
+<script>
+  import { track } from "../lib/analytics";
+
+  // The visitor's clock: the eyebrow, its dial and the 24-hour dial at 01:12.
+  const fmt = () => {
+    try { return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()); }
+    catch { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
+  };
+  const eyebrow = document.querySelector<HTMLElement>("[data-local-time]");
+  const hands = Array.from(document.querySelectorAll<SVGElement>("[data-dial-hand]"));
+  const tick = () => {
+    if (eyebrow) eyebrow.textContent = fmt();
+    const d = new Date();
+    const turn = `rotate(${((d.getHours() + d.getMinutes() / 60) / 24) * 360}deg)`;
+    hands.forEach((h) => { h.style.transform = turn; });
+  };
+  tick();
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) window.setInterval(tick, 30000);
+
+  // The night narrative: the step whose section contains the 45% line of the
+  // viewport drives the sticky world. A geometry pick on a throttled scroll
+  // listener is deterministic where an observer band is not (two sections can
+  // straddle the band, and the later one would win until it left).
+  const stage = document.querySelector<HTMLElement>("[data-stage]");
+  const steps = Array.from(document.querySelectorAll<HTMLElement>(".step[data-step]"));
+  let current = -1;
+  const setStep = (step: number) => {
+    if (step === current) return;
+    current = step;
+    stage?.setAttribute("data-step", String(step));
+    window.dispatchEvent(new CustomEvent("warding:step", { detail: { step } }));
+  };
+  const pick = () => {
+    const line = window.innerHeight * 0.45;
+    let cur = 0;
+    for (const s of steps) {
+      const r = s.getBoundingClientRect();
+      if (r.top <= line && r.bottom > 0) cur = Number(s.dataset.step);
+    }
+    setStep(cur);
+  };
+  let raf = 0;
+  const onScroll = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; pick(); }); };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll, { passive: true });
+  pick();
+
+  // Hero strip: copy the whole quickstart (the strip shows its first step).
+  const copyBtn = document.querySelector<HTMLButtonElement>("[data-copy-quickstart]");
+  const status = document.querySelector<HTMLElement>("[data-copy-status]");
+  copyBtn?.addEventListener("click", async () => {
+    const text = copyBtn.dataset.copyQuickstart ?? "";
+    try { await navigator.clipboard.writeText(text); if (status) status.textContent = "Copied"; }
+    catch { if (status) status.textContent = "Select the command above to copy it."; }
+    track("install_copy", { tab: "hero" });
+    window.setTimeout(() => { if (status) status.textContent = ""; }, 1800);
+  });
+  document.querySelectorAll<HTMLElement>("[data-track]").forEach((el) => {
+    const ev = el.dataset.track;
+    if (ev === "supporter_click" || ev === "setup_click" || ev === "pilot_call_click") el.addEventListener("click", () => track(ev));
+  });
+</script>

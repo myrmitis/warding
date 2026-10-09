@@ -1,0 +1,54 @@
+---
+title: "WeChat chat for your coding agent (chat only today)"
+description: "Chat with your coding agent from personal WeChat, signed in with a QR code. In-chat approvals are not built and not scheduled. Join the list."
+h1: "Chat from WeChat. Approvals are not built."
+channel: wechat
+approval: chat-only
+ogRegister: paper
+ogQualifier: "Chat only today · QR sign-in · unofficial API"
+verified: []
+---
+import StatusChip from "../../components/StatusChip.astro";
+import ChChatOnly from "../../components/ChChatOnly.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+Connect personal WeChat (微信) with a QR scan from the dashboard. Messages arrive over an outbound long-poll, so no public endpoint or tunnel is needed. For the work edition, use <a href="/channels/wecom/">WeCom</a> instead, which uses an official bot gateway.
+
+<ChChatOnly slug="wechat" />
+
+What has been run on which harness is on <a href="/verified/">the verification log</a>; a feature without a dated row there is unverified.
+
+## Read this before you connect
+
+This channel uses Tencent's iLink bot API, which is not a published developer product. Its behaviour can change without notice, using a personal account as a bot may break WeChat's terms, and accounts can be limited or banned. Prefer WeCom for anything that matters.
+
+## What works from WeChat today
+
+- **Chat in a direct message**, with one reply per turn (a sent message cannot be edited, so the answer arrives when the turn completes) and Markdown preserved.
+- **Commands**: `/new`, `/compact`, `/stop` and `/help`, with Chinese aliases (新对话, 清空, 停止, 帮助).
+
+## Set it up
+
+1. Open **Settings → Channels → WeChat** in the dashboard and click **Connect via QR**.
+2. Scan the code with the WeChat app and confirm on your phone.
+3. Restart the gateway. The status reads **Connected**.
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`${site.cli} restart`}</code></pre>
+4. **Allow yourself.** The default policy is an allow-list with nobody on it, so a fresh bot ignores every message. DM the bot once, read your user ID from the gateway log, and add it to `weixin.allowed_user_ids`.
+
+The credential is stored on the gateway side and never returned to the browser.
+
+## Who can reach it
+
+Only the user IDs you allow-list; an empty list, or an unrecognised policy value, denies everyone. Group chats are not supported: the bot identity does not receive group events.
+
+## Limits, stated plainly
+
+- **Owner-only.** One person runs this gateway, as themselves, with their files and credentials. There is no shared or team mode.
+- **One harness for chat.** The docked harness answers every channel; switching is one setting. A spawned subagent can be routed to another installed harness; that is registered, not verified.
+- **Unofficial API, direct messages only**, and one gateway per credential.
+- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) relies on the agent's own tools, which reach kiro-cli only today. On other harnesses, schedule from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
+
+<StatusChip kind="info" label="Approvals: chat only" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/warding/docs/weixin-integration.md`} rel="noopener">Full reference in the repository</a>

@@ -1,0 +1,251 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import StatusChip from "../components/StatusChip.astro";
+import Button from "../components/Button.astro";
+import FaqItem from "../components/FaqItem.astro";
+import WardBars from "../components/WardBars.astro";
+import WaitlistForm from "../islands/WaitlistForm";
+import { site } from "../data/site";
+import { offers, type Offer } from "../data/pricing";
+import { CELL_LABEL, RAIL_LABEL, comparison, comparisonColumns, faq, hostedQuestions } from "../data/rev-pricing";
+import Check from "@lucide/astro/icons/check";
+import Copy from "@lucide/astro/icons/copy";
+import ArrowRight from "@lucide/astro/icons/arrow-right";
+
+/**
+ * /pricing/ (site-spec §3): the offers from src/data/pricing.ts, each with
+ * its label and rail; a button reads its link from site.ts and renders the
+ * named coming-soon state when the link is "". The Supporter card carries
+ * the only monthly/annual toggle. Cards flagged hiddenWhenUnset stay off the
+ * page until their link exists.
+ */
+const title = "Warding pricing: free forever, supporters, setup";
+const description = "Free and Apache-2.0 on your machine. Founding Supporter, a paid setup session, and free waitlists for Team and Hosted. Every item labelled.";
+const lead = "Everything in the repository is free forever, Apache-2.0, on your machine, with the agent subscription you already have. Paid items fund the part that is not code yet. Every item says whether you can have it today.";
+
+const visible = offers.filter((o) => !(o.hiddenWhenUnset && o.href === ""));
+const columns = comparisonColumns.map((id) => visible.find((o) => o.id === id)).filter((o): o is Offer => Boolean(o));
+const pilot = offers.find((o) => o.id === "pilot");
+const pilotHidden = pilot !== undefined && pilot.hiddenWhenUnset && pilot.href === "";
+const tipsHidden = offers.some((o) => o.id === "tips" && o.hiddenWhenUnset && o.href === "");
+
+const chipKind = (o: Offer) => (o.status === "available" ? "approved" : o.status === "waitlist" ? "pending" : o.status === "conversation" ? "info" : "coming");
+const trackFor = (id: string) => (id === "supporter" ? "supporter_click" : id === "setup" ? "setup_click" : id === "pilot" ? "pilot_call_click" : undefined);
+
+// "$24/user/mo" -> "$24" in clock type and "/user/mo" beside it, like "$96" and "/yr".
+const splitPrice = (price: string) => { const i = price.indexOf("/"); return i > 0 ? [price.slice(0, i), price.slice(i)] : [price, ""]; };
+const waitlistLabel = (o: Offer) =>
+  o.id === "supporter" ? "Tell me when Founding Supporter opens" : o.id === "setup" ? "Tell me when Setup opens" : `${o.name}: join the free waitlist`;
+
+const quickstart = [`git clone ${site.githubRepo}.git && cd warding`, "bash minimal_install.sh", `${site.cli} setup && ${site.cli} up`].join("\n");
+// The card is narrow, so the clone URL gets its own line (a shell continuation)
+// rather than wrapping mid-token; Copy still takes the three-line quickstart.
+const quickstartShown = [`git clone \\`, `  ${site.githubRepo}.git`, "cd warding", "bash minimal_install.sh", `${site.cli} setup && ${site.cli} up`].join("\n");
+const supporterMonthly = site.links.supporterMonthly;
+const supporterAnnual = site.links.supporterCheckout;
+---
+<PageLayout endBand={false} title={title} description={description} h1="Free, all night." lead={lead} breadcrumbs={[{ label: "Pricing", href: "/pricing/" }]}>
+  <section class="offers" aria-label="Offers">
+    {visible.map((o) => (
+      <article class={`tile offer ${o.recommended ? "offer-rec" : ""}`} id={o.id} aria-labelledby={`offer-${o.id}`}>
+        <div class="offer-head">
+          <h2 id={`offer-${o.id}`}>{o.name}</h2>
+          {o.recommended && <span class="chip">Recommended</span>}
+        </div>
+        <StatusChip kind={chipKind(o)} label={o.label} />
+
+        {o.id === "supporter" ? (
+          <>
+            <div class="plan-toggle" role="group" aria-label="Billing period" data-plan-toggle>
+              <button type="button" class="plan-btn" data-plan="annual" aria-pressed="true">Annual</button>
+              <button type="button" class="plan-btn" data-plan="monthly" aria-pressed="false">Monthly</button>
+            </div>
+            <p class="price" data-plan-view="annual">
+              <span class="clock clock-33">$96</span><span class="per">/yr</span>
+              <span class="caption">price locked while active</span>
+            </p>
+            <p class="price" data-plan-view="monthly" hidden>
+              <span class="clock clock-33">$8</span><span class="per">/mo</span>
+              <span class="caption">cancel any month</span>
+            </p>
+          </>
+        ) : (
+          <p class="price">
+            <span class="clock clock-33">{splitPrice(o.price)[0]}</span>{splitPrice(o.price)[1] && <span class="per">{splitPrice(o.price)[1]}</span>}
+            {o.priceNote && <span class="caption">{o.priceNote}</span>}
+          </p>
+        )}
+
+        <p class="offer-blurb">{o.blurb}</p>
+
+        {o.id === "free" && (
+          <pre class="terminal quickstart" tabindex="0" role="region" aria-label="Quickstart commands"><code>{quickstartShown}</code></pre>
+        )}
+
+        <div class="offer-cta">
+          {o.id === "free" && (
+            <>
+              <button type="button" class="btn btn-primary" data-copy-quickstart={quickstart}><Copy class="lucide" aria-hidden="true" /> {o.cta}</button>
+              <span class="caption" data-copy-status aria-live="polite"></span>
+              <a class="quiet-link" href="/#install">Install steps <ArrowRight class="lucide lucide-inline" aria-hidden="true" /></a>
+            </>
+          )}
+          {o.id === "supporter" && o.href && (
+            <>
+              <div data-plan-view="annual">
+                <Button href={supporterAnnual} external track={trackFor(o.id)}>{o.cta}</Button>
+              </div>
+              <div data-plan-view="monthly" hidden>
+                <Button href={supporterMonthly} disabledLabel={o.label} external track={trackFor(o.id)}>{o.cta} monthly</Button>
+              </div>
+            </>
+          )}
+          {o.id !== "free" && o.id !== "supporter" && o.href && (
+            <Button href={o.href} external track={trackFor(o.id)}>{o.cta}</Button>
+          )}
+          {o.status === "waitlist" && (
+            <WaitlistForm client:visible list={o.list ?? o.id} label={waitlistLabel(o)} questions={o.id === "hosted" ? hostedQuestions : []} compact />
+          )}
+        </div>
+
+        {o.rail !== "waitlist" && <p class="caption rail">{RAIL_LABEL[o.rail]}</p>}
+      </article>
+    ))}
+  </section>
+
+  <p class="caption offers-note measure">
+    {pilotHidden && (
+      <>
+        <strong>Design-partner pilots</strong> for platform and security leads are arranged by conversation; the card, with its terms, appears here once the first is signed.{" "}
+        {site.links.calendar ? <a href={site.links.calendar} rel="noopener" data-track="pilot_call_click">Book a 30-minute call.</a> : "Calls open soon."}{" "}
+      </>
+    )}
+    {tipsHidden && <>Tips go through GitHub Sponsors once it is set up; nothing in return but thanks.</>}
+  </p>
+
+  <section class="compare-wrap" aria-labelledby="compare-h">
+    <WardBars align="left" />
+    <h2 id="compare-h">What each one includes</h2>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Offer comparison table">
+      <table class="matrix compare">
+        <thead>
+          <tr>
+            <th scope="col"><span class="sr-only">Feature</span></th>
+            {columns.map((o) => <th scope="col">{o.name}<br /><span class="caption">{o.label}</span></th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {comparison.map((r) => (
+            <tr>
+              <th scope="row">{r.label}</th>
+              {columns.map((o) => {
+                const cell = r.cells[o.id] ?? "none";
+                return (
+                  <td>
+                    {cell === "included" || cell === "day-one" ? (
+                      <span class="status status-approved"><Check class="lucide" aria-hidden="true" /> {CELL_LABEL[cell]}</span>
+                    ) : cell === "not-built" ? (
+                      <StatusChip kind="coming" label={CELL_LABEL[cell]} />
+                    ) : (
+                      <span class="none"><span aria-hidden="true">—</span><span class="sr-only">{CELL_LABEL.none}</span></span>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="caption">"Day one" means delivered the day the tier opens, through Polar. "Not built yet" is exactly that: it is on the card so you know what the money is for, not what you get today.</p>
+  </section>
+
+  <section class="faq-wrap" aria-labelledby="faq-h">
+    <WardBars align="left" />
+    <h2 id="faq-h">Questions people ask before paying</h2>
+    <div class="faq-list">
+      {faq.map((f) => (
+        <FaqItem q={f.q}><p set:html={f.a} /></FaqItem>
+      ))}
+    </div>
+  </section>
+
+  <section class="installer" aria-labelledby="installer-h">
+    <h2 id="installer-h" class="h3">Want the one-line installer?</h2>
+    <p class="measure">The install is a clone and a script today. The one-line installer is in development.</p>
+    <WaitlistForm client:visible list="installer" label="Tell me when the one-line installer ships" compact />
+  </section>
+</PageLayout>
+
+<style>
+  /* Flex, not a 3-column grid: five cards would leave an empty cell, so the
+     last row's cards grow to share its width instead. */
+  .offers { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; }
+  .offer { flex: 1 1 320px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .offer-cta { margin-top: auto; }
+  .offer-rec { border-color: var(--seal); }
+  .offer-head { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+  .offer h2 { font-size: 1.375rem; line-height: 1.2; }
+  .price { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--fg); }
+  .price .per { font-family: var(--font-clock); font-size: 18px; color: var(--fg-2); margin-left: -4px; }
+  .offer-blurb { color: var(--fg-2); font-size: 0.9375rem; }
+  .quickstart { font-size: 0.75rem; padding: 12px 14px; }
+  .offer-cta { display: grid; gap: 10px; justify-items: start; }
+  .offer-cta :global(.waitlist) { width: 100%; }
+  .quiet-link { font-size: 0.9375rem; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
+  .rail { border-top: 1px solid var(--line); padding-top: 10px; }
+  .plan-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .plan-btn { min-height: 44px; padding: 6px 14px; border: 0; background: transparent; color: var(--fg-2); font-size: 0.875rem; font-weight: 500; cursor: pointer; }
+  .plan-btn[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+  .offers-note { margin-top: 20px; }
+  .compare-wrap, .faq-wrap, .installer { margin-top: 72px; display: grid; gap: 16px; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .compare th, .compare td { white-space: normal; }
+  .compare thead th { vertical-align: bottom; }
+  .compare thead th .caption { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .compare tbody th { white-space: normal; min-width: 14ch; }
+  .compare td { min-width: 9ch; }
+  .compare .none { color: var(--fg-3); }
+  .faq-list { max-width: 72ch; }
+  .installer .h3 { font-size: 1.5rem; }
+  .installer :global(.waitlist) { max-width: 560px; }
+  :global(.lucide-inline) { width: 16px; height: 16px; vertical-align: -3px; display: inline-block; }
+</style>
+
+<script>
+  import { track } from "../lib/analytics";
+
+  // Supporter: annual/monthly toggle. Each view is prerendered; the buttons
+  // only switch which one is shown, so the page reads correctly without JS.
+  const group = document.querySelector<HTMLElement>("[data-plan-toggle]");
+  const buttons = Array.from(group?.querySelectorAll<HTMLButtonElement>("button[data-plan]") ?? []);
+  const views = Array.from(document.querySelectorAll<HTMLElement>("[data-plan-view]"));
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const plan = btn.dataset.plan;
+      buttons.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+      views.forEach((v) => { v.hidden = v.dataset.planView !== plan; });
+    });
+  });
+
+  // Free: copy the quickstart.
+  const copyBtn = document.querySelector<HTMLButtonElement>("[data-copy-quickstart]");
+  const status = document.querySelector<HTMLElement>("[data-copy-status]");
+  copyBtn?.addEventListener("click", async () => {
+    const text = copyBtn.dataset.copyQuickstart ?? "";
+    try {
+      await navigator.clipboard.writeText(text);
+      if (status) status.textContent = "Copied.";
+      track("install_copy", { tab: "quickstart" });
+    } catch {
+      if (status) status.textContent = "Select the three lines above to copy them.";
+    }
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-track]").forEach((el) => {
+    const name = el.dataset.track;
+    if (name === "supporter_click" || name === "setup_click" || name === "pilot_call_click") {
+      el.addEventListener("click", () => track(name));
+    }
+  });
+</script>

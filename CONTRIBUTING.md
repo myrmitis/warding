@@ -1,0 +1,543 @@
+# Contributing to Warding
+
+Thanks for your interest in contributing! Warding is an open-source project and
+we welcome issues and pull requests.
+
+## Reporting Bugs and Requesting Features
+
+Open a [GitHub issue](https://github.com/myrmitis/warding/issues). Before you
+do, search the open issues, because the fastest resolution is often a thread that
+already exists.
+
+For a bug, what actually helps is a way to reproduce it, the version you are on,
+your operating system, and anything unusual about how Warding is installed or
+where it runs. A stack trace beats a description of a stack trace. If it only
+happens on one surface, say which one, because the dashboard, the CLI, and a chat
+channel take different paths through the code.
+
+For a feature, lead with the problem rather than the design. What you were trying
+to do and what stopped you tells a maintainer more than a proposed solution, and
+it leaves room for an answer nobody had thought of.
+
+## Finding Something to Work On
+
+Start with the [open issues](https://github.com/myrmitis/warding/issues). Issues
+carry an `area:` label naming the subsystem they land in — `area: dashboard`,
+`area: agents`, `area: cron` and so on — so you can filter to the part of the
+codebase you want to work in, and a type label (`bug`, `enhancement`,
+`documentation`) telling you what kind of change it is.
+
+Before starting anything substantial, check whether someone is already on it and
+comment on the issue saying you are picking it up. For a large change, open an
+issue first and get a reaction to the approach. Nobody enjoys declining a
+finished pull request that went the wrong direction, and a maintainer can usually
+tell you in a paragraph.
+
+## Prerequisites
+
+- macOS, Linux, or Windows — Windows builds and runs natively from source, with
+  the documented feature limits in the [Windows guide](docs/guides/windows-install.md)
+- Python ≥ 3.10
+- Node.js ≥ 22 (24 LTS recommended) and npm (for the frontend)
+- The `kiro-cli` agent is optional (`agent.acp_backend` defaults to `auto`). A vendor agent CLI is optional — install one on your `PATH` only if you want that harness.
+- [Ollama](https://ollama.com) for memory and knowledge-library embeddings
+
+## First-Time Setup
+
+```bash
+# 1. Fork the repo on GitHub, then clone your fork
+git clone https://github.com/myrmitis/warding.git
+cd warding
+
+# 2. Build the frontend and bundle it into the package
+cd website
+npm install
+npm run build
+cp -r dist ../src/warding/static/dist
+cd ..
+
+# 3. Editable backend install (with optional voice extras)
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[voice]"
+
+# 4. Configure, verify, and start
+warding setup               # data dir, agent backend (channels connect later)
+warding doctor --quick      # compose both planes without serving
+warding up                  # compose, then serve dashboard + channels
+```
+
+The dashboard is at `http://localhost:5476`.
+
+On Windows, `.\make.ps1 build` does steps 2 and 3 in one command (the venv lands
+in `.venv\Scripts\`, and `Activate.ps1` replaces `source .venv/bin/activate`).
+Read the [Windows guide](docs/guides/windows-install.md) first — a few features
+need an explicit opt-in there.
+
+**Messaging channels are optional**: the default `warding setup` configures
+none, and the dashboard + CLI work without any channel credentials. Connect
+Slack, Discord, Telegram, Teams, Webex, WeCom, or WeChat later, or run
+`warding setup --slack` for the guided Slack path.
+
+## Development Skills (agents and humans)
+
+The contributor workflow is codified as agent-loadable skills in
+[`src/warding/builtin_skills/warding-dev/`](src/warding/builtin_skills/warding-dev/)
+— the canonical definition of how code gets written, tested, and reviewed here:
+
+- **`warding-worktree-dev`** — the HARD RULE workflow: every change in a git
+  worktree, the blocking build gates, the built-dist gotcha, preview paths.
+- **`prepare-pr`** — drives working-tree changes to a review-ready PR
+  (commit → sync → squash → open → poll CI/review bots → fix findings).
+- **`babysit`** — same-session monitoring loop that keeps a PR moving through
+  CI and review rounds.
+
+An agent contributing to Warding loads this suite and follows the same
+worktree → build gate → prepare-pr → review loop human contributors use, so
+the PR process stays consistent regardless of who is writing the code. If you
+change the workflow, change it THERE — those files are the single source of
+truth (with `.github/workflows/ci.yml` canonical for the gate list).
+
+## Building
+
+### Backend
+
+```bash
+pip install -e ".[voice]"    # installs deps + console scripts
+pytest                       # run the test suite
+```
+
+### Frontend
+
+The React SPA lives in `website/`. Production builds are bundled into
+`src/warding/static/dist/` and served by the backend.
+
+```bash
+cd website
+npm install
+npm run build                # tsc + vite build → website/dist
+```
+
+After building, copy `website/dist` into `src/warding/static/dist/` so the
+backend serves the latest assets (the `pip` build step copies this directory
+into the wheel).
+
+## Dev Mode (Isolated Data Directory)
+
+Run a dev gateway alongside production without data or port conflicts:
+
+```bash
+# Seed dev data from your real config (optional, safe to re-run)
+./dev-seed.sh
+
+# Start the dev backend (port 6777, isolated data)
+WARDING_HOME=.warding-dev WARDING_PORT=6777 warding up
+```
+
+Browse at `http://localhost:6777`. The backend serves the built frontend assets directly.
+
+| Env var | Purpose | Default |
+|---------|---------|---------|
+| `WARDING_HOME` | Config/data directory override | `~/.warding` |
+| `WARDING_PORT` | Dashboard port override | `5476` |
+| `WARDING_KIRO_BIN` | Explicit path to the `kiro-cli` binary (overrides PATH auto-detection) | auto-detected |
+
+If you don't need to run production and dev side by side, omit `WARDING_PORT` —
+just stop your production gateway first.
+
+### Full-Stack Dev Setup (Backend + Frontend Hot-Reload)
+
+When working on frontend changes, run the Vite dev server alongside the backend
+for instant hot-reload without rebuilding:
+
+```bash
+# Terminal 1 — start the backend
+WARDING_HOME=.warding-dev WARDING_PORT=6777 warding up
+
+# Terminal 2 — start the frontend dev server (hot-reloads .tsx changes)
+cd website
+WARDING_PORT=6777 npm run dev
+# → Vite starts at http://localhost:3000, proxies /api/* to backend on port 6777
+
+# Terminal 3 — generate an auth token
+WARDING_HOME=.warding-dev WARDING_PORT=6777 warding token
+# → Outputs: http://localhost:6777?token=eyJ...
+
+# Open in browser — replace :6777 with :3000:
+# http://localhost:3000?token=eyJ...
+# Vite's token proxy plugin handles the auth handshake.
+```
+
+**Key points:**
+
+- The backend must be reinstalled or restarted after Python source changes
+- The frontend hot-reloads automatically — no rebuild for `.tsx`/`.ts`/`.css` changes
+- Always access via `localhost:3000` (Vite) during frontend dev, not `localhost:6777` directly
+- If the backend restarts, you may need a new token (sessions expire with the process)
+
+## Releasing New Versions
+
+### The model
+
+`main` is always the latest code, and deliberately not stable. Feature releases
+are cut as a **release branch** off `main` on 0.1 increments (`0.1.0` → `0.2.0`
+→ `0.3.0`).
+
+Once a branch is cut, **bug fixes for that release go on the release branch, not
+on `main`.** Each one produces a new release candidate — `0.2.0-rc.1`,
+`-rc.2`, … — published to the insider channel. **Stable is the last RC we judge
+stable enough, promoted by tagging that RC's commit — never rebuilt.** The RC
+run records one immutable promotion bundle (wheel/sdist, AppImage, notarized
+zip/DMG, and OCI manifest digest). A bare `v0.2.0` tag on that exact commit
+resolves the newest successful `0.2.0-*` run, verifies the GitHub artifact's
+API-recorded digest plus every file digest in its manifest, and only then moves
+stable pointers/tags to those bytes.
+
+Because changing an embedded version changes and invalidates the tested bytes,
+the promoted binaries retain the selected RC's embedded version; the bare git
+tag, GitHub Release, and stable channel are the final release identity. If the
+record is missing or its 90-day artifact retention elapsed, promotion fails
+closed: cut and validate a fresh RC rather than rebuilding stable.
+
+Hot patches bump the patch digit (`0.2.0` → `0.2.1`) from the release branch and
+must also have a successful prerelease candidate before the bare stable tag.
+
+After each stable cut, do two things: **bump `main` by 0.1** (to `0.3.0`) so
+nightlies sort above what just shipped, and **merge the branch's fixes back into
+`main`** so they aren't stranded on the branch.
+
+### Channels
+
+| Channel | Built from | Who it's for |
+|---------|-----------|--------------|
+| nightly | `main` | us and contributors |
+| insider | release branch, RC tags | power users testing ahead |
+| stable | the promoted insider | everyone (client default) |
+
+Nightly installs **side by side** as its own app. Insider and stable are two
+update lanes of **one** production app, switchable in Settings.
+
+The user-facing version of this table — same audiences, more detail on
+switching — is [Release channels](README.md#release-channels) in the README.
+Keep the two in step.
+
+### Cutting a release
+
+```bash
+# 1. Branch off main
+git switch -c release/0.2.0 origin/main
+git push -u origin release/0.2.0
+
+# 2. Tag RCs on the branch as fixes land → each publishes to insider
+git tag -a v0.2.0-rc.1 -m "0.2.0 rc1" && git push origin v0.2.0-rc.1
+#    ... fixes land on release/0.2.0 ... then v0.2.0-rc.2, -rc.3, …
+
+# 3. Promote: tag the good RC's EXACT COMMIT with a bare version → stable.
+#    release.yml resolves that successful RC run's immutable promotion bundle;
+#    it does not invoke either build workflow on the bare tag.
+git tag -a v0.2.0 -m "release 0.2.0" <rc-commit-sha>
+git push origin v0.2.0
+
+# 4. Bump main to 0.3.0 (PR), and merge the branch's fixes back into main
+
+# Hot patch: fix on the release branch, cut/test v0.2.1-rc.1 first, then
+# put bare v0.2.1 on that candidate's exact commit and push it.
+```
+
+Update `CHANGELOG.md` with a `## [X.Y.Z] — YYYY-MM-DD` section as part of the
+release (see AGENTS.md → "Release Changelog" for the format), and land the
+changelog and any version bump through a normal PR — never push to `main` or a
+release branch directly.
+
+### How builds are triggered
+
+**Nightly** runs on a schedule every night and can be kicked off on demand at any
+time. **Insider and stable are triggered by pushing a version tag** — an RC tag
+builds and publishes to insider, while a plain version tag promotes the exact
+recorded RC artifacts to stable without rebuilding.
+
+The release branch, the RC numbering, the promote decision, and the back-merge
+are all **human process**. The pipeline reacts to the tag, but the stable path
+also requires the successful same-commit prerelease record and fails closed if
+it cannot prove that record's immutable digest.
+
+A nightly or prerelease build produces a signed and notarized macOS app, a Linux
+AppImage, a pip wheel, and a Docker image. Stable republishes/retags those exact
+candidate bytes. A channel's update feed is repointed **last**, after its
+artifacts are verified downloadable, and clients only install with the user's
+consent. Windows builds but is not yet signed or published.
+
+**There is no rollback — we roll forward by cutting a new version.** Published
+CDN keys are immutable and are never overwritten.
+
+### Bumping the in-code version
+
+The in-code version governs **non-tag** builds — nightly and local/source
+installs. A tagged release overrides all three manifests at build time, so this
+is what makes nightlies read as previews of the *next* release:
+
+| File | Field |
+|------|-------|
+| `src/warding/__init__.py` | `__version__` — the source of truth |
+| `pyproject.toml` | `[project] version` — what the wheel carries |
+| `website/electron/package.json` | `version` — the updater's version compare |
+
+Keep it a bare `X.Y.Z` **on `main`**: `nightly.yml` builds both a semver and a
+PEP 440 stamp from it, and a suffixed base (`.dev0`) produces invalid versions.
+
+On an **insider release branch** the in-code version instead carries the RC, so
+a source/dev checkout reads as the candidate it is. All three files use the
+**same dual-valid spelling** `X.Y.Z-rc.N` (e.g. `0.4.0-rc.4`): it is valid
+SemVer for `package.json` **and** valid (non-canonical) PEP 440, which pip and
+setuptools normalize to `X.Y.ZrcN`. Do not use the canonical PEP 440 spelling
+(`0.4.0rc4`) in `__init__.py` — `packaging/build-desktop.sh` greps `__version__`
+straight into electron-builder's `extraMetadata.version`, which rejects
+non-SemVer and kills a local `make desktop`. The tag still overrides all three
+at build time (see `docs/build/release.md` → "Version numbering policy").
+
+### One trap worth knowing
+
+Any two prerelease tags sharing a base and a trailing number collapse onto the
+same PEP 440 wheel version — `v0.2.0-rc.1` and `v0.2.0-insider.1` both map to
+`0.2.0rc1`. The second publish then fails as a republish of an immutable key, so
+**stick to one prerelease convention (`-rc.N`) per base version.**
+
+Full detail, including the branch, channel, and RC model behind these steps and the
+platform-lane contract: **[docs/build/release.md](docs/build/release.md)**.
+
+## Project Structure
+
+Key entry points:
+
+| File | Purpose |
+|------|---------|
+| `src/warding/cli.py` | CLI entrypoint (argparse) |
+| `src/warding/session.py` | Conversation session management |
+| `src/warding/providers/` | LLM provider layer (claude_code, acp, bedrock) |
+| `src/warding/acp/client.py` | ACP JSON-RPC client (stdio) |
+| `src/warding/slack/gateway.py` | Slack Socket Mode gateway |
+| `src/warding/slack/handler.py` | Message handling, tool approval |
+| `src/warding/dashboard/` | Web dashboard (aiohttp backend) |
+| `src/warding/mcp_core.py` | MCP tools: spawn, learn, task, wait, hook, send_message, file_send |
+| `src/warding/mcp_cron.py` | MCP tools: cron scheduling |
+| `src/warding/context.py` | Context builder (memory, skills, history) |
+| `src/warding/subagent.py` | Subagent lifecycle and timeout |
+| `src/warding/autonudge.py` | Reactive same-session self-nudge service |
+| `src/warding/snapshot.py` | Portable snapshot and restore |
+| `src/warding/apps/` | App Kit platform (manifest, manager, registry, routes) |
+| `src/warding/eval/` | Multi-session eval harness |
+| `agents/` | Agent config and system prompt |
+| `agents/prompt.md` | Default system prompt — edit to change the agent's base personality and rules |
+| `skills/` | On-demand skill definitions (see [skills/README.md](skills/README.md)) |
+| `website/` | React + Vite frontend SPA |
+
+## Code Style
+
+| Rule | Standard |
+|------|----------|
+| Line length | 100 chars (black) |
+| Python | ≥ 3.10, `from __future__ import annotations` |
+| Logging | `import logging` + `logger = logging.getLogger(__name__)` |
+| Async | `asyncio` throughout, `async def` for all I/O |
+| Data | `@dataclass` for containers |
+| Imports | All at top of file, no in-method imports |
+| Naming | Module constants: `UPPER_SNAKE`. Private: `_UPPER_SNAKE` |
+| Lint | flake8 (F401 unused imports, N806 lowercase vars, W504); isort + black |
+| Types | mypy, `# type: ignore[...]` sparingly |
+
+Full reference: [AGENTS.md](AGENTS.md)
+
+## Documentation (required with every behavior change)
+
+**A change that alters documented behavior must update the docs in the same
+commit.** A PR that changes behavior and leaves its doc stale will be sent back:
+a doc nobody updated is worse than no doc, because readers still trust it.
+
+1. **Find the one owning doc.** Every subsystem has exactly one, usually under
+   `docs/system-specs/modules/`. [AGENTS.md](AGENTS.md)'s routing table maps
+   subsystem to doc.
+2. **Edit that doc; don't add a second one.** Two docs on one subject diverge,
+   and then nobody can tell which is true.
+3. **Update the indexes** when you add, move, rename, or delete a doc: the
+   directory's own `README.md`, [docs/README.md](docs/README.md), and anything
+   linking to it.
+4. **No changelogs inside docs.** No `Last Updated:` line, no
+   "previously/used to/we now", no PR numbers or SHAs. Git holds history; the doc
+   states current behavior in present tense.
+5. **Run the gate:** `./scripts/docs-lint.sh` (also a blocking CI job). It catches
+   broken internal links, docs no index reaches, directories missing an index, code
+   comments citing a doc that does not exist, and a renamed doc whose filename is
+   hardcoded in code.
+
+Note that `src/warding/docs/` is **packaged and read at runtime**: its filenames
+are an API (see [its README](src/warding/docs/README.md)), so renaming a file
+there is a code change, and an internal engineering note placed there ships to every
+user.
+
+## Extending Warding
+
+- **Skills** — drop markdown files in `skills/` or `~/.warding/skills/`. See [skills/README.md](skills/README.md) for the full format reference
+- **MCP tools** — add to `mcp_core.py` or `mcp_cron.py`. Every LLM-facing command must have an MCP tool
+- **Hooks** — configure in `~/.warding/config.json`
+- **Lessons** — self-learned from corrections, stored in `~/.warding/lessons.jsonl`
+
+## Tests
+
+### Backend Tests
+
+```bash
+pytest                       # full suite (pytest-asyncio, pytest-xdist)
+pytest -k test_name          # single test
+pytest test/test_agent.py    # one file — what you want most of the time
+```
+
+The suite is large (56k+ tests) and runs in parallel. Each worker needs about
+1.5 GiB, mostly just to collect the suite, so **on a laptop with 8–16 GiB of RAM a
+full run does not fit alongside a browser.** You do not have to work that out: the
+worker count is bounded by how much memory is actually free, and if it gets clamped
+the run says so in one line. If it clamps to one or two workers, run the subset you
+are changing instead — a full-suite checkpoint is what CI is for. Details and the
+override knobs: [testing-conventions](docs/system-specs/common/testing-conventions.md).
+
+| Pattern | Example |
+|---------|---------|
+| File naming | `test/test_<module>.py` |
+| Async tests | `@pytest.mark.asyncio` required |
+| Filesystem | `tmp_path` fixture |
+| Config | `monkeypatch` for overrides |
+| External processes | Always mock the agent backend, never spawn real processes |
+| Grouping | `class TestFeatureName:` |
+
+### Frontend Tests
+
+```bash
+cd website
+npm test                     # vitest (unit/component) + electron tests
+npm run check                # typecheck + lint + tests
+npm run test:integration     # MSW-based integration tests
+npm run test:playwright      # E2E (requires a running backend)
+```
+
+## Using AI Tools
+
+Most of us build with coding agents, and you are welcome to. This project exists
+because of that kind of work.
+
+You are still the author of your pull request. Before you open it, make sure you
+understand the change well enough to explain why it works, defend the design, and
+fix it when something breaks later. If you could not walk a reviewer through it
+line by line, it is not ready, and a reviewer will find that out faster than you
+expect.
+
+Three things make agent-assisted contributions land:
+
+Keep the change small and focused on one thing. A large diff that touches many
+areas is harder to review than the same work split into three, and it is the most
+common reason a well-intentioned pull request stalls.
+
+Open an issue first for anything significant, so the approach is agreed before you
+or your agent spend real time on it.
+
+Read every line before you send it. Delete what is not needed, simplify what is
+over-built, and check that the tests exercise the behaviour rather than merely
+passing. Trimming your own diff is the single highest-leverage thing you can do to
+get it merged.
+
+When your change is ready, the workflow is already codified rather than left to
+taste. See Development Skills above: `warding-worktree-dev` covers building and
+verifying in a worktree, and `prepare-pr` takes it from there, driving the change
+to a review-ready pull request by committing, syncing onto the base, squashing to
+the one or two commits this repo allows, opening or updating the PR, then polling CI
+and the review bots and fixing what they find. An agent that loads it follows the
+same route a maintainer would, which is why the process holds regardless of who or
+what wrote the code. If you are contributing with an agent, point it at that skill
+instead of describing the steps yourself.
+
+## Pull Request Workflow
+
+1. **Fork** the repository on GitHub.
+2. **Branch** from `main`:
+   ```bash
+   git fetch origin
+   git checkout -b feat/my-feature origin/main
+   ```
+3. **Make your change** and add tests (new functions/components should be tested).
+4. **Run the checks locally** before opening a PR:
+   ```bash
+   pytest                                   # backend
+   cd website && npm run check && cd ..     # frontend: typecheck + lint + tests
+   ```
+5. **Commit** using [Conventional Commits](https://www.conventionalcommits.org/)
+   (see below), push to your fork, and open a **Pull Request against `main`**.
+6. A maintainer will review. Address feedback by pushing additional commits to
+   your branch.
+
+Two things are worth knowing before you start something large.
+[GOVERNANCE.md](GOVERNANCE.md) covers who decides what lands and how a
+disagreement gets resolved, and [MAINTAINERS.md](MAINTAINERS.md) lists the
+people doing it.
+
+Architectural changes get written up as an RFC first, in
+[docs/request-for-change/](docs/request-for-change/), so the design can be
+argued over before anyone writes the code. That applies to changes to a public
+interface, changes other parts of the project would have to build around, and
+anything that would be expensive to reverse. Everything else skips it, and a bug
+fix should never wait on a design document. If you are unsure which side of the
+line your change falls on, open an issue and ask.
+
+### CI checks on your PR (forks vs. direct branches)
+
+GitHub withholds repository secrets and OIDC credentials from workflows
+triggered by **pull requests opened from a fork**. No PR check needs them, so
+tests, lint, typecheck, coverage, build and the deterministic code-review gates
+run the same on a fork PR as on a branch pushed to `myrmitis/warding`. Two
+differences remain:
+
+- **CodeQL** runs through GitHub's default setup, which is not scheduled for
+  fork heads. `PR Readiness` lists it as not eligible on a fork PR instead of
+  waiting for it, so it never blocks your PR.
+- **A fork PR that changes anything under `.github/`** is held by the fork
+  workflow guard until a maintainer has reviewed the change and applied the
+  `allow-fork-workflow-change` label.
+
+No AI reviewer runs in CI. A maintainer reviews every PR by hand; if you drive
+your PR with the `prepare-pr` skill, it also runs an AI review locally before
+each push.
+
+## Commit Messages
+
+[Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>: <summary>
+
+<body — what and why, not how>
+```
+
+Types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`
+
+Rules: imperative mood, lowercase summary, no trailing period, wrap body at 72 chars.
+
+## Questions?
+
+Open a [GitHub issue](https://github.com/myrmitis/warding/issues) or start a
+discussion in the repository.
+
+## Security Issues
+
+**Do not** report security vulnerabilities through public GitHub issues. See
+[SECURITY.md](SECURITY.md) for responsible disclosure instructions.
+
+## Code of Conduct
+
+This project has adopted a [Code of Conduct](CODE_OF_CONDUCT.md). Participating
+means following it, and the file names where to report a concern.
+
+## Licensing
+
+Warding is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for the
+full text and [NOTICE](NOTICE) for attribution. Third-party components carry their
+own licenses, recorded in [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES).
+
+Contributions are accepted under the same license as the project. If your change
+adds or updates a third-party dependency, say so in the pull request, because it
+affects what has to be recorded in the notices file.

@@ -1,0 +1,130 @@
+---
+import PageLayout from "../layouts/PageLayout.astro";
+import StatusChip from "../components/StatusChip.astro";
+import WardBars from "../components/WardBars.astro";
+import Plate from "../components/Plate.astro";
+import OfficeWorld from "../islands/world/OfficeWorld";
+import { softwareApplication } from "../lib/seo";
+import Building from "@lucide/astro/icons/building";
+import Panda from "@lucide/astro/icons/panda";
+import Brain from "@lucide/astro/icons/brain";
+import WandSparkles from "@lucide/astro/icons/wand-sparkles";
+import Waves from "@lucide/astro/icons/waves-horizontal";
+import Rocket from "@lucide/astro/icons/rocket";
+import TreePine from "@lucide/astro/icons/tree-pine";
+import Vault from "@lucide/astro/icons/vault";
+import officeShot from "../assets/shots/default-worlds-office.png";
+
+/**
+ * /agent-worlds/ (site-spec §1), night register. The live frame is the
+ * site's port of the product's Office renderer fed a scripted timeline; it
+ * carries its own "Simulated demo · real renderer" chip and a 44 px Pause
+ * control. Scene names are the dashboard's own (website/src/pages/scenes/
+ * config.tsx); "Mission Control" appears here only as that scene's name.
+ * The wallpaper button on this page exports the simulated frame; the
+ * dashboard has no export yet, and the page says so.
+ */
+const title = "Agent Worlds: watch your coding agents in pixel art";
+const description = "Seven animated scenes where each running agent session is a sprite, with whichever harness you dock. Wallpaper export is in development.";
+
+const scenes = [
+  { name: "Office", icon: Building, line: "The classic pixel office: one desk per session, a wall clock, and a task board." },
+  { name: "Panda Den", icon: Panda, line: "A bamboo-forest workspace where every agent is a panda." },
+  { name: "Neural Net", icon: Brain, line: "Sessions as bright nodes on a constellation map." },
+  { name: "Wizard Tower", icon: WandSparkles, line: "An alchemy lab, for the sessions that brew." },
+  { name: "Deep Lab", icon: Waves, line: "An underwater research station, porthole light included." },
+  { name: "Mission Control", icon: Rocket, line: "An operations room of consoles, one per live session." },
+  { name: "Watering Hole", icon: TreePine, line: "A savanna with giraffes, warthogs and elephants." },
+];
+---
+<PageLayout
+  title={title}
+  description={description}
+  h1="Every live session gets a pixel character."
+  register="night"
+  lead="Agent Worlds is a page in the dashboard where each running agent session is an animated sprite at a desk, named after its task. Seven scenes, one setting, and it works with whichever harness you dock."
+  breadcrumbs={[{ label: "Agent Worlds", href: "/agent-worlds/" }]}
+  jsonLd={[softwareApplication()]}
+>
+  <div class="worlds">
+    <section class="live" aria-labelledby="live-h">
+      <h2 id="live-h" class="sr-only">The Office, running</h2>
+      <OfficeWorld client:visible label="Pixel-art night office: agent sprites at their desks, one waiting on an approval. A simulated demo drawn by a port of the product's Office renderer." />
+      <p class="caption"><span class="plate-num">The Night Office.</span> Simulated demo: the sprites follow a scripted night, drawn by a port of the dashboard's Office renderer. Pause stops it; with reduced motion it holds one still frame.</p>
+    </section>
+
+    <section class="block" aria-labelledby="scenes-h">
+      <WardBars align="left" />
+      <h2 id="scenes-h">Seven scenes</h2>
+      <ul class="scenes" role="list">
+        {scenes.map((s) => {
+          const Icon = s.icon;
+          return (
+            <li>
+              <Icon class="lucide scene-icon" aria-hidden="true" />
+              <div><h3>{s.name}</h3><p>{s.line}</p></div>
+            </li>
+          );
+        })}
+      </ul>
+      <p class="caption">Switch scenes from the tabs at the top of the Agent Worlds page; the choice is remembered in that browser.</p>
+    </section>
+
+    <section class="block two" aria-labelledby="real-h">
+      <div class="copy">
+        <WardBars align="left" />
+        <h2 id="real-h">What a sprite tells you</h2>
+        <p>Each sprite is one session, labelled with its task and its message count. A session that is working looks busy at its desk; an idle one sits. A tool call waiting on your approval shows as an overlay on the scene, with Approve and Deny, and the answer goes through the same approval path as the dashboard and your chat channels.</p>
+        <p>A dedicated hand-raised pose for a waiting sprite is not drawn yet. <StatusChip kind="coming" /></p>
+        <p>The picture beside this is the dashboard itself, with four seeded sessions and no agent connected. No recorded night stands behind it, and the caption says so.</p>
+      </div>
+      <Plate num="I" title="The Office, in the dashboard" caption="Dashboard · Agent Worlds · 2026-09-26 · no agent connected" note="Four seeded sessions shown as idle sprites at their desks." src={officeShot} alt="The dashboard's Agent Worlds page on the Office scene: scene tabs for Office, Panda Den, Neural Net, Wizard Tower, Deep Lab, Mission Control and Watering Hole above a pixel office where four sprites sit at desks labelled fix flaky auth test, nightly dependency check, review PR #412 and migrate settings page to new theme tokens." crop={0.175} cropTop={0.045} sizes="(min-width: 1200px) 640px, 92vw" />
+    </section>
+
+    <section class="block" aria-labelledby="wall-h">
+      <WardBars align="left" />
+      <h2 id="wall-h">Save tonight as a wallpaper</h2>
+      <p class="measure">The button under the frame above saves a PNG of this page's simulated frame at twice its size, stamped with your local time. It is a feature of this website, drawn from the scripted scene, not an export of your own sessions.</p>
+      <p class="measure">In the dashboard, the same export from your live world is in development. <StatusChip kind="coming" /></p>
+    </section>
+
+    <section class="block" aria-labelledby="vault-h">
+      <WardBars align="left" />
+      <h2 id="vault-h" class="vault-h"><Vault class="lucide h-icon" aria-hidden="true" /> The Vault</h2>
+      <p class="measure">An eighth scene, drawn from scratch for the people who fund this work, with a written provenance line for every sprite and tile. It does not exist yet, and nothing is sold on the promise of it. <StatusChip kind="coming" /></p>
+      <p class="measure"><a href="/pricing/">Pricing</a> lists what supporting the project includes today.</p>
+    </section>
+  </div>
+</PageLayout>
+
+<style>
+  .worlds { display: grid; gap: 64px; }
+  .block { display: grid; gap: 16px; }
+  .live { display: grid; gap: 12px; min-width: 0; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  :global(.world) { display: grid; gap: 12px; justify-items: start; max-width: 100%; min-width: 0; }
+  :global(.world-frame) { position: relative; overflow: hidden; border: 1px solid var(--line); background: #0b0e14; box-shadow: var(--shadow); max-width: 100%; }
+  :global(.world-canvas) { image-rendering: pixelated; display: block; max-width: none; }
+  :global(.world-chip) { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; pointer-events: none; }
+  :global(.world-chip > *) { pointer-events: auto; }
+  :global(.world-chip .chip) { background: rgba(11, 14, 20, 0.82); color: #ece8e1; border-color: #2a3244; white-space: normal; max-width: calc(100% - 56px); }
+  :global(.world-btn) {
+    width: 44px; height: 44px; display: grid; place-items: center; border-radius: 4px; cursor: pointer;
+    background-color: rgba(11, 14, 20, 0.86); color: #ffb547; border: 0; box-shadow: inset 0 0 0 1px #2a3244;
+    background-image: linear-gradient(#ff7a5c, #ff7a5c), linear-gradient(#ff7a5c, #ff7a5c), linear-gradient(#ff7a5c, #ff7a5c);
+    background-size: 11px 2.5px; background-repeat: no-repeat; background-position: 4px 4px, 16.5px 4px, 29px 4px;
+  }
+  :global(.world-btn .lucide) { width: 20px; height: 20px; stroke-width: 2; margin-top: 4px; }
+  :global(.world-tools) { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .scenes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .scenes li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: start; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .scenes h3 { font-family: var(--font-sans); font-size: 1rem; font-weight: 600; margin: 0 0 4px; }
+  .scenes p { color: var(--fg-2); font-size: 0.9375rem; margin: 0; }
+  .scene-icon { width: 22px; height: 22px; stroke-width: 1.75; color: var(--lamp); margin-top: 2px; }
+  .vault-h { display: flex; align-items: center; gap: 12px; }
+  .h-icon { width: 26px; height: 26px; stroke-width: 1.75; color: var(--lamp); flex: none; }
+  .two { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 40px; align-items: start; }
+  .copy { display: grid; gap: 14px; color: var(--fg-2); }
+  .copy h2 { color: var(--fg); }
+  @media (max-width: 880px) { .two { grid-template-columns: 1fr; } }
+</style>

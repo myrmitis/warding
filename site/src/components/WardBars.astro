@@ -1,0 +1,6 @@
+---
+/** Three short vermillion rules: the only decorative divider (brand-book §9). */
+interface Props { align?: "center" | "left"; class?: string }
+const { align = "center", class: cls = "" } = Astro.props;
+---
+<div class={`ward-bars ${align === "left" ? "ward-bars-left" : ""} ${cls}`} aria-hidden="true"><i></i><i></i><i></i></div>

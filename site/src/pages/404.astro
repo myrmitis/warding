@@ -1,0 +1,41 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import LinkButton from "../components/LinkButton.astro";
+import { createOffice, applySources, draw, update } from "../islands/world/office";
+import { SvgRecorder } from "../islands/world/svgRecorder";
+
+// An empty night office, one lit window, one sprite at the door with a map:
+// a static frame from the same renderer, recorded to SVG at build. No JS.
+const state = createOffice(404);
+applySources(state, [{ id: "lost", name: "you", label: "visitor", kind: "slot", running: false, detail: "looking for the page" }], { tick: 0 });
+for (let t = 1; t < 8; t++) update(state, t);
+const rec = new SvgRecorder();
+draw(state, rec, { S: 2, textScale: 1, hour: 2, minute: 14, noText: true }, 8);
+const frame = rec.toSvgGroup();
+---
+<BaseLayout title="Page not found — Warding" description="That page is not on this floor. The lamp is on; the page is not. Head back to the night office." register="night" ogSlug="404" noindex bodyClass="page-404">
+  <div class="vault">
+    <section class="wrap lost">
+      <svg class="lost-frame" viewBox="0 0 880 600" role="img" aria-label="An empty pixel-art night office with one lit window and a single sprite standing at the door">
+        <rect width="880" height="600" fill="#0b0e14" />
+        <Fragment set:html={frame} />
+        <rect x="171" y="61" width="48" height="38" fill="#FFB547" opacity="0.85" />
+        <rect x="30" y="254" width="9" height="7" fill="#ECE8E1" />
+        <rect x="33" y="256" width="2" height="2" fill="#B3301A" />
+        <rect x="31" y="259" width="7" height="1" fill="#1A1814" />
+      </svg>
+      <p class="eyebrow">404 · 02:14 your time</p>
+      <h1>That page is not on this floor.</h1>
+      <p class="lead">The lamp is on. The page is not. Try the desk you came from, or start at the door.</p>
+      <div class="lost-ctas">
+        <LinkButton href="/">Back to the night office</LinkButton>
+        <a href="/security/">The rules it can't open</a>
+      </div>
+    </section>
+  </div>
+</BaseLayout>
+<style>
+  .lost { display: grid; gap: 20px; padding-block: 48px 96px; justify-items: start; }
+  .lost-frame { width: 100%; max-width: 880px; border: 1px solid var(--line); image-rendering: pixelated; shape-rendering: crispEdges; }
+  .lost-ctas { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+</style>

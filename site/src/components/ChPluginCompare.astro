@@ -1,0 +1,32 @@
+---
+/**
+ * "Why not the official plugin?" for the three apps Anthropic's Channels
+ * plugin covers (Telegram, Discord, iMessage). Neutral, sourced, and it
+ * concedes the plugin's advantage first. The approval cell for this product
+ * is read from src/data/channels.ts so it matches the page's status chip.
+ */
+import ChTable from "./ChTable.astro";
+import { site } from "../data/site";
+import { channels, channelCounts } from "../data/channels";
+
+interface Props { slug: "telegram" | "discord" | "imessage" }
+const { slug } = Astro.props;
+const ch = channels.find((c) => c.slug === slug)!;
+const ours = ch.approval === "buttons"
+  ? "Approve / Deny buttons on gated tool calls"
+  : ch.approval === "typed"
+    ? "typed replies on gated tool calls"
+    : "none in this app yet; gated tool calls are declined unless auto-approve is on";
+---
+<p>Anthropic ships a Channels plugin for Claude Code that covers Telegram, Discord and iMessage. If you use only Claude Code and you are happy to keep a session open, it is less setup than this, and it is Anthropic's own.</p>
+<ChTable
+  head={["", "Anthropic's Channels plugin", site.name]}
+  rows={[
+    ["Harness", "Claude Code only", "the one you dock for chat: Claude Code, Codex, Cursor, Goose, Kimi, OpenCode and others"],
+    ["When messages arrive", "while that Claude Code session is open, launched with the channels flag", "while the gateway runs, which it does as a service on your box"],
+    ["Apps", "Telegram, Discord, iMessage", `${channelCounts.total}; ${channelCounts.buttons} with approve buttons, ${channelCounts.typed} typed, ${channelCounts.chatOnly} chat-only`],
+    [`Approvals in ${ch.name}`, "see Anthropic's documentation", ours],
+    ["Setup", "a plugin inside Claude Code", "a gateway on your machine plus this app's credentials"],
+  ]}
+/>
+<p class="caption">Source: <a href="https://www.macstories.net/stories/first-look-hands-on-with-claude-codes-new-telegram-and-discord-integrations/" rel="noopener">MacStories' hands-on with Claude Code's Telegram and Discord integrations</a>. The <a href="/compare/claude-code-routines/">longer comparison with Anthropic's built-ins</a> covers Routines and Remote Control too.</p>

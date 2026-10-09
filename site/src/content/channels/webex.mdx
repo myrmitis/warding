@@ -1,0 +1,50 @@
+---
+title: "Webex for your coding agent, with approve buttons"
+description: "Owner-only coding agent in Webex with Approve / Deny buttons on gated tool calls, a typed fallback, and no public URL. Runs on your own box."
+h1: "Your coding agent in Webex"
+channel: webex
+approval: buttons
+ogRegister: paper
+ogQualifier: "Buttons in chat · typed fallback · on your box"
+verified: []
+---
+import StatusChip from "../../components/StatusChip.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+Webex needs no public URL and no webhook: the gateway registers a device with Webex and receives messages over an outbound WebSocket, so it works from behind a firewall or NAT. You DM a bot you created; it answers the email addresses you name.
+
+What has been run on which harness is on <a href="/verified/">the verification log</a>; a feature without a dated row there is unverified.
+
+## What works from Webex today
+
+- **Approve / Deny buttons** on an Adaptive Card, with the same question as text: reply `1` to approve or `2` to deny if the card does not render. No answer within five minutes is a deny. Anything else you type is treated as a mid-turn message, so you can redirect the agent instead of answering.
+- **A live status line** while the agent works, then one message per turn.
+- **Files are scanned by Webex** before the agent sees them; an infected or unscannable file is refused.
+
+## Set it up
+
+Set it up by hand; the token goes in a file the agent is not allowed to read or write, so asking the agent to do it is refused at the gate:
+
+1. **Create a bot** at developer.webex.com (My Webex Apps, Create a New App, Create a Bot) and copy the bot access token. It is shown once.
+2. **Save the token** in the data home's `.env`:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>WEBEX_BOT_TOKEN=…</code></pre>
+3. **Allow yourself** in `config.json`:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`"webex": { "enabled": true, "allowed_emails": ["you@example.com"] }`}</code></pre>
+4. **Restart the gateway**, then find the bot by its username and DM it:
+   <pre tabIndex="0" role="region" aria-label="Command"><code>{`${site.cli} restart`}</code></pre>
+
+## Who can reach it
+
+Anyone in an organisation can message a Webex bot, so `allowed_emails` is the trust boundary, and an empty list rejects everyone. Every address on it is an operator: it can run every command, including the machine-wide auto-approve grant. Add a second address only for a person you would hand your own dashboard to. Group spaces are off until you turn them on and name each space.
+
+## Limits, stated plainly
+
+- **Owner-only.** One person runs this gateway, as themselves, with their files and credentials. There is no shared or team mode.
+- **One harness for chat.** The docked harness answers every channel; switching is one setting. A spawned subagent can be routed to another installed harness; that is registered, not verified.
+- **Your box has to stay on.** Nothing of ours runs in the cloud.
+- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) relies on the agent's own tools, which reach kiro-cli only today. On other harnesses, schedule from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
+
+<StatusChip kind="approved" label="Approvals: buttons" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/warding/docs/webex-integration.md`} rel="noopener">Full reference in the repository</a>

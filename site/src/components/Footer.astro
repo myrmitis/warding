@@ -1,0 +1,63 @@
+---
+import WardSeal from "./WardSeal.astro";
+import Rss from "@lucide/astro/icons/rss";
+import { footerColumns } from "../data/nav";
+import { site, siteHost } from "../data/site";
+const year = 2026;
+---
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="/" aria-label={`${site.name} home`}>
+          <WardSeal size={32} />
+          <span class="wordmark">warding</span>
+        </a>
+        <a class="publisher" href={site.publisher.url} rel="noopener">by {site.publisher.name}</a>
+        <p class="tagline">{site.tagline}</p>
+        <p class="caption">{siteHost}</p>
+      </div>
+      {footerColumns.map((col) => (
+        <nav aria-label={col.title}>
+          <h2 class="foot-title">{col.title}</h2>
+          <ul>
+            {col.links.map((l) => (
+              <li><a href={l.href} rel={l.external ? "noopener" : undefined}>{l.label}</a></li>
+            ))}
+          </ul>
+        </nav>
+      ))}
+    </div>
+    <div class="foot-bottom">
+      <p class="caption">
+        Apache-2.0 · © {year} {site.company} · No tracking cookies; analytics are cookieless
+      </p>
+      <ul class="foot-links" aria-label="Elsewhere">
+        <li><a href={site.githubRepo} rel="noopener">GitHub</a></li>
+        <li><a href="/rss.xml"><Rss class="lucide" aria-hidden="true" /> RSS</a></li>
+        {site.links.discord && <li><a href={site.links.discord} rel="noopener">Discord</a></li>}
+        {site.links.discussions && <li><a href={site.links.discussions} rel="noopener">Discussions</a></li>}
+      </ul>
+    </div>
+  </div>
+</footer>
+<style>
+  .site-footer { border-top: 1px solid var(--line); padding-block: 64px 40px; background: var(--bg); color: var(--fg); position: relative; z-index: 1; }
+  .foot-grid { display: grid; grid-template-columns: 1.6fr repeat(4, 1fr); gap: 32px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--fg); text-decoration: none; }
+  .publisher { display: flex; align-items: center; width: fit-content; min-height: 44px; color: var(--fg-2); font-size: 0.875rem; text-decoration: none; }
+  .publisher:hover { color: var(--fg); text-decoration: underline; }
+  .wordmark { font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; letter-spacing: -0.015em; font-variation-settings: "SOFT" 0, "WONK" 0, "opsz" 144; }
+  .tagline { margin-top: 12px; font-family: var(--font-display); font-weight: 500; font-size: 1.125rem; color: var(--fg-2); max-width: 22ch; }
+  .foot-title { font-family: var(--font-sans); font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-3); margin-bottom: 12px; }
+  .site-footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  /* 44 px tall hit areas; the line box stays where the 8 px gap put it. */
+  .site-footer nav a { color: var(--fg-2); text-decoration: none; font-size: 0.9375rem; display: inline-flex; align-items: center; min-height: 44px; }
+  .site-footer nav a:hover { color: var(--fg); text-decoration: underline; }
+  .foot-bottom { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; align-items: center; }
+  .foot-links { display: flex !important; gap: 16px !important; }
+  .foot-links a { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-2); font-size: 0.875rem; min-height: 44px; }
+  .foot-links :global(.lucide) { width: 14px; height: 14px; }
+  @media (max-width: 960px) { .foot-grid { grid-template-columns: 1fr 1fr; } .foot-brand { grid-column: 1 / -1; } }
+  @media (max-width: 480px) { .foot-grid { grid-template-columns: 1fr; } }
+</style>

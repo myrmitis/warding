@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- The default companion: a round cat's head, ears up -->
+  <path d="M4.2,13.6 L4.9,4.9 Q5.1,3.9 6,4.5 L9.5,7.2 Q12,6.5 14.5,7.2 L18,4.5 Q18.9,3.9 19.1,4.9 L19.8,13.6 C20.1,18.2 16.6,20.6 12,20.6 C7.4,20.6 3.9,18.2 4.2,13.6 Z"
+        fill="var(--ico-a, currentColor)" fill-opacity="0.22"
+        stroke="var(--ico-a, currentColor)" stroke-width="1.8" stroke-linejoin="round"/>
+  <!-- Eyes -->
+  <ellipse cx="9.2" cy="13" rx="1.25" ry="1.55" fill="var(--ico-b, currentColor)"/>
+  <ellipse cx="14.8" cy="13" rx="1.25" ry="1.55" fill="var(--ico-b, currentColor)"/>
+  <!-- Nose and mouth -->
+  <path d="M11,15.9 L13,15.9 L12,17 Z" fill="var(--ico-b, currentColor)"/>
+  <path d="M12,17 Q11.2,18.1 10.2,17.6 M12,17 Q12.8,18.1 13.8,17.6"
+        stroke="var(--ico-b, currentColor)" stroke-width="1" stroke-linecap="round"/>
+</svg>
