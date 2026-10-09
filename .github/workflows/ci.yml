@@ -389,7 +389,10 @@ jobs:
   backend-lint:
     name: Backend Lint & Type Check
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Sized for 2-vCPU private-repository runners: the black gate checks the
+    # whole tree on every run and takes about 15 minutes there by itself,
+    # before isort, flake8 and mypy start.
+    timeout-minutes: 35
     strategy:
       matrix:
         # PRs lint on the newer interpreter only; main covers both.
@@ -1645,7 +1648,10 @@ jobs:
   e2e:
     name: E2E (stub ACP backend, offline)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The frontend build, the render gate (head and base) and the smoke and
+    # Playwright suites run back to back: about 16 minutes on a 4-vCPU runner,
+    # and longer on 2-vCPU private-repository runners.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
