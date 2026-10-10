@@ -446,11 +446,15 @@ class TestDashboardInjectionRoutesRunChat:
             p1, p2,
         ):
             await subagent_done(info)
-            # Wait for the task's done callbacks to fire (may need multiple event-loop ticks under load)
-            for _ in range(20):
-                await asyncio.sleep(0.05)
-                if gateway.subagent_mgr.notify_injection_failed.call_count:
-                    break
+            # The injection is a background task whose first step resolves the
+            # turn ceiling on a worker thread (bounded_chat_turn), so a fixed
+            # polling budget can run out on a loaded runner. Await the task
+            # itself: its done callbacks, _on_inject_done included, have run by
+            # the time the gather returns. The redaction patches stay active
+            # because the callback runs inside this block.
+            injected = list(gateway.dashboard_state._background_tasks)
+            await asyncio.wait_for(asyncio.gather(*injected, return_exceptions=True), timeout=30)
+            await asyncio.sleep(0)
 
         gateway.subagent_mgr.notify_injection_failed.assert_called_once()
         call_kwargs = gateway.subagent_mgr.notify_injection_failed.call_args
