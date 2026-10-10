@@ -160,6 +160,30 @@ def test_route_run_fails_over_when_the_reply_is_a_usage_limit_notice(
     assert usage["max"].ok == 1
 
 
+def test_route_run_success_keeps_a_limit_recorded_while_its_harness_shut_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``route run`` records its success after the harness exits, which can take
+    seconds; a limit a gateway run hits on the same lane meanwhile must stay."""
+    router = _router(monkeypatch, doc=_THREE_LANES)
+    gateway = HarnessRouter(home=router.home, which=_BINS.get, env={})
+
+    class _SlowExit(_FakeProvider):
+        async def shutdown(self) -> None:
+            await super().shutdown()
+            gateway.record_dispatch("pro", "implement")
+            gateway.record_failure(
+                "pro", text="You've hit your usage limit. Try again in 3 hours.", harness="codex"
+            )
+
+    made = _providers(monkeypatch, _SlowExit(_reply("done")))
+    assert _run_exit_code(_parse("run", "build it", "--no-prompt", "--harness", "pro")) == 0
+    assert [lane for lane, _ in made] == ["pro"]
+    usage = router.ledger.snapshot()["pro"]
+    assert usage.cooldown_reason == FAILURE_USAGE_LIMIT
+    assert (usage.ok, usage.failed, usage.harness) == (1, 1, "codex")
+
+
 def test_route_run_does_not_move_once_the_turn_produced_output(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

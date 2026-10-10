@@ -26,7 +26,7 @@ not touch), [subagent](subagent.md) (where routed work runs), [mcp](../../archit
 | **Lane** | One subscription or account reached through one harness: `id`, `harness`, `billing`, `weight`, `window_hours`, `window_limit`, `daily_limit`, optional `model`, per-kind `affinity`. Two lanes may share a harness (an OpenCode lane on a cheap OpenRouter model for bulk work, another on a strong one for review). |
 | **Kind** | What the work is: `plan`, `implement`, `debug`, `review`, `test`, `research`, `docs`, `quick`, `bulk` (`kinds.TASK_KINDS`). The calling agent names it as an enum; the router never guesses it from free text. |
 | **Billing** | `subscription` (flat plan with a usage window), `free`, or `metered` (pay per token). |
-| **Ledger** | `<data home>/routing/ledger.json`: per-lane dispatch timestamps, outcome counters, cooldown deadline, the harness that produced or cleared the cooldown reason, and a truncated, credential-redacted last error. Never prompts or keys. |
+| **Ledger** | `<data home>/routing/ledger.json`: per-lane dispatch timestamps, outcome counters, cooldown deadline, the harness that produced or cleared the cooldown reason, the lane's event sequence and the sequence of the event that set the cooldown, and a truncated, credential-redacted last error. Never prompts or keys. |
 
 ## Objective
 
@@ -96,7 +96,25 @@ which is spelled for the configured default harness.
 
 A stated reset ("try again in 2 hours 5 minutes", "resets 3pm", Claude's
 `|<epoch>` suffix) wins over the default, clamped to `[30 s, 8 days]`. Clock
-times are read in the host's local zone. A success clears a lane's cooldown.
+times are read in the host's local zone.
+
+A success clears a lane's cooldown only when its dispatch was recorded after
+the failure that set it. A run already in flight when another run hit the limit
+counts as a completed run but leaves that rest alone, because finishing its
+turn, writing its usage row or passing its tests says nothing about a limit
+reached after it started; a later dispatch's success, or `route clear`, lifts
+it. `record_dispatch` returns the lane's next event sequence as a ticket, the
+success hands it back, and the ledger compares it with the cooldown's sequence
+in the same locked write, so the order holds across processes. A dispatch the
+ledger could not record (ticket `UNRECORDED_DISPATCH`, 0) clears nothing; a
+caller with no ticket clears as before. Sequences are seeded from the
+microsecond clock, so a ticket issued before the ledger lost its history (a
+corrupt file, a writer that predates these fields) clears nothing unless the
+loss lands within that ticket's clock tick; such a writer's own successes still
+clear unconditionally. That writer drops both sequences from every lane it
+rewrites, so the next recorded dispatch on a lane whose cooldown has no
+sequence stamps it first: that dispatch's success and later ones clear it,
+older tickets do not.
 
 Some harnesses end a turn normally with the limit notice as the whole reply.
 `limit_notice_failure` treats a reply as a lane failure only when it is short
@@ -181,8 +199,10 @@ the lane's current hard daily dispatch cap before reserving usage; reaching the
 cap refuses the retry without moving its conversation to another lane.
 Selection refusal is terminal without a fabricated dispatch outcome, another
 attempt, or a live-session reset. Execution success is recorded only after its
-automatic verification tests pass; red tests record an ordinary failed attempt
-on the same lane, never a harness outage inferred from test-output prose. Cross-lane process moves are governed by
+automatic verification tests pass, with that attempt's dispatch ticket and the
+harness it ran on, so it lifts only a cooldown recorded before the attempt was
+dispatched, and only while the lane still runs that harness; red tests record
+an ordinary failed attempt on the same lane, never a harness outage inferred from test-output prose. Cross-lane process moves are governed by
 `max_failover` and the task attempt budget, not ordinary process recovery.
 Initially no eligible lane runs the step on the configured agent unless a
 hard daily cap excluded a candidate; budget refusal never falls back unaccounted. After a lane failure, exhausting the
@@ -263,18 +283,20 @@ agent means running that agent's own login command, then probing it.
   names `warding route run --harness LANE` as the verifier, and exits 0. It
   prints `needs_login` with the login command, and exits 1, when the lane's
   ledger `cooldown_reason` is still `auth` and the ledger's `harness` is the
-  lane's current harness: a success or `route clear` empties that reason, so it
-  means no prompt on that harness has worked since a failed sign-in, even after
-  the rest expired. A lane id reassigned to another harness, or a record that
-  names no harness, stays `auth unverified`. The ledger is read after that
+  lane's current harness: a success dispatched after the failure, or `route
+  clear`, empties that reason, so it means no prompt dispatched on that harness
+  after a failed sign-in has worked, even after the rest expired. A lane id
+  reassigned to another harness, or a record that names no harness, stays
+  `auth unverified`. The ledger is read after that
   lane's probe returns, so a routed run that ends during a minutes-long probe
   counts. An ordinary task failure retains
   both the cooldown reason and its producing harness; it cannot attribute an
   older sign-in failure to the harness that ran that task. A success from a
   harness the lane no longer runs (a run that outlived a reassignment) counts as
   a completed run but leaves the failure state alone, because it says nothing
-  about the harness the lane runs now; a success on the current harness clears
-  it, whichever harness recorded it. The ledger resolves the lane's current
+  about the harness the lane runs now; a success on the current harness,
+  dispatched after the failure, clears it, whichever harness recorded it. The
+  ledger resolves the lane's current
   harness itself, while it holds its lock, so a reassignment and a failure
   recorded for the new harness cannot land between the lookup and the write.
   The stored probe
@@ -446,7 +468,8 @@ Handlers do their file I/O off the event loop.
 4. **Only lane failures move work, only before activity.** An ordinary task
    failure never rests a lane; a run that executed a tool never re-runs.
 5. **Accounting never fails a run.** Ledger and settings errors are logged and
-   swallowed; a corrupt ledger starts fresh.
+   swallowed; a corrupt ledger starts fresh, and dispatches already in flight
+   then cannot clear a cooldown.
 6. **No secrets at rest.** The ledger stores redacted, truncated error text.
 
 Pinned by `test/test_harness_router.py`, `test/test_harness_router_notices.py`,

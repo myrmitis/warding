@@ -43,6 +43,7 @@ from typing import Any
 
 from warding.harness_router import service
 from warding.harness_router.kinds import normalize_kind
+from warding.harness_router.ledger import UNRECORDED_DISPATCH
 from warding.harness_router.limits import LANE_FAILURES
 from warding.harness_router.router import DAILY_LIMIT_WINDOW_SECS, EXCLUDED_DAILY_CAP
 from warding.harness_router.service import RoutingError
@@ -112,6 +113,9 @@ class StepRoute:
         # True while on a restored lane: an earlier process may already have
         # worked the step, so a lane-level failure there is not a free move.
         self._resumed = False
+        # The ledger ticket of this attempt's dispatch, handed back with its success
+        # so that success cannot clear a cooldown recorded after the dispatch began.
+        self._ticket = UNRECORDED_DISPATCH
 
     @classmethod
     def for_task(cls, task: Any, **kwargs: Any) -> "StepRoute":
@@ -156,6 +160,9 @@ class StepRoute:
 
     def _pick_and_record(self) -> Any:
         with _dispatch_lock:
+            # A pick refused below (the daily cap) must not leave the previous
+            # attempt's ticket for a later success to present.
+            self._ticket = UNRECORDED_DISPATCH
             if not self._resolved:
                 if self._restore is not None:
                     self.lane = self._rehydrate(self._restore)
@@ -178,7 +185,7 @@ class StepRoute:
                         raise RoutingError(
                             "Task lane reached its daily dispatch cap", code=EXCLUDED_DAILY_CAP
                         )
-                router.record_dispatch(self.lane.id, self.kind)
+                self._ticket = router.record_dispatch(self.lane.id, self.kind)
             return self.lane
 
     def _rehydrate(self, saved: LaneBinding) -> Any:
@@ -266,8 +273,14 @@ class StepRoute:
         return None
 
     async def succeeded(self) -> None:
+        """Record this attempt's success on the lane and harness it ran on."""
         if self.lane is not None:
-            await asyncio.to_thread(self._get_router().record_success, self.lane.id)
+            await asyncio.to_thread(
+                self._get_router().record_success,
+                self.lane.id,
+                harness=self.lane.harness,
+                dispatch_seq=self._ticket,
+            )
 
     async def failed(self, exc: BaseException, *, tool_ran: bool) -> bool:
         """Record a failed attempt. True when the step moves lanes for free.
@@ -288,6 +301,7 @@ class StepRoute:
         self._resolved = False
         self._restore = None
         self._resumed = False
+        self._ticket = UNRECORDED_DISPATCH
         if tool_ran or resumed:
             logger.warning(
                 "task step: lane %s failed (%s) after %s",

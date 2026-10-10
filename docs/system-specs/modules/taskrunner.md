@@ -535,7 +535,10 @@ steps.
   none installed) runs the step on the configured agent. After a lane failure,
   exhausting the eligible lanes fails the step instead of falling back to a
   cooling harness. Every successful turn is recorded, so a
-  step's work counts toward that lane's window like any routed subagent.
+  step's work counts toward that lane's window like any routed subagent. The
+  success carries its attempt's dispatch ticket, so a limit another run hit on
+  the lane after that attempt was dispatched stays in place
+  ([harness-router](harness-router.md) § Failure classes and cooldowns).
 - Routed reviews use `taskrunner:{task_id}:review{N}`, one session per step:
   parallel steps review at once, and each review must run on the lane it was
   accounted to.

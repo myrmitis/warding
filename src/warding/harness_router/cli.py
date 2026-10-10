@@ -290,7 +290,8 @@ async def _run(router: HarnessRouter, args: argparse.Namespace) -> int:
             f"[route] {lane.id} ({lane.label}) · {kind}" + (f" · {why}" if why else ""),
             file=sys.stderr,
         )
-        router.record_dispatch(lane.id, kind)
+        # This attempt's own ticket: a failover attempt records a new one.
+        ticket = router.record_dispatch(lane.id, kind)
         provider = _make_provider(lane, cwd)
         progress = _TurnProgress()
         try:
@@ -326,7 +327,7 @@ async def _run(router: HarnessRouter, args: argparse.Namespace) -> int:
             except Exception:
                 logger.debug("route run: provider shutdown failed", exc_info=True)
             gc.collect()
-        router.record_success(lane.id, harness=lane.harness)
+        router.record_success(lane.id, harness=lane.harness, dispatch_seq=ticket)
         return 0
 
 

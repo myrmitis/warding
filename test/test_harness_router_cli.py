@@ -262,6 +262,8 @@ async def test_run_moves_only_routed_lane_failures_and_shuts_down_each_provider(
     router.settings.return_value = SimpleNamespace(max_failover=1)
     router.record_failure.return_value = failure
     router.next_lane.return_value = second
+    # Each attempt's dispatch has its own ticket.
+    router.record_dispatch.side_effect = [101, 202]
     first_provider = SimpleNamespace(start=AsyncMock(), shutdown=AsyncMock())
     second_provider = SimpleNamespace(
         start=AsyncMock(), shutdown=AsyncMock(side_effect=RuntimeError("closed"))
@@ -276,7 +278,8 @@ async def test_run_moves_only_routed_lane_failures_and_shuts_down_each_provider(
         router.next_lane.assert_called_once_with("implement", ["first", "second"])
         assert router.record_dispatch.call_count == 2
         second_provider.shutdown.assert_awaited_once()
-        router.record_success.assert_called_once_with("second", harness="grok")
+        # The success presents the ticket of the attempt that succeeded, not the first lane's.
+        router.record_success.assert_called_once_with("second", harness="grok", dispatch_seq=202)
     else:
         router.next_lane.assert_not_called()
         router.record_success.assert_not_called()

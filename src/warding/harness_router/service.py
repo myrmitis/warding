@@ -44,7 +44,7 @@ from warding.harness_router.lanes import (
     load_settings,
     routing_path,
 )
-from warding.harness_router.ledger import LEDGER_DIRNAME, UsageLedger
+from warding.harness_router.ledger import LEDGER_DIRNAME, UNRECORDED_DISPATCH, UsageLedger
 from warding.harness_router.limits import (
     FAILURE_OTHER,
     LANE_FAILURES,
@@ -243,11 +243,18 @@ class HarnessRouter:
 
     # ── Recording (never raises: accounting must not fail a run) ──
 
-    def record_dispatch(self, lane_id: str, kind: str = "") -> None:
+    def record_dispatch(self, lane_id: str, kind: str = "") -> int:
+        """Record a dispatch to *lane_id*. Returns its ticket for ``record_success``.
+
+        ``UNRECORDED_DISPATCH`` (0) when the ledger could not record it: that run's
+        success then counts but clears nothing, since no cooldown can be shown to
+        predate a dispatch the ledger never saw.
+        """
         try:
-            self._ledger.record_dispatch(lane_id, kind)
+            return self._ledger.record_dispatch(lane_id, kind)
         except Exception:
             logger.warning("routing: could not record dispatch to %s", lane_id, exc_info=True)
+            return UNRECORDED_DISPATCH
 
     def _current_harness(self, lane_id: str) -> str:
         """The harness *lane_id* runs now; ``""`` when the mapping cannot be read."""
@@ -258,7 +265,15 @@ class HarnessRouter:
             return ""
         return lane.harness if lane else ""
 
-    def record_success(self, lane_id: str, *, harness: str = "") -> None:
+    def record_success(
+        self, lane_id: str, *, harness: str = "", dispatch_seq: int | None = None
+    ) -> None:
+        """Record a successful run on *harness*, dispatched with ticket *dispatch_seq*.
+
+        Pass the ticket ``record_dispatch`` returned for this run: the success then
+        leaves alone a cooldown recorded after that dispatch began. Without one
+        (``None``) a success clears the lane's cooldown as it always did.
+        """
         try:
             # Resolved by the ledger once it holds its lock: a mapping read before that
             # could be reassigned, and a failure recorded for the new harness, in between.
@@ -267,6 +282,7 @@ class HarnessRouter:
                 ok=True,
                 harness=harness,
                 current_harness=lambda: self._current_harness(lane_id),
+                dispatch_seq=dispatch_seq,
             )
         except Exception:
             logger.warning("routing: could not record success on %s", lane_id, exc_info=True)

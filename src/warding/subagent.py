@@ -4989,7 +4989,7 @@ class SubagentManager:
         router = get_router()
         while True:
             info._lanes_tried.append(info.lane)
-            await asyncio.to_thread(router.record_dispatch, info.lane, info.route_kind)
+            ticket = await asyncio.to_thread(router.record_dispatch, info.lane, info.route_kind)
             try:
                 await self._run_inner(info, session_key)
             except asyncio.CancelledError:
@@ -5039,7 +5039,11 @@ class SubagentManager:
                     router.record_failure, info.lane, text=info.error, harness=info.harness
                 )
             else:
-                await asyncio.to_thread(router.record_success, info.lane, harness=info.harness)
+                # With this run's ticket, a limit another run recorded on the lane
+                # after this dispatch began (say, during the telemetry write) stays.
+                await asyncio.to_thread(
+                    router.record_success, info.lane, harness=info.harness, dispatch_seq=ticket
+                )
             return
 
     async def _failover_lane(self, info: SubagentInfo, failure: str, router: Any) -> Any:

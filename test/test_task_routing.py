@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -171,6 +172,75 @@ async def test_initially_no_eligible_lane_runs_unrouted(tmp_path: Path) -> None:
     router = _router(tmp_path, harnesses=("codex",))
     router.record_failure("codex", exc=RuntimeError(_USAGE_LIMIT))
     assert await StepRoute("implement", router=router).pick() is None
+
+
+def _limit_elsewhere(home: Path, lane: str = "codex") -> None:
+    """Another process's run on *lane* (same data home) is dispatched and hits its limit."""
+    elsewhere = HarnessRouter(home=home, which=_BINS.get, env={})
+    elsewhere.record_dispatch(lane, "implement")
+    elsewhere.record_failure(lane, exc=RuntimeError(_USAGE_LIMIT), harness=lane)
+
+
+def _assert_still_limited(router: Any, lane: str = "codex") -> None:
+    usage = router.ledger.snapshot()[lane]
+    assert usage.cooldown_reason == "usage_limit"
+    assert usage.cooling(time.time() + 3600)
+    assert (usage.ok, usage.failed) == (1, 1), "the older run still counts as a completed run"
+
+
+@pytest.mark.asyncio
+async def test_an_older_steps_success_keeps_the_limit_a_newer_step_hit(tmp_path: Path) -> None:
+    """The #73 reproduction on task steps: A starts, B starts and hits the limit, A finishes."""
+    router = _router(tmp_path, harnesses=("codex",))
+    older, newer = StepRoute("implement", router=router), StepRoute("implement", router=router)
+    assert (await older.pick()).id == "codex"
+    assert (await newer.pick()).id == "codex"
+    assert await newer.failed(RuntimeError(_USAGE_LIMIT), tool_ran=False)
+    assert router.ledger.snapshot()["codex"].cooldown_reason == "usage_limit"
+    await older.succeeded()
+    _assert_still_limited(router)
+
+
+@pytest.mark.asyncio
+async def test_a_sticky_retry_dispatched_after_a_limit_clears_it_on_success(
+    tmp_path: Path,
+) -> None:
+    router = _router(tmp_path, harnesses=("codex",))
+    route = StepRoute("implement", router=router)
+    await route.pick()
+    assert not await route.failed(RuntimeError("tests failed"), tool_ran=True)
+    _limit_elsewhere(tmp_path)
+    # The retry stays on its lane and is a new dispatch, made after the limit.
+    assert (await route.pick()).id == "codex"
+    await route.succeeded()
+    usage = router.ledger.snapshot()["codex"]
+    assert (usage.cooldown_reason, usage.cooldown_until, usage.ok) == ("", 0.0, 1)
+    assert usage.harness == "codex"
+
+
+@pytest.mark.asyncio
+async def test_a_step_success_on_a_re_pointed_lane_keeps_the_new_harnesss_sign_in_failure(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "routing.json"
+    path.write_text(json.dumps({"lanes": [{"id": "pro", "harness": "claude"}]}), encoding="utf-8")
+    router = HarnessRouter(home=tmp_path, which=_BINS.get, env={})
+    route = StepRoute("implement", router=router)
+    assert (await route.pick()).harness == "claude"
+    assert not await route.failed(RuntimeError("tests failed"), tool_ran=True)
+    # routing.json re-points the lane; a run on its new harness then fails sign-in.
+    before = path.stat().st_mtime_ns
+    path.write_text(json.dumps({"lanes": [{"id": "pro", "harness": "codex"}]}), encoding="utf-8")
+    os.utime(path, ns=(before + 10**9, before + 10**9))
+    elsewhere = HarnessRouter(home=tmp_path, which=_BINS.get, env={})
+    elsewhere.record_dispatch("pro", "implement")
+    elsewhere.record_failure("pro", text="Authentication required", harness="codex")
+    # The sticky retry is a newer dispatch but still runs claude, so it says
+    # nothing about the codex sign-in.
+    assert (await route.pick()).harness == "claude"
+    await route.succeeded()
+    usage = router.ledger.snapshot()["pro"]
+    assert (usage.cooldown_reason, usage.harness, usage.ok) == ("auth", "codex", 1)
 
 
 @pytest.mark.asyncio
@@ -797,6 +867,73 @@ async def test_automatic_test_failure_records_a_failed_attempt_on_the_sticky_lan
     usage = router.ledger.snapshot()["codex"]
     assert (usage.ok, usage.failed, usage.count_since(0)) == (1, 1, 2)
     assert not usage.cooling(time.time())
+
+
+@pytest.mark.parametrize("window", ["telemetry", "tests"])
+@pytest.mark.asyncio
+async def test_a_step_success_keeps_a_limit_recorded_after_its_model_turn(
+    router: Any, monkeypatch: pytest.MonkeyPatch, window: str
+) -> None:
+    """Between the turn's end and its success the step awaits its usage row and its
+    tests; a limit another run hits meanwhile is not something this step recovered."""
+    from warding.dashboard.handlers import usage as usage_rows
+
+    _quiet_executor(monkeypatch)
+    waited: list[str] = []
+
+    async def persist(*_args: Any, **_kwargs: Any) -> None:
+        # Production offloads this write to a thread, so other runs proceed meanwhile.
+        waited.append("telemetry")
+        if window == "telemetry":
+            await asyncio.to_thread(_limit_elsewhere, router.home)
+
+    async def run_tests(*_args: Any) -> tuple[bool, str]:
+        waited.append("tests")
+        await asyncio.to_thread(_limit_elsewhere, router.home)
+        return True, "green"
+
+    monkeypatch.setattr(usage_rows, "persist_token_record_async", persist)
+    monkeypatch.setattr(task_executor, "run_tests", AsyncMock(side_effect=run_tests))
+    task = Task(index=1, title="build it", description="d", kind="implement")
+    sessions = _sessions([_Client()])
+    assert await task_executor.execute_task(
+        _run(task, route_steps=True),
+        task,
+        sessions,
+        None,
+        "",
+        None,
+        window == "tests",
+        ["pytest"],
+        "",
+        AsyncMock(),
+    )
+    assert waited == (["telemetry"] if window == "telemetry" else ["telemetry", "tests"])
+    assert [kw["acp_backend_override"] for kw in sessions.opened] == ["codex"]
+    _assert_still_limited(router)
+
+
+@pytest.mark.asyncio
+async def test_a_review_success_keeps_a_limit_recorded_while_its_usage_row_was_written(
+    router: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from warding.dashboard.handlers import usage as usage_rows
+
+    _quiet_executor(monkeypatch)
+    monkeypatch.setattr(task_executor, "stream_and_collect", AsyncMock(return_value='{"ok": true}'))
+    waited: list[str] = []
+
+    async def persist(*_args: Any, **_kwargs: Any) -> None:
+        waited.append("telemetry")
+        await asyncio.to_thread(_limit_elsewhere, router.home)
+
+    monkeypatch.setattr(usage_rows, "persist_token_record_async", persist)
+    task = Task(index=3, title="build it", description="d", harness="claude")
+    sessions, opened = _review_sessions()
+    assert await task_executor.self_review(_review_run(task), task, sessions, "") is True
+    assert waited == ["telemetry"]
+    assert opened[0][1]["acp_backend_override"] == "codex"
+    _assert_still_limited(router)
 
 
 @pytest.mark.parametrize("review", [False, True])
