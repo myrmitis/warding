@@ -8,6 +8,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
+# The R2 API token's two halves: the only secrets a bucket-writing lane needs.
+R2_SECRETS = {"R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"}
 
 
 def _lines(name: str) -> list[str]:
@@ -90,7 +92,7 @@ class TestNightlyPermissions:
         # from secrets, so it mints no OIDC token. The caller grants exactly
         # contents:read: a callee can never exceed its caller, so this is the
         # ceiling that keeps the job holding a signing identity from also
-        # assuming a cloud role or writing to the repository.
+        # minting a provenance identity or writing to the repository.
         assert _permission_block(lines, "  build-windows:") == {
             "contents": "read",
         }
@@ -99,7 +101,7 @@ class TestNightlyPermissions:
             "id-token": "write",
             "attestations": "write",
         }
-        # The Linux desktop lanes publish S3 objects (OIDC) and attest
+        # The Linux desktop lanes publish bucket objects and attest (OIDC)
         # their own SLSA provenance for the exact bytes they upload -- never
         # contents:write. One lane per arch, so BOTH are asserted: a new arch
         # that quietly widened its grant would otherwise slip through.
@@ -109,8 +111,8 @@ class TestNightlyPermissions:
                 "id-token": "write",
                 "attestations": "write",
             }
-        # The Windows lane publishes S3 objects (OIDC) and attests the exact
-        # installer bytes it uploads. It does NOT hold a signing identity --
+        # The Windows lane publishes bucket objects and attests (OIDC) the
+        # exact installer bytes it uploads. It does NOT hold a signing identity --
         # signing already happened in build-windows -- so the grant is the same
         # publish-shaped one the Linux lanes carry, and never contents:write.
         assert _permission_block(lines, "  publish-windows-x64:") == {
@@ -149,12 +151,13 @@ class TestNightlyPermissions:
 
 class TestReleasePermissions:
     def test_release_jobs_follow_least_privilege_split(self) -> None:
-        """The signing and publishing callers hold AWS creds (id-token) but
+        """The signing and publishing callers hold the bucket credential but
         must not hold contents:write; the GitHub-Release job holds
-        contents:write but must not hold AWS creds. Keeping the two
-        capabilities in separate jobs means a compromise of either job cannot
-        both exfiltrate via AWS and tamper with the repo/release. The Windows
-        build holds a signing certificate and neither capability."""
+        contents:write but must not hold the bucket credential. Keeping the
+        two capabilities in separate jobs means a compromise of either job
+        cannot both rewrite published objects and tamper with the
+        repo/release. The Windows build holds a signing certificate and
+        neither capability."""
         lines = _lines("release.yml")
 
         assert _workflow_permissions("release.yml") == {"contents": "read"}
@@ -178,7 +181,8 @@ class TestReleasePermissions:
             "id-token": "write",
             "attestations": "write",
         }
-        # Linux desktop lanes: OIDC + in-lane provenance (see nightly note).
+        # Linux desktop lanes: bucket upload + in-lane provenance (see nightly
+        # note).
         for arch_job in _PUBLISH_LINUX_JOB_HEADERS:
             assert _permission_block(lines, arch_job) == {
                 "contents": "read",
@@ -262,7 +266,7 @@ class TestReusableWorkflowPermissions:
         It signs with a certificate read from secrets, so it mints no OIDC
         token. contents:write in particular must never appear: this job holds a
         production signing identity, which is precisely why it is not allowed to
-        also mutate the repository or assume a cloud role.
+        also mutate the repository or mint a provenance identity.
         """
         assert _workflow_permissions("build-windows.yml") == {"contents": "read"}
         lines = _lines("build-windows.yml")
@@ -271,11 +275,12 @@ class TestReusableWorkflowPermissions:
         }
 
     def test_sign_and_notarize_declares_exact_capabilities(self) -> None:
-        """The shared sign/notarize workflow needs OIDC (the AWS role that
-        stages artifacts and reads the notary credential) and attestations (provenance for the artifacts + shipping DMG) --
-        and nothing else. contents:write in particular must never appear
-        here (least-privilege split: the GitHub-Release job in release.yml
-        is the only writer)."""
+        """The shared sign/notarize workflow needs id-token and attestations
+        (provenance for the artifacts + shipping DMG) -- and nothing else.
+        It reaches its buckets with the R2 key from secrets, not a cloud
+        role. contents:write in particular must never appear here
+        (least-privilege split: the GitHub-Release job in release.yml is the
+        only writer)."""
         assert _workflow_permissions("sign-and-notarize.yml") == {
             "contents": "read",
             "id-token": "write",
@@ -290,8 +295,8 @@ class TestReusableWorkflowPermissions:
         }
 
     def test_publish_windows_declares_exact_capabilities(self) -> None:
-        """The Windows publish lane uploads to S3 (OIDC) and attests the
-        installer it uploads -- and nothing else.
+        """The Windows publish lane uploads to the distribution bucket and
+        attests (OIDC) the installer it uploads -- and nothing else.
 
         It holds no signing identity: build-windows.yml already signed the
         installer, and keeping the two apart means a compromise of the publish
@@ -303,14 +308,14 @@ class TestReusableWorkflowPermissions:
             "attestations": "write",
         }
 
-    def test_the_windows_publish_callers_pass_one_secret_not_the_whole_set(self) -> None:
+    def test_the_windows_publish_callers_pass_only_the_r2_credential(self) -> None:
         """`secrets: inherit` hands a reusable workflow EVERY repository secret.
 
-        The Windows lane assumes a role and writes the public installer, feed
-        and `latest/` alias, so its blast radius is worth bounding to the one
-        credential it uses. The reusable workflow declares that secret
-        explicitly and both callers pass only it; this pins the arrangement so a
-        later edit cannot quietly widen it back to the full set."""
+        The Windows lane writes the public installer, feed and `latest/` alias,
+        so its blast radius is worth bounding to the one credential it uses: the
+        R2 access key and its secret half. The reusable workflow declares those
+        explicitly and both callers pass only them; this pins the arrangement so
+        a later edit cannot quietly widen it back to the full set."""
         windows = yaml.safe_load(
             (WORKFLOWS / "publish-windows.yml").read_text(encoding="utf-8")
         )
@@ -318,10 +323,10 @@ class TestReusableWorkflowPermissions:
         # the trigger block is not reachable under the string "on".
         triggers = windows[True] if True in windows else windows["on"]
         declared = triggers["workflow_call"]["secrets"]
-        assert set(declared) == {"AWS_SIGNING_ROLE_ARN"}
-        # Not required: an empty value is how a fork without the secret skips the
-        # lane cleanly instead of failing the workflow call.
-        assert declared["AWS_SIGNING_ROLE_ARN"]["required"] is False
+        assert set(declared) == R2_SECRETS
+        # Not required: an empty value is how a fork without the secrets skips
+        # the lane cleanly instead of failing the workflow call.
+        assert all(declared[name]["required"] is False for name in R2_SECRETS)
 
         for name in ("nightly.yml", "release.yml"):
             workflow = yaml.safe_load((WORKFLOWS / name).read_text(encoding="utf-8"))
@@ -334,16 +339,16 @@ class TestReusableWorkflowPermissions:
             assert secrets != "inherit", (
                 f"{name} inherits every repository secret into the Windows publish lane"
             )
-            assert set(secrets) == {"AWS_SIGNING_ROLE_ARN"}, (
+            assert set(secrets) == R2_SECRETS, (
                 f"{name} passes {sorted(secrets)} to the Windows publish lane, "
-                "which consumes AWS_SIGNING_ROLE_ARN alone"
+                f"which consumes {sorted(R2_SECRETS)} alone"
             )
 
     def test_publish_docker_declares_exact_capabilities(self) -> None:
         """The Docker lane pushes to ghcr.io (packages:write via
         GITHUB_TOKEN) and attests in-lane SLSA provenance (id-token +
         attestations, pushed to the registry). contents stays read-only;
-        no AWS-facing capability exists in this lane at all."""
+        no bucket credential reaches this lane at all."""
         assert _workflow_permissions("publish-docker.yml") == {
             "contents": "read",
             "packages": "write",

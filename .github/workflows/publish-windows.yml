@@ -10,7 +10,7 @@ name: Publish Windows Desktop (reusable)
 # than an ELF AppImage, the channel file electron-updater's NsisUpdater reads is
 # `latest.yml` rather than `latest-linux.yml`, and Windows ships a `.blockmap`
 # that has to land beside the installer for differential download to work. The
-# S3 contract -- immutable versioned key, feed, then the mutable `latest/` alias
+# bucket contract -- immutable versioned key, feed, then the mutable `latest/` alias
 # -- is deliberately identical, so read publish-linux.yml alongside this file.
 #
 # THE SIGNATURE GUARD IS LOAD-BEARING, NOT DEFENSIVE
@@ -40,7 +40,7 @@ on:
         required: true
         type: string
       version:
-        description: "Version label used in S3 keys"
+        description: "Version label used in object keys"
         required: true
         type: string
       publish:
@@ -62,17 +62,20 @@ on:
         type: string
         default: ""
     secrets:
-      # Declared explicitly so callers pass this ONE secret instead of
+      # Declared explicitly so callers pass these TWO secrets instead of
       # `secrets: inherit`, which would hand this lane every secret in the
-      # repository. The lane assumes a role and writes to the distribution
-      # bucket, so the blast radius of a compromise here is worth bounding to
-      # the credential it actually uses.
+      # repository. The lane writes to the distribution bucket, so the blast
+      # radius of a compromise here is worth bounding to the credential it
+      # actually uses.
       #
       # Not required: HAS_SIGNING_SECRETS treats an empty value as "no signing
       # secrets" and skips every step, which is what keeps forks green. Making
-      # it required would turn that clean skip into a workflow-call failure.
-      AWS_SIGNING_ROLE_ARN:
-        description: "Role assumed to write the installer, blockmap and feed to the distribution bucket"
+      # them required would turn that clean skip into a workflow-call failure.
+      R2_ACCESS_KEY_ID:
+        description: "R2 access key that writes the installer, blockmap and feed to the distribution bucket"
+        required: false
+      R2_SECRET_ACCESS_KEY:
+        description: "Secret half of R2_ACCESS_KEY_ID"
         required: false
 
 permissions:
@@ -94,9 +97,15 @@ jobs:
     timeout-minutes: 15
     environment: prod
     env:
-      # Mirrors publish-linux.yml: the signing role gates the whole lane, so a
-      # fork without the secret skips every step instead of failing.
-      HAS_SIGNING_SECRETS: ${{ secrets.AWS_SIGNING_ROLE_ARN != '' && 'true' || '' }}
+      # Mirrors publish-linux.yml: the R2 credentials gate the whole lane, so a
+      # fork without them skips every step instead of failing.
+      HAS_SIGNING_SECRETS: ${{ secrets.R2_SECRET_ACCESS_KEY != '' && 'true' || '' }}
+      # The AWS CLI speaks R2's S3 API at the account endpoint; the credentials
+      # are handed only to the steps that upload (see publish-cli.yml).
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL_S3: https://${{ vars.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
       GH_TOKEN: ${{ github.token }}
       CHANNEL: ${{ inputs.channel }}
       VERSION: ${{ inputs.version }}
@@ -184,12 +193,15 @@ jobs:
             echo "present=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Configure AWS credentials
+      - name: Check R2 configuration
         if: env.HAS_SIGNING_SECRETS && steps.probe.outputs.present
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
-          aws-region: us-west-2
+        env:
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+        run: |
+          if [[ ! "${R2_ACCOUNT_ID}" =~ ^[0-9a-f]{32}$ ]]; then
+            echo "::error::vars.R2_ACCOUNT_ID must be the 32-character Cloudflare account id."
+            exit 1
+          fi
 
       - name: Download Windows build artifact
         if: env.HAS_SIGNING_SECRETS && steps.probe.outputs.present
@@ -306,6 +318,9 @@ jobs:
       # hand clients a binary whose feed digest no longer matches.
       - name: Publish installer to distribution bucket
         if: env.HAS_SIGNING_SECRETS && steps.locate.outputs.staged
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           INSTALLER_KEY="desktop/${CHANNEL}/${VERSION}/${WINDOWS_BASENAME}.exe"
@@ -354,6 +369,9 @@ jobs:
       # pointer-host / byte-host split.
       - name: Write update feed
         if: env.HAS_SIGNING_SECRETS && steps.locate.outputs.staged
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           INSTALLER_SHA512=$(openssl dgst -sha512 -binary "${INSTALLER_PATH}" | base64 -w 0)
@@ -388,6 +406,9 @@ jobs:
       # points at a version whose immutable key and feed are already live.
       - name: Update latest installer alias
         if: env.HAS_SIGNING_SECRETS && steps.locate.outputs.staged
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           aws s3api put-object \

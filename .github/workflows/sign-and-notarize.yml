@@ -15,7 +15,7 @@ name: Sign and Notarize macOS (reusable)
 #                fail-closed gate. The signing identity and the Apple
 #                credential are both confined to this job. Ends by attaching
 #                the GATED artifact (notarized zip) to the workflow run.
-#   publish   -- everything S3-bound: copy the gated artifact to the public
+#   publish   -- everything bucket-bound: copy the gated artifact to the public
 #                distribution bucket and write the channel feed, dead last
 #                among the go-live pointers (a convenience latest-DMG alias
 #                mirroring the feed's dmg field trails it deliberately).
@@ -23,7 +23,7 @@ name: Sign and Notarize macOS (reusable)
 #                retries as a ~2-minute ubuntu job ("Re-run failed jobs")
 #                instead of repeating two ~30-minute-budget Apple
 #                submissions, and so the expensive macOS runner never burns
-#                minutes on S3 uploads.
+#                minutes on uploads.
 # (Linux publishing is deliberately NOT here: the AppImage takes no part
 # in this trust chain. It ships from publish-linux.yml, its own lane
 # called directly by nightly.yml / release.yml beside publish-cli.yml.)
@@ -48,11 +48,11 @@ name: Sign and Notarize macOS (reusable)
 #   - The Developer ID identity is imported from its .p12 secret into a
 #     temporary keychain in the notarize job, used by codesign, and deleted
 #     by an always() step at the end of that job, so it never outlives it.
-#   - The Apple notary credential is fetched from AWS Secrets Manager at
-#     runtime (warding/signing/apple-notary) via the OIDC role that also
-#     stages artifacts. The password is masked and scoped to single steps in
-#     the notarize job only; it is never persisted to GITHUB_ENV, files, or
-#     logs, and the publish job never touches it.
+#   - The Apple notary credential is three prod-environment secrets
+#     (APPLE_NOTARY_APPLE_ID, APPLE_NOTARY_PASSWORD, APPLE_NOTARY_TEAM_ID),
+#     handed only to the two notarize steps that submit to Apple. It is never
+#     persisted to GITHUB_ENV, files, or logs, and the publish job never
+#     touches it.
 #   - Fails closed: Gatekeeper assessment (spctl) must report
 #     "Notarized Developer ID" or the notarize job fails and publish never
 #     runs. On an Invalid notarization the itemized Apple log is printed.
@@ -72,7 +72,7 @@ on:
         required: true
         type: string
       version:
-        description: "Version label used in S3 keys and the feed"
+        description: "Version label used in object keys and the feed"
         required: true
         type: string
       write_feed:
@@ -107,17 +107,21 @@ jobs:
     if: ${{ !inputs.promote }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # OIDC subject alignment: tag-triggered callers (release.yml) present
-    # ref:refs/tags/<tag>, which the signing role does not trust. The prod
-    # environment switches the subject to environment:prod, which it does.
-    # (Nightly runs on main present either trusted form.) See the notarize
-    # job below for the full environment-protection rationale.
+    # The R2 credentials that stage the unsigned artifacts are secrets of the
+    # prod environment. See the notarize job below for the full
+    # environment-protection rationale.
     environment: prod
     outputs:
       unsigned_zip_key: ${{ steps.sign.outputs.unsigned_zip_key }}
       unsigned_dmg_key: ${{ steps.sign.outputs.unsigned_dmg_key }}
     env:
-      HAS_SIGNING_SECRETS: ${{ secrets.AWS_SIGNING_ROLE_ARN != '' && 'true' || '' }}
+      HAS_SIGNING_SECRETS: ${{ secrets.R2_SECRET_ACCESS_KEY != '' && 'true' || '' }}
+      # The AWS CLI speaks R2's S3 API at the account endpoint; the credentials
+      # are handed only to the steps that move bytes (see publish-cli.yml).
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL_S3: https://${{ vars.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
       # Developer ID signing is configured when its identity secret is. This
       # flag alone decides whether the sign job hands the app to the notarize
       # job; `secrets.*` is not available in a step-level `if`, so it is
@@ -151,23 +155,31 @@ jobs:
             release/*.tar.gz
             release/*.AppImage
 
-      - name: Configure AWS credentials
+      - name: Check R2 configuration
         if: env.HAS_SIGNING_SECRETS
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
-          aws-region: us-west-2
+        env:
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          SIGNING_BUCKET: ${{ vars.SIGNING_BUCKET }}
+        run: |
+          if [[ ! "${R2_ACCOUNT_ID}" =~ ^[0-9a-f]{32}$ ]] || [ -z "${SIGNING_BUCKET}" ]; then
+            echo "::error::vars.R2_ACCOUNT_ID (the 32-character Cloudflare account id) and vars.SIGNING_BUCKET must both be set."
+            exit 1
+          fi
 
       # The notarize job reads the unsigned app zip and the DMG layout template
-      # back from here: a private staging prefix, never the distribution bucket.
-      - name: Upload unsigned artifacts to S3
+      # back from here: a private staging bucket, never the distribution bucket.
+      - name: Upload unsigned artifacts to the signing bucket
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          SIGNING_BUCKET: ${{ vars.SIGNING_BUCKET }}
         run: |
           for f in release/*; do
             [ -f "$f" ] || continue
             KEY="pre-signed/${CHANNEL}/${VERSION}/$(basename "$f")"
-            echo "Uploading $f -> s3://${{ secrets.AWS_SIGNING_BUCKET }}/${KEY}"
-            aws s3 cp "$f" "s3://${{ secrets.AWS_SIGNING_BUCKET }}/${KEY}"
+            echo "Uploading $f -> s3://${SIGNING_BUCKET}/${KEY}"
+            aws s3 cp "$f" "s3://${SIGNING_BUCKET}/${KEY}"
           done
 
       # The handoff to the notarize job, which does the codesigning on macOS.
@@ -189,10 +201,10 @@ jobs:
             exit 0
           fi
           # The notarize job reads the staged bytes back from the signing
-          # bucket, so an identity without the role that stages them is a
-          # misconfiguration rather than a reason to skip.
+          # bucket, so an identity without the credentials that stage them is
+          # a misconfiguration rather than a reason to skip.
           if [ -z "${HAS_SIGNING_SECRETS}" ]; then
-            echo "::error::APPLE_DEVELOPER_ID_P12_BASE64 is set but AWS_SIGNING_ROLE_ARN is not, so the unsigned app was never staged for signing. Set both or neither."
+            echo "::error::APPLE_DEVELOPER_ID_P12_BASE64 is set but the R2 credentials are not, so the unsigned app was never staged for signing. Set both or neither."
             exit 1
           fi
           shopt -s nullglob
@@ -232,9 +244,8 @@ jobs:
     # uploads, or GitHub cancels the job mid-publication on a legitimately
     # slow day.
     timeout-minutes: 90
-    # OIDC subject alignment: tag-triggered callers (release.yml) present
-    # ref:refs/tags/<tag>, which the signing role does not trust. The prod
-    # environment switches the subject to environment:prod, which it does.
+    # Every release secret -- the R2 credentials, the Developer ID identity
+    # and the Apple notary credential -- belongs to the prod environment.
     # The prod environment is protected by GitHub-side ref restrictions
     # rather than required reviewers (which would stall the unattended
     # scheduled nightly): a deployment branch/tag policy limits the
@@ -246,7 +257,14 @@ jobs:
     # environment secret for the same reason.
     environment: prod
     env:
-      HAS_SIGNING_SECRETS: ${{ secrets.AWS_SIGNING_ROLE_ARN != '' && 'true' || '' }}
+      HAS_SIGNING_SECRETS: ${{ secrets.R2_SECRET_ACCESS_KEY != '' && 'true' || '' }}
+      # The AWS CLI speaks R2's S3 API at the account endpoint; the credentials
+      # are handed only to the steps that move bytes (see publish-cli.yml).
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL_S3: https://${{ vars.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      SIGNING_BUCKET: ${{ vars.SIGNING_BUCKET }}
       CHANNEL: ${{ inputs.channel }}
       VERSION: ${{ inputs.version }}
       UNSIGNED_ZIP_KEY: ${{ needs.sign.outputs.unsigned_zip_key }}
@@ -266,19 +284,15 @@ jobs:
         with:
           sparse-checkout: packaging/signing
 
-      - name: Configure AWS credentials
-        if: env.HAS_SIGNING_SECRETS
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
-          aws-region: us-west-2
-
       - name: Download unsigned artifacts
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           mkdir -p work
-          aws s3 cp "s3://${{ secrets.AWS_SIGNING_BUCKET }}/${UNSIGNED_ZIP_KEY}" work/unsigned.zip --only-show-errors
-          aws s3 cp "s3://${{ secrets.AWS_SIGNING_BUCKET }}/${UNSIGNED_DMG_KEY}" work/layout-template.dmg --only-show-errors
+          aws s3 cp "s3://${SIGNING_BUCKET}/${UNSIGNED_ZIP_KEY}" work/unsigned.zip --only-show-errors
+          aws s3 cp "s3://${SIGNING_BUCKET}/${UNSIGNED_DMG_KEY}" work/layout-template.dmg --only-show-errors
           ls -la work/
 
       # The .p12 is decoded to disk only for the length of this step. The
@@ -347,22 +361,16 @@ jobs:
           /usr/bin/ditto -c -k --keepParent "$APP" work/signed.zip
           ls -la work/signed.zip
 
-      # The credential lives in Secrets Manager (never GitHub secrets --
-      # dedicated secret-store custody, CloudTrail audit, rotation lifecycle). It is fetched,
-      # masked, used, and discarded inside this single step.
+      # The credential is three prod-environment secrets, handed to this step
+      # and the DMG notarization alone; GitHub masks them in every log line.
       - name: Notarize with Apple notary service
         if: env.HAS_SIGNING_SECRETS
+        env:
+          APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
+          APPLE_PW: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
         run: |
           set -euo pipefail
-          SECRET_JSON=$(aws secretsmanager get-secret-value \
-            --secret-id warding/signing/apple-notary \
-            --query SecretString --output text)
-          APPLE_ID=$(printf '%s' "$SECRET_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['apple_id'])")
-          APPLE_PW=$(printf '%s' "$SECRET_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['password'])")
-          TEAM_ID=$(printf '%s' "$SECRET_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['team_id'])")
-          echo "::add-mask::$APPLE_PW"
-          unset SECRET_JSON
-
           echo "Submitting to Apple notary service (team $TEAM_ID)..."
           set +e
           SUBMIT_OUT=$(xcrun notarytool submit work/signed.zip \
@@ -407,13 +415,16 @@ jobs:
           /usr/bin/ditto -c -k --keepParent "$APP" ../notarized.zip
           echo "APP_NAME=$(basename "$APP" .app)" >> "$GITHUB_ENV"
 
-      - name: Upload notarized artifact to S3
+      - name: Upload notarized artifact to the signing bucket
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           KEY="notarized/${CHANNEL}/${VERSION}/${ARTIFACT_BASENAME}.zip"
-          aws s3 cp work/notarized.zip "s3://${{ secrets.AWS_SIGNING_BUCKET }}/${KEY}" --only-show-errors
+          aws s3 cp work/notarized.zip "s3://${SIGNING_BUCKET}/${KEY}" --only-show-errors
           echo "NOTARIZED_KEY=${KEY}" >> "$GITHUB_ENV"
-          echo "Notarized artifact: s3://${{ secrets.AWS_SIGNING_BUCKET }}/${KEY}"
+          echo "Notarized artifact: s3://${SIGNING_BUCKET}/${KEY}"
 
       # First-install DMG, rebuilt from the STAPLED app. The unsigned
       # electron-builder DMG is used only as a layout template so the shipping
@@ -449,17 +460,12 @@ jobs:
 
       - name: Notarize DMG
         if: env.HAS_SIGNING_SECRETS
+        env:
+          APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
+          APPLE_PW: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
         run: |
           set -euo pipefail
-          SECRET_JSON=$(aws secretsmanager get-secret-value \
-            --secret-id warding/signing/apple-notary \
-            --query SecretString --output text)
-          APPLE_ID=$(printf '%s' "$SECRET_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['apple_id'])")
-          APPLE_PW=$(printf '%s' "$SECRET_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['password'])")
-          TEAM_ID=$(printf '%s' "$SECRET_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['team_id'])")
-          echo "::add-mask::$APPLE_PW"
-          unset SECRET_JSON
-
           echo "Submitting DMG to Apple notary service..."
           set +e
           SUBMIT_OUT=$(xcrun notarytool submit "work/${ARTIFACT_BASENAME}.dmg" \
@@ -557,12 +563,18 @@ jobs:
            (inputs.promote && needs.notarize.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Same OIDC subject alignment as the jobs above (S3 writes assume the
-    # signing role). No Secrets Manager access here -- the Apple credential
-    # stays confined to the notarize job.
+    # The R2 credentials are prod-environment secrets, as above. The Apple
+    # credential is never handed to this job -- it stays confined to the
+    # notarize job.
     environment: prod
     env:
-      HAS_SIGNING_SECRETS: ${{ secrets.AWS_SIGNING_ROLE_ARN != '' && 'true' || '' }}
+      HAS_SIGNING_SECRETS: ${{ secrets.R2_SECRET_ACCESS_KEY != '' && 'true' || '' }}
+      # The AWS CLI speaks R2's S3 API at the account endpoint; the credentials
+      # are handed only to the steps that upload (see publish-cli.yml).
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL_S3: https://${{ vars.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
       GH_TOKEN: ${{ github.token }}
       CHANNEL: ${{ inputs.channel }}
       VERSION: ${{ inputs.version }}
@@ -572,12 +584,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: inputs.promote
 
-      - name: Configure AWS credentials
+      - name: Check R2 configuration
         if: env.HAS_SIGNING_SECRETS
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
-          aws-region: us-west-2
+        env:
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+        run: |
+          if [[ ! "${R2_ACCOUNT_ID}" =~ ^[0-9a-f]{32}$ ]]; then
+            echo "::error::vars.R2_ACCOUNT_ID must be the 32-character Cloudflare account id."
+            exit 1
+          fi
 
       - name: Download gated artifact
         if: env.HAS_SIGNING_SECRETS
@@ -614,7 +629,7 @@ jobs:
           [ -f "work/notarized.zip" ] || { echo "notarized.zip missing from gated artifact"; exit 1; }
           [ -f "work/${ARTIFACT_BASENAME}.dmg" ] || { echo "${ARTIFACT_BASENAME}.dmg missing from gated artifact"; exit 1; }
 
-      # The versioned zip key is immutable-cached by CloudFront, so it must
+      # The versioned zip key is immutable-cached by the CDN, so it must
       # never be republished with different bytes (same class as the cli/*
       # wheel keys). --if-none-match makes the write conditional; on a 412
       # (job re-run after a later-step failure) the existing object is a
@@ -622,6 +637,9 @@ jobs:
       # attempt, so it is KEPT and the step continues idempotently.
       - name: Publish notarized artifact to distribution bucket
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           DESKTOP_KEY="desktop/${CHANNEL}/${VERSION}/${ARTIFACT_BASENAME}.zip"
@@ -650,6 +668,9 @@ jobs:
       # 412 on a job re-run keeps the existing bytes.
       - name: Publish DMG to distribution bucket
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           DMG_KEY="desktop/${CHANNEL}/${VERSION}/${ARTIFACT_BASENAME}.dmg"
@@ -679,17 +700,13 @@ jobs:
       # artifact) and only after the artifacts are publicly downloadable
       # (feed-before-artifact would hand clients a 403/404). The feed key is
       # mutable, so overwriting is safe -- but ONLY because the object itself
-      # carries an explicit Cache-Control (set below). The feed/* CloudFront
-      # behavior is CACHING_DISABLED (see WardingPublishCDK
-      # distribution-stack.ts), so the EDGE never caches the feed -- but a
-      # cache policy governs CloudFront's own storage, it does NOT add a
-      # Cache-Control response header, and nothing else in the distribution
-      # injects one either. A feed written without it therefore reaches
-      # clients with no freshness metadata at all, and CFNetwork applies
-      # HEURISTIC caching (~10% of the object's age, so a day-old feed earns
-      # itself hours of "fresh"). That is the #709 incident: a header-less
-      # feed made the desktop app re-resolve a stale entry for hours,
-      # offering to "update" to the version already installed.
+      # carries an explicit Cache-Control (set below). The bucket serves the
+      # Cache-Control stored with each object and adds none of its own, so a
+      # feed written without one reaches clients with no freshness metadata
+      # at all, and CFNetwork applies HEURISTIC caching (~10% of the
+      # object's age, so a day-old feed earns itself hours of "fresh"). A
+      # header-less feed once made the desktop app re-resolve a stale entry
+      # for hours, offering to "update" to the version already installed.
       #
       # NOTE ON WHAT CHANGED: that incident was specifically Squirrel.Mac's
       # OWN feed request, which went through NSURLCache. Since the
@@ -703,7 +720,7 @@ jobs:
       # already in the field cannot be given a header fix retroactively.
       #
       # max-age=300 is the release-feed norm (Signal Desktop's latest-mac.yml
-      # on the same S3+CloudFront shape uses exactly this); it bounds
+      # uses exactly this); it bounds
       # client-side staleness at 5 minutes instead of leaving it to a
       # heuristic. Deliberately NOT `no-cache` like
       # feed/<channel>/latest-cli.json: the desktop feed is hit by every
@@ -738,6 +755,9 @@ jobs:
       # the human first-install download.
       - name: Write update feed
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           ZIP_SHA512=$(openssl dgst -sha512 -binary work/notarized.zip | base64 -w 0)
@@ -755,8 +775,8 @@ jobs:
           # is that every macOS client refuses to install -- and the legacy
           # bridge, which carries no checksum, would happily install the old
           # one. That split is worse than a failed publish, so abort instead.
-          # (This also catches CloudFront edge divergence on a republished
-          # immutable key -- the #62 hazard.)
+          # (This also catches CDN edge divergence on a republished
+          # immutable key.)
           verify_published() {  # $1=url  $2=expected base64 sha512  $3=label
             local got
             got=$(curl -fsS --retry 3 --retry-delay 2 "$1" | openssl dgst -sha512 -binary | base64 -w 0)
@@ -764,7 +784,7 @@ jobs:
               echo "::error::$3 served by the CDN does not match the artifact this feed would advertise."
               echo "::error::  expected sha512 (local build): $2"
               echo "::error::  served   sha512 (published):   $got"
-              echo "::error::A versioned key was already published with different bytes. Do NOT republish it (edge divergence, #62) -- cut a new version instead."
+              echo "::error::A versioned key was already published with different bytes. Do NOT republish it (edge divergence) -- cut a new version instead."
               exit 1
             fi
             echo "Verified published $3 matches the feed digest."
@@ -790,19 +810,16 @@ jobs:
             --cache-control "public, max-age=300"
           echo "Feed written: feed/${CHANNEL}/latest-mac.yml -> ${{ vars.CLI_CDN_BASE }}/${DESKTOP_KEY}"
           # Verify the header CLIENTS actually receive, through the public CDN.
-          # Carried over from #709, which fixed a real incident: a feed served
-          # WITHOUT Cache-Control got heuristically cached and the updater
-          # resolved an already-installed version. electron-updater also appends
-          # its own noCache query (isAddNoCacheQuery), but that is the client
-          # belt -- this is the origin-side braces, and a build already in the
-          # field cannot be given a header fix retroactively.
+          # A real incident motivated it: a feed served WITHOUT Cache-Control
+          # got heuristically cached and the updater resolved an
+          # already-installed version. electron-updater also appends its own
+          # noCache query (isAddNoCacheQuery), but that is the client belt --
+          # this is the origin-side braces, and a build already in the field
+          # cannot be given a header fix retroactively.
           #
-          # NOT `s3api head-object`: the publish role is Put-only on feed/*
-          # (WardingPublishCDK distribution-stack.ts grants s3:GetObject on
-          # cli/* alone), so a read-back would AccessDenied and abort this step
-          # under `set -euo pipefail` AFTER the feed was already published --
-          # a guard that fails on permissions instead of on the condition it
-          # guards.
+          # NOT `s3api head-object`: that reports what was stored, while this
+          # guard has to see what the CDN serves, including anything a cache
+          # or transform rule on the domain changes.
           FEED_CC=$(curl -fsS --retry 3 --retry-delay 2 \
             -I "${{ vars.CLI_CDN_BASE }}/feed/${CHANNEL}/latest-mac.yml" \
             | tr -d '\r' | awk -F': ' 'tolower($1)=="cache-control"{print $2}')
@@ -834,6 +851,9 @@ jobs:
       # test/test_publish_feed_contract.py so it cannot be dropped silently.
       - name: Write legacy update feed (pre-electron-updater clients)
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           cat > /tmp/latest-mac.json <<EOF
@@ -851,16 +871,12 @@ jobs:
             --cache-control "public, max-age=300"
           echo "Legacy feed written: feed/${CHANNEL}/latest-mac.json (transition bridge)"
           # Verify the header CLIENTS actually receive, through the public CDN.
-          # NOT `s3api head-object`: the publish role is Put-only on feed/*
-          # (WardingPublishCDK distribution-stack.ts grants s3:GetObject on
-          # cli/* alone), so a read-back would AccessDenied and abort this step
-          # under `set -euo pipefail` AFTER the feed was already published --
-          # a guard that fails on permissions instead of on the condition it
-          # guards. Same convention as publish-linux.yml's byte compare, which
-          # goes through the CDN for exactly this reason. CLI_CDN_BASE and
-          # updates.warding.dev are alternate domains of the SAME
-          # distribution, and feed/* is CACHING_DISABLED, so this response
-          # comes from origin and reflects the object just written.
+          # NOT `s3api head-object`: that reports what was stored, while this
+          # guard has to see what the CDN serves. Same convention as
+          # publish-linux.yml's byte compare, which goes through the CDN for
+          # the same reason. CLI_CDN_BASE and updates.warding.dev are custom
+          # domains of the SAME bucket, and the edge does not cache .json by
+          # default, so this response reflects the object just written.
           FEED_CC=$(curl -fsS --retry 3 --retry-delay 2 \
             -I "${{ vars.CLI_CDN_BASE }}/feed/${CHANNEL}/latest-mac.json" \
             | tr -d '\r' | sed -n 's/^[Cc]ache-[Cc]ontrol: //p' | head -1)
@@ -877,17 +893,19 @@ jobs:
       # docs, so it is written AFTER the feed (never points ahead of the
       # go-live switch). Unlike the versioned keys it is MUTABLE by design
       # (same class as the feed): plain overwrite, no --if-none-match, and a
-      # short max-age instead of immutable. desktop/* rides the default
-      # CloudFront behavior (CACHING_OPTIMIZED), which honors per-object
-      # Cache-Control -- versioned keys cache for a year only because we
-      # stamp them immutable; max-age=300 here means edges roll over to a
-      # new nightly within minutes, no invalidation needed. Worst case is
-      # standard latest-link semantics: a download in that window gets the
-      # previous build, which is still fully signed+notarized+stapled.
-      # Uploads the local body (not an S3 copy): the publish role's
-      # desktop/* grant is Put-only.
+      # short max-age instead of immutable. The CDN caches .dmg files and
+      # honors per-object Cache-Control -- versioned keys cache for a year
+      # only because we stamp them immutable; max-age=300 here means edges
+      # roll over to a new nightly within minutes, no purge needed. Worst
+      # case is standard latest-link semantics: a download in that window
+      # gets the previous build, which is still fully signed+notarized+stapled.
+      # Uploads the local body rather than copying the versioned object, so
+      # the alias holds exactly the bytes this run verified.
       - name: Update latest DMG alias
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           LATEST_DMG_KEY="desktop/${CHANNEL}/latest/${ARTIFACT_BASENAME}.dmg"

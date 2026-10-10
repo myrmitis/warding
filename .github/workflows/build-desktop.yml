@@ -35,7 +35,7 @@ on:
         required: true
         type: string
   # Manual build-only probe: builds every platform's artifacts from any ref
-  # WITHOUT publishing anything (no callers, no S3, no feeds). Used to
+  # WITHOUT publishing anything (no callers, no uploads, no feeds). Used to
   # validate packaging changes (e.g. a new platform lane) before merge.
   workflow_dispatch:
     inputs:

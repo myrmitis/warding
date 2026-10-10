@@ -123,7 +123,7 @@ concurrency group, and their version derivation.
 | `build-wheel.yml` | reusable build | Stamps the PEP 440 version into `pyproject.toml` and `__init__.py`, stamps the distribution channel, builds the frontend and stages it into the package, then `python -m build`. Uploads artifact `cli-wheel` (wheel + sdist). Credential-free. |
 | `build-desktop.yml` | reusable build | Matrix `macos-15` (universal macOS app) and `ubuntu-22.04` / `ubuntu-22.04-arm` (AppImage + deb + rpm) via `packaging/build-desktop.sh`, then a `smoke-linux-packages` job that installs the deb and rpm in Ubuntu 24.04 and AL2023 containers. Deliberately credential-free (`contents: read` only, pinned by `test_workflow_permissions.py`), so it builds **unsigned** and hands the `.app` downstream. |
 | `build-windows.yml` | reusable build | `windows-latest`, an NSIS `Setup.exe`. Separate from `build-desktop.yml` because Authenticode signing has to happen *inside* the build (the installer compresses its own already-signed executable), so this job holds the code-signing certificate and `build-desktop.yml` can stay credential-free. Callers pass `soft_fail: true`, so a Windows failure cannot skip the mac/Linux lanes. |
-| `publish-cli.yml` | reusable publish | Wheel + `SHA256SUMS` + KMS-signed `cli-manifest.json` to `cli/<channel>/<version>/`, the same signed manifest to `feed/<channel>/latest-cli.json`, and a PEP 503 index under `feed/<channel>/simple/`. |
+| `publish-cli.yml` | reusable publish | Wheel + `SHA256SUMS` + signed `cli-manifest.json` to `cli/<channel>/<version>/`, the same signed manifest to `feed/<channel>/latest-cli.json`, and a PEP 503 index under `feed/<channel>/simple/`. |
 | `publish-linux.yml` | reusable publish | One Linux artifact to `desktop/<channel>/<version>/`, its channel file under `<feed prefix>/latest-linux[-arm64].yml`, then the `latest/` alias. Invoked ONCE PER (ARCH, FORMAT) PAIR — `arch: x64\|arm64` × `format: appimage\|deb\|rpm`, six callers — each with its own keys and feed, so no two ever share one. |
 | `sign-and-notarize.yml` | reusable publish | Three chained jobs (`sign`, `notarize`, `publish`) covering the whole macOS trust chain and the mac feed write. |
 | `publish-docker.yml` | reusable publish | Multi-arch (`linux/amd64,linux/arm64`) image built from the same wheel, pushed to `ghcr.io/<owner>/warding`. |
@@ -139,24 +139,29 @@ Release-adjacent, deliberately outside the release path:
 
 ## Where artifacts land
 
-### Two S3 buckets, two trust domains
+### Two R2 buckets, two purposes
 
-The **signing bucket** is private working space and never public:
+Both buckets live in Cloudflare R2. The workflows reach them through R2's S3
+API with the ordinary AWS CLI, pointed at the account endpoint
+(`https://<account-id>.r2.cloudflarestorage.com`, from `vars.R2_ACCOUNT_ID`).
+
+The **signing bucket** (`vars.SIGNING_BUCKET`) is private working space and
+never public:
 
 ```
 pre-signed/<channel>/<version>/     unsigned uploads from the sign job
 notarized/<channel>/<version>/      signed, stapled, Gatekeeper-verified archive
 ```
 
-The **distribution bucket** is private with BLOCK_ALL and served only through
-CloudFront with Origin Access Control. Two advertised hostnames alias the same
-distribution: `updates.warding.dev` for pointers and
-`download.warding.dev` for artifact bytes. Splitting the URL classes across
-hostnames means future protective policy on the byte surface can never touch the
-availability-critical feed path.
+The **distribution bucket** (`vars.CLI_DIST_BUCKET`) is public only through its
+custom domains; its S3 endpoint stays private and no manifest or feed ever names
+it. Two advertised hostnames are custom domains of the same bucket:
+`updates.warding.dev` for pointers and `download.warding.dev` for artifact
+bytes. Splitting the URL classes across hostnames means future protective policy
+on the byte surface can never touch the availability-critical feed path.
 
 > **Not provisioned yet.** Warding owns both hostnames, but neither serves a
-> distribution today. Until one does, the channel installer and the in-app
+> bucket today. Until one does, the channel installer and the in-app
 > updater reach no feed by default; set `WARDING_CDN_BASE` to a distribution
 > you host (it replaces both bases) to exercise the channel path.
 
@@ -199,20 +204,24 @@ policy:
 - **Mutable channel pointers** are plain overwrites with a short cache. Flipping
   a feed is the go-live action.
 
-The `feed/*` CloudFront behavior is `CACHING_DISABLED`, so the edge never caches
-a feed. That is not sufficient on its own: a cache policy governs CloudFront's
-own storage and does **not** emit a `Cache-Control` response header, and nothing
-else in the distribution injects one. A feed served with no freshness metadata
-gets *heuristically* cached by clients (roughly 10% of the object's age, so a
-day-old feed earns itself hours of "fresh"). Both mac feed writes therefore
-assert the served header through the public CDN with `curl -I` immediately after
-the write, and fail the job if `max-age` is missing. The check goes through the
-CDN rather than `s3api head-object` because the publish role is Put-only on
-`feed/*`; a read-back would `AccessDenied` and abort *after* the feed was already
-published, failing on permissions instead of on the condition it guards.
-`max-age=300` bounds pointer staleness at five minutes; the CLI feed uses
-`no-cache` instead because it is polled far less often, so revalidating always
-costs nothing.
+The bucket serves the `Cache-Control` stored with each object and adds none of
+its own, so every write names one. A feed served with no freshness metadata gets
+*heuristically* cached by clients (roughly 10% of the object's age, so a day-old
+feed earns itself hours of "fresh"). Both mac feed writes therefore assert the
+served header through the public CDN with `curl -I` immediately after the write,
+and fail the job if `max-age` is missing. The check goes through the CDN rather
+than `s3api head-object` because it has to see what clients receive, including
+anything a cache or transform rule on the domain changes. `max-age=300` bounds
+pointer staleness at five minutes; the CLI feed uses `no-cache` instead because
+it is polled far less often, so revalidating always costs nothing.
+
+At the edge, Cloudflare caches by file extension unless a cache rule says
+otherwise: archive and installer types such as `.zip`, `.dmg` and `.exe` are
+cached for as long as their `Cache-Control` allows, while the feeds (`.json`,
+`.yml`), the index pages and artifact types outside the default list are fetched
+from the bucket on each request. That is safe as it stands, since R2 charges no
+egress. A cache rule that makes the immutable `cli/` and `desktop/` keys
+eligible for cache speeds them up; it must leave `feed/` and `cli.sh` alone.
 
 ### GitHub Container Registry
 
@@ -223,7 +232,7 @@ verifies the existing digest already carries this repo's provenance via
 `gh attestation verify --signer-workflow`, and does **not** move the alias), and
 the **channel** alias (`nightly` / `insider` / `stable`, plus `latest` for
 stable) moves only after the version tag and its attestation exist. GHCR needs
-no AWS credentials: the push authenticates with the workflow's own
+no R2 credentials: the push authenticates with the workflow's own
 `GITHUB_TOKEN`, so this lane also works on forks.
 
 The GHCR package is public, so `docker pull ghcr.io/myrmitis/warding:stable`
@@ -250,7 +259,7 @@ never become release assets. Windows `Setup.exe` is not attached. The release is
 marked `prerelease` when the channel is insider, and notes are generated.
 
 `github-release` is the one job that needs `contents: write`, and it is the only
-job that has it: the signing jobs hold AWS credentials but never
+job that has it: the signing jobs hold R2 credentials but never
 `contents: write`. `test_workflow_permissions.py` pins that split.
 
 ### There is no PyPI publish
@@ -266,7 +275,7 @@ pip install --pre warding --extra-index-url https://updates.warding.dev/feed/ins
 `--extra-index-url` (not `--index-url`) is deliberate: the channel index carries
 only `warding`, so cutting off PyPI would fail on dependency resolution. pip
 verifies the `#sha256=` fragment on each link, giving the same fail-closed
-integrity as the feed. Because CloudFront with OAC does not resolve directory
+integrity as the feed. Because a bucket's custom domain does not resolve directory
 indexes, the workflow uploads both `.../simple/warding/index.html` and the
 literal trailing-slash key `.../simple/warding/` that pip requests, using
 `s3api put-object` (an `s3 cp` to a trailing-slash destination silently writes a
@@ -306,14 +315,14 @@ version derivation and `uses:` calls.
    so first-install verification would need network. The stapled DMG is attested
    after stapling, because stapling changes the shipping bytes. The job ends by
    attaching the gated artifact, which is the sole input of everything
-   downstream. The Apple credential is fetched from AWS Secrets Manager at
-   runtime, masked, scoped to single steps in this job, and never written to
+   downstream. The Apple credential is three `prod` environment secrets, handed
+   only to the two steps that submit to Apple, and never written to
    `GITHUB_ENV`, a file, or a log. The signing keychain is deleted by an
    `always()` step at the end of the job, so the identity never outlives it.
 3. **publish** (ubuntu). Copies the gated zip and DMG to the distribution
    bucket, writes `latest-mac.yml`, writes the legacy `latest-mac.json` bridge,
    then the human `latest/Warding.dmg` alias. Separate from notarize so a
-   transient S3 failure retries as a two-minute ubuntu job instead of repeating
+   transient upload failure retries as a two-minute ubuntu job instead of repeating
    two Apple submissions, and so the expensive macOS runner never burns minutes
    on uploads. Its `if:` starts with `success()`, which is required: a custom
    job-level `if` replaces the implicit success check, and without it the job
@@ -322,7 +331,7 @@ version derivation and `uses:` calls.
 Linux publishing is deliberately not in this workflow: the AppImage takes no
 part in the macOS trust chain, so `publish-linux.yml` is its own lane. Linux has
 no Gatekeeper equivalent and the AppImage is not code-signed by design; it ships
-with its own in-lane SLSA provenance, attested before anything reaches S3, so a
+with its own in-lane SLSA provenance, attested before anything reaches R2, so a
 CDN-served AppImage always carries verifiable provenance even when the macOS
 workflow fails or is cancelled.
 
@@ -446,13 +455,14 @@ alternatives.
 The wheel is a first-class channel target, not a byproduct: a Linux or EC2 host
 tracks nightly, insider, or stable and installs from the same feed shape the
 desktop uses. `publish-cli.yml` depends only on the built wheel and its own
-KMS key, never on the Apple signing identity or notarization, so a macOS
+signing key, never on the Apple signing identity or notarization, so a macOS
 signing failure cannot block a CLI release. The same independence holds for `publish-linux.yml` (needs only
 `build-desktop`) and `publish-docker.yml` (needs only the wheel).
 
 `SHA256SUMS` sits beside the wheel for legacy tooling, but it is only a
 corruption check. Authenticity comes from a canonical JSON artifact manifest
-signed with a non-exportable RSA KMS key:
+signed with an RSA release key (3072 bits or more) held only as the
+`CLI_MANIFEST_SIGNING_KEY` secret of the `prod` environment:
 
 ```json
 {
@@ -487,17 +497,21 @@ wrong key id, bad signature, redirect metadata, and digest mismatch all refuse
 installation. There is no unsigned fallback.
 
 Publication is configured as one unit: `publish-cli.yml` fails **before any
-upload** when exactly one of `secrets.AWS_SIGNING_ROLE_ARN` and
-`vars.CLI_MANIFEST_SIGNING_KEY_ARN` is set, rather than publishing an unsigned
-manifest, and skips entirely when neither is (fork or feature branch). It also
-refuses when `CLI_DIST_BUCKET` or `CLI_CDN_BASE` is unset, because the origin
-bucket is private and a manifest must never advertise a raw S3 URL.
+upload** when exactly one of the R2 credentials (`secrets.R2_SECRET_ACCESS_KEY`)
+and `secrets.CLI_MANIFEST_SIGNING_KEY` is set, rather than publishing an
+unsigned manifest, and skips entirely when neither is (fork or feature branch).
+It also refuses when `CLI_DIST_BUCKET` or `CLI_CDN_BASE` is unset, because the
+bucket's S3 endpoint is private and a manifest must never advertise it.
+`cli-manifest.py sign` takes the key from the environment and hands it to
+OpenSSL on stdin, so it is never written to disk; it refuses a key whose public
+half is not the committed trust root, and verifies its own signature before
+assembling the manifest.
 `pub_date` is derived from the source commit's timestamp rather than wall clock,
 so a retried job produces a byte-identical manifest and the immutable write
 still succeeds.
 
-Key provisioning, the `kms:GetPublicKey` + `kms:Sign` grant, and the rotation
-procedure (dual-trust, never an in-place swap, because schema v1 pins exactly
+Key generation, storage, and the rotation procedure (dual-trust, never an
+in-place swap once an installer has shipped, because schema v1 pins exactly
 one key) are in [../../packaging/signing/README.md](../../packaging/signing/README.md).
 
 `publish-installer.yml` mechanically enforces the rollout order rather than
@@ -802,7 +816,7 @@ cancel or skip the other. A new platform lane
 needs: a matrix entry with a stable `{os}-{arch}` id; two artifact roles (a
 first-install installer and an update archive the platform updater consumes,
 both from the standard desktop packaging path); artifacts carrying the stamped
-version; staging only to `pre-signed/` and only through the publish role;
+version; staging only to `pre-signed/` in the signing bucket;
 the platform's native signing verified fail-closed before any artifact becomes
 client-visible; a `feed/<channel>/latest-<platform>.yml` in the
 electron-updater shape with absolute byte-host URLs; a client updater that
@@ -814,34 +828,40 @@ accumulate unbounded.
 
 ## Identity and trust boundaries
 
-CI holds no static cloud credentials. Every AWS interaction is short-lived OIDC.
+Every release secret is a `prod` environment secret: the R2 credentials, the
+CLI manifest signing key, the Developer ID identity, the Apple notary
+credential, and the Windows Authenticode certificate. Only a job that declares
+`environment: prod` can read them, and the environment's protection rules
+(deployment branch and tag policy, optional required reviewers) are what keep an
+unreviewed ref from publishing. That is why `publish-cli.yml`,
+`publish-linux.yml`, `publish-windows.yml`, `publish-installer.yml`, and all
+three jobs in `sign-and-notarize.yml` name the environment, and why
+`build-windows.yml` takes `use_prod_environment` as an input rather than
+deriving it (inside a called reusable workflow the `github` context reports the
+*caller's* trigger and never `workflow_call`, so an `event_name` test would
+leave the environment unset on exactly the paths that need it).
 
-The publish role's OIDC trust accepts exactly two subjects: `ref:refs/heads/main`
-and `environment:prod`. Release runs are tag-triggered (`ref:refs/tags/v*`),
-which is **not** trusted, so every publishing job declares `environment: prod`,
-which switches the caller's subject. This is not optional plumbing: it is why
-`publish-cli.yml`, `publish-linux.yml`, `publish-installer.yml`, and all three
-jobs in `sign-and-notarize.yml` name the environment, and why `build-windows.yml`
-takes `use_prod_environment` as an input rather than deriving it (inside a called
-reusable workflow the `github` context reports the *caller's* trigger and never
-`workflow_call`, so an `event_name` test would leave the environment unset on
-exactly the paths that need it).
+The R2 credentials are long-lived, so each job hands them only to the steps that
+move bytes, as step-level environment, never exported to the rest of the job.
+One R2 API token covers both buckets, scoped to them alone with Object Read &
+Write. R2 cannot narrow a token to a key prefix or to writes only, so any step
+holding it can read and overwrite every object in both buckets. The
+conditional writes and the through-the-CDN byte checks are what keep a
+versioned key from changing under clients.
 
-The code-signing identities are not cloud credentials: the Developer ID `.p12`
-and the Windows Authenticode certificate are `prod` environment secrets, read
-only by the macOS `notarize` job and the Windows build job respectively. The
-Windows build is granted no `id-token` at all, so the job that holds the
-certificate while running third-party packaging tooling cannot present the prod
-identity to the distribution role. The secrets, the variable
-`WINDOWS_SIGNING_SUBJECT_CN`, and their rotation are listed in
-[signing-runbook.md](signing-runbook.md).
+The code-signing identities never touch storage: the Developer ID `.p12` and
+the Windows Authenticode certificate are read only by the macOS `notarize` job
+and the Windows build job respectively, and the Windows build is handed no R2
+credentials, so the job that holds the certificate while running third-party
+packaging tooling cannot write to the distribution bucket. The secrets, the
+variables, and their rotation are listed in [signing-runbook.md](signing-runbook.md).
 
 `publish-docker.yml` takes no `secrets: inherit`. It authenticates with
 `GITHUB_TOKEN` alone, and inheriting would expose every signing and CDN secret
 to a lane documented as needing none. `packages: write` is scoped to that one
 job.
 
-Full account, role, endpoint, and credential-rotation detail is in
+Full account, bucket, endpoint, and credential-rotation detail is in
 [signing-runbook.md](signing-runbook.md).
 
 ## Verifying a release
@@ -906,7 +926,7 @@ Practical consequences when something goes wrong mid-release:
   identical bytes and abort on different bytes; the mac `publish` job is a
   cheap ubuntu retry that does not repeat Apple submissions.
 - A re-run of an **older** release never moves a channel forward or backward: the
-  Docker lane refuses to move the alias, and the S3 lanes refuse a divergent
+  Docker lane refuses to move the alias, and the bucket lanes refuse a divergent
   republish.
 - A Docker run that died between its version-tag push and its attestation leaves
   an unattested digest that later runs will refuse. Delete that version tag in
@@ -959,8 +979,8 @@ here. None of them exists, and the omissions are decisions, not gaps.
 |---|---|
 | `beta-cut.yml`, `beta-hotfix.yml`, `promote-stable.yml` | Cutting a branch, numbering RCs, and promoting are human steps. The pipeline reacts only to a pushed tag. |
 | `rollback.yml`, `blocked-versions.json` | There is no rollback. Recovery is a new version. |
-| A feed Lambda writing the channel pointer on an S3 PUT event | A PUT event cannot express "and signature verification passed". CI writes the feed synchronously, after the Gatekeeper gate. No Lambda is deployed. |
-| `latest-mac.json` as the *primary* feed, with CloudFront Function query routing (`?channel=X&platform=Y`) | Static electron-updater channel files fetched directly, with client-side version compare. The `latest-mac.json` that exists is a legacy bridge, not a routing scheme. |
+| An event handler writing the channel pointer when an upload lands | An upload event cannot express "and signature verification passed". CI writes the feed synchronously, after the Gatekeeper gate. No handler is deployed. |
+| `latest-mac.json` as the *primary* feed, with edge-function query routing (`?channel=X&platform=Y`) | Static electron-updater channel files fetched directly, with client-side version compare. The `latest-mac.json` that exists is a legacy bridge, not a routing scheme. |
 | A `beta` channel or path segment | The channel is `insider` everywhere, including the storage prefix. `cli.sh` must never remap it: a remapped prefix was never published and surfaces as an opaque CDN 403. |
 | A forced minimum version floor | Not built. A feed-served floor that force-triggers the update flow for a critical patch remains open. |
 | A fixed promote cadence | Insider bakes until judged stable. There is no calendar commitment. |

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Build and verify the signed CLI artifact-manifest envelope.
 
-The production workflow signs the canonical payload with an asymmetric AWS KMS
-key.  This helper never accepts or reads a private key: it prepares the digest
-input, derives the committed public-key identity, and refuses to assemble an
-envelope unless OpenSSL verifies the returned signature.
+The production workflow signs the canonical payload with an RSA key held as a
+secret of the protected release environment. The ``sign`` command takes that
+key from an environment variable and hands it to OpenSSL on stdin, refuses a
+key whose public half is not the committed trust root, and refuses to assemble
+an envelope unless OpenSSL verifies the signature it produced against that
+committed key.
 """
 
 from __future__ import annotations
@@ -49,11 +51,12 @@ class ManifestError(ValueError):
     """A manifest or trust-root contract violation."""
 
 
-def _run_openssl(args: list[str]) -> bytes:
+def _run_openssl(args: list[str], *, stdin: bytes | None = None) -> bytes:
     try:
         proc = subprocess.run(
             ["openssl", *args],
             check=False,
+            input=stdin,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -62,27 +65,6 @@ def _run_openssl(args: list[str]) -> bytes:
     if proc.returncode != 0:
         raise ManifestError("openssl rejected the CLI manifest public key or signature")
     return proc.stdout
-
-
-def _run_aws_json(args: list[str]) -> dict[str, Any]:
-    try:
-        proc = subprocess.run(
-            ["aws", *args, "--output", "json", "--no-cli-pager"],
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        )
-    except FileNotFoundError as exc:
-        raise ManifestError("AWS CLI is required for KMS signing") from exc
-    if proc.returncode != 0 or len(proc.stdout) > 64 * 1024:
-        raise ManifestError("AWS KMS rejected the CLI manifest signing request")
-    try:
-        value = json.loads(proc.stdout)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ManifestError("AWS KMS returned a malformed response") from exc
-    if not isinstance(value, dict):
-        raise ManifestError("AWS KMS returned a malformed response")
-    return value
 
 
 def _public_key_der(public_key: Path) -> bytes:
@@ -323,7 +305,7 @@ def _verify_command(args: argparse.Namespace) -> None:
     print(f"verified: {args.manifest} signed by {expected_key_id}")
 
 
-def _kms_sign_command(args: argparse.Namespace) -> None:
+def _sign_command(args: argparse.Namespace) -> None:
     payload_any = _load_json(args.payload)
     payload = _validate_signed_payload(payload_any)
     canonical = _canonical_json(payload)
@@ -335,52 +317,37 @@ def _kms_sign_command(args: argparse.Namespace) -> None:
     if payload["key_id"] != expected_key_id:
         raise ManifestError("CLI manifest payload does not name the committed public key")
 
-    public_response = _run_aws_json(["kms", "get-public-key", "--key-id", args.key_arn])
-    if public_response.get("KeyUsage") != "SIGN_VERIFY":
-        raise ManifestError("CLI manifest KMS key must have SIGN_VERIFY usage")
-    if public_response.get("KeySpec") not in {"RSA_3072", "RSA_4096"}:
-        raise ManifestError("CLI manifest KMS key must be RSA_3072 or RSA_4096")
-    algorithms = public_response.get("SigningAlgorithms")
-    if not isinstance(algorithms, list) or ALGORITHM not in algorithms:
-        raise ManifestError("CLI manifest KMS key does not allow the required algorithm")
-    encoded_public = public_response.get("PublicKey")
-    if not isinstance(encoded_public, str):
-        raise ManifestError("AWS KMS did not return a public key")
-    try:
-        kms_der = base64.b64decode(encoded_public, validate=True)
-    except ValueError as exc:
-        raise ManifestError("AWS KMS returned an invalid public key") from exc
-    if not hmac.compare_digest(kms_der, pinned_der):
-        raise ManifestError("configured KMS key does not match the committed public key")
+    # The key reaches OpenSSL only through stdin, so it is never written to disk
+    # and never appears in an argument list.
+    signing_key = os.environ.get(args.private_key_env, "").encode("utf-8")
+    if not signing_key.strip():
+        raise ManifestError(f"CLI manifest signing key is not set in {args.private_key_env}")
 
-    digest = hashlib.sha256(canonical).digest()
-    sign_response = _run_aws_json(
-        [
-            "kms",
-            "sign",
-            "--key-id",
-            args.key_arn,
-            "--message",
-            base64.b64encode(digest).decode("ascii"),
-            "--message-type",
-            "DIGEST",
-            "--signing-algorithm",
-            ALGORITHM,
-            "--cli-binary-format",
-            "base64",
-        ]
-    )
-    encoded_signature = sign_response.get("Signature")
-    if not isinstance(encoded_signature, str):
-        raise ManifestError("AWS KMS did not return a signature")
-    try:
-        signature = base64.b64decode(encoded_signature, validate=True)
-    except ValueError as exc:
-        raise ManifestError("AWS KMS returned an invalid signature") from exc
+    # A key whose public half is not the committed trust root would sign
+    # manifests every installed cli.sh rejects, so refuse it before signing.
+    signer_der = _run_openssl(["pkey", "-pubout", "-outform", "DER"], stdin=signing_key)
+    if not hmac.compare_digest(signer_der, pinned_der):
+        raise ManifestError("CLI manifest signing key does not match the committed public key")
 
     with tempfile.TemporaryDirectory(prefix="warding-cli-manifest-") as temporary:
         signature_path = Path(temporary) / "signature.bin"
-        signature_path.write_bytes(signature)
+        # PKCS#1 v1.5 is named explicitly: it is the schema's algorithm, and an
+        # RSA-PSS key then fails here instead of signing in a scheme cli.sh
+        # would read differently.
+        _run_openssl(
+            [
+                "dgst",
+                "-sha256",
+                "-sign",
+                "/dev/stdin",
+                "-sigopt",
+                "rsa_padding_mode:pkcs1",
+                "-out",
+                str(signature_path),
+                str(args.payload),
+            ],
+            stdin=signing_key,
+        )
         _assemble_command(
             argparse.Namespace(
                 payload=args.payload,
@@ -424,14 +391,18 @@ def _parser() -> argparse.ArgumentParser:
     assemble.add_argument("--output", type=Path, required=True)
     assemble.set_defaults(handler=_assemble_command)
 
-    kms_sign = subparsers.add_parser(
-        "kms-sign", help="sign the canonical payload with a non-exportable AWS KMS key"
+    sign = subparsers.add_parser(
+        "sign", help="sign the canonical payload with the release key and verify the result"
     )
-    kms_sign.add_argument("--payload", type=Path, required=True)
-    kms_sign.add_argument("--key-arn", required=True)
-    kms_sign.add_argument("--public-key", type=Path, required=True)
-    kms_sign.add_argument("--output", type=Path, required=True)
-    kms_sign.set_defaults(handler=_kms_sign_command)
+    sign.add_argument("--payload", type=Path, required=True)
+    sign.add_argument(
+        "--private-key-env",
+        required=True,
+        help="name of the environment variable holding the PEM private key",
+    )
+    sign.add_argument("--public-key", type=Path, required=True)
+    sign.add_argument("--output", type=Path, required=True)
+    sign.set_defaults(handler=_sign_command)
 
     verify = subparsers.add_parser(
         "verify", help="verify a signed manifest against the pinned public key"

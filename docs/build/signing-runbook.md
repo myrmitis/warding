@@ -20,24 +20,32 @@ fails for want of a credential. A **partial** configuration fails closed on
 purpose, with an error naming what is missing, rather than shipping something
 half-signed:
 
-- a Developer ID identity without `AWS_SIGNING_ROLE_ARN` fails the macOS `sign` job,
+- a Developer ID identity without the R2 credentials fails the macOS `sign` job,
   because the unsigned app was never staged for `notarize` to read;
 - a Windows certificate without its password fails the Windows build;
-- with `AWS_SIGNING_ROLE_ARN` set, the Windows publish lane refuses to publish an
+- with the R2 credentials set, the Windows publish lane refuses to publish an
   unsigned installer, one signed under a different CN, or any installer at all
   while `WINDOWS_SIGNING_SUBJECT_CN` is unset.
 
 Store the secrets as **`prod` environment secrets**, not repository secrets: every
 job that reads them runs in `prod`, and the environment's ref policy (below) is what
-keeps a production identity away from unmerged code.
+keeps a production identity away from unmerged code. Store the variables as
+**repository variables**: the publish jobs read `CLI_DIST_BUCKET` and `CLI_CDN_BASE`
+in their job-level conditions, which are evaluated before the job enters `prod`
+and so never see a `prod` variable. None of the variables is a secret.
 
 | Name | Kind | Read by | Purpose |
 |---|---|---|---|
 | `APPLE_DEVELOPER_ID_P12_BASE64` | secret | `sign-and-notarize.yml` | Base64 of a `.p12` exporting the **Developer ID Application** certificate and its private key. Its presence is the macOS signing gate (`HAS_SIGNING_IDENTITY`). |
 | `APPLE_DEVELOPER_ID_P12_PASSWORD` | secret | `sign-and-notarize.yml` | The export password of that `.p12`. |
-| `AWS_SIGNING_ROLE_ARN` | secret | `sign-and-notarize.yml`, the publish lanes | OIDC role that stages unsigned artifacts, reads the notary credential, and writes the distribution bucket. |
-| `AWS_SIGNING_BUCKET` | secret | `sign-and-notarize.yml` | The private staging bucket (`pre-signed/`, `notarized/`). |
-| `warding/signing/apple-notary` | AWS Secrets Manager | `sign-and-notarize.yml` | The Apple notary credential (see [The notary credential](#the-notary-credential)). |
+| `R2_ACCESS_KEY_ID` | secret | `sign-and-notarize.yml`, the publish lanes | Access key of the R2 API token that stages unsigned artifacts and writes the distribution bucket (see [R2 storage](#r2-storage)). Handed only to the steps that move bytes. |
+| `R2_SECRET_ACCESS_KEY` | secret | `sign-and-notarize.yml`, the publish lanes | Its secret half. Its presence is the publishing gate (`HAS_SIGNING_SECRETS`). |
+| `R2_ACCOUNT_ID` | repository variable | `sign-and-notarize.yml`, the publish lanes | The 32-character Cloudflare account id; the workflows reach R2 at `https://<id>.r2.cloudflarestorage.com`. |
+| `SIGNING_BUCKET` | repository variable | `sign-and-notarize.yml` | The private staging bucket (`pre-signed/`, `notarized/`). |
+| `CLI_DIST_BUCKET` | repository variable | the publish lanes | The public distribution bucket. Unset, every publish lane skips. |
+| `CLI_CDN_BASE` | repository variable | the publish lanes | The base URL the distribution bucket's custom domain serves, `https://download.warding.dev`. |
+| `CLI_MANIFEST_SIGNING_KEY` | secret | `publish-cli.yml` | PEM of the RSA key that signs CLI manifests; its public half is pinned in `cli.sh`. Generating and rotating it is in [packaging/signing/README.md](../../packaging/signing/README.md). |
+| `APPLE_NOTARY_APPLE_ID`, `APPLE_NOTARY_PASSWORD`, `APPLE_NOTARY_TEAM_ID` | secrets | `sign-and-notarize.yml` | The Apple notary credential (see [The notary credential](#the-notary-credential)). |
 | `WINDOWS_SIGNING_CERT_P12_BASE64` | secret | `build-windows.yml` | Base64 of the Authenticode code-signing `.pfx`/`.p12`. Its presence (together with the `prod` environment) is the Windows signing gate (`HAS_WINDOWS_SIGNING`). Only a certificate whose private key may legitimately be exported fits here; see [Key custody](#key-custody-a-pfx-cannot-hold-a-public-certificate). |
 | `WINDOWS_SIGNING_CERT_PASSWORD` | secret | `build-windows.yml` | Its password. Setting the certificate without it fails the build with a named error rather than deep inside signtool. |
 | `WINDOWS_SIGNING_SUBJECT_CN` | repository variable | `publish-windows.yml` | The subject CN of that certificate, exactly as it appears in the certificate, commas included. The publish lane refuses any installer whose signer carries a different CN, and refuses to publish at all while it is unset. |
@@ -75,7 +83,7 @@ Key properties, each load-bearing:
 - **Signing is gated on the identity secret.** With no
   `APPLE_DEVELOPER_ID_P12_BASE64` the `sign` job still flattens, attests and
   stages, but its handoff outputs stay empty, so `notarize` and `publish` skip. An
-  identity configured without `AWS_SIGNING_ROLE_ARN` fails the `sign` job, because
+  identity configured without the R2 credentials fails the `sign` job, because
   the unsigned bytes were never staged for `notarize` to read.
 - **The unsigned-zip key handoff is internal** (`sign` job outputs
   `unsigned_zip_key` and `unsigned_dmg_key`, consumed by `notarize`), not plumbed
@@ -85,9 +93,9 @@ Key properties, each load-bearing:
   imported into a keychain under `RUNNER_TEMP` with a random per-run password,
   never the login keychain. The last step of the job deletes that keychain under
   `always()`, so the identity does not outlive a failed run either. The notary
-  password is fetched from AWS Secrets Manager, masked, and used inside single
-  steps; it is never written to `GITHUB_ENV`, a file, or a log, and the `publish`
-  job never touches either credential.
+  credential reaches only the two steps that submit to Apple, as step-level
+  environment; it is never written to `GITHUB_ENV`, a file, or a log, and the
+  `publish` job never touches either credential.
 - **The Gatekeeper gate fails closed.** `spctl` must report
   `source=Notarized Developer ID` for the app (`--type execute`) and for the DMG
   (`--type install`), or `notarize` fails and `publish` never runs. On a
@@ -102,11 +110,11 @@ Key properties, each load-bearing:
 - **Versioned distribution keys are never republished with different bytes.** Both
   the zip and the DMG are written with `--if-none-match '*'`; a `PreconditionFailed`
   on a job re-run keeps the existing bytes, which already passed the gate on the
-  earlier attempt. The keys are CloudFront-immutable-cached.
+  earlier attempt. The keys are cached as immutable at the edge.
 
 `publish` is a separate ubuntu job on purpose: a transient publish failure retries
 as a roughly-two-minute job rather than repeating two Apple submissions with
-30-minute budgets each, and the expensive macOS runner never burns minutes on S3
+30-minute budgets each, and the expensive macOS runner never burns minutes on
 uploads. Linux publishing takes no part in this trust chain; the AppImage ships
 from `publish-linux.yml`.
 
@@ -193,12 +201,10 @@ pre-notarization attestation would bind a digest that never ships. The shipping
 DMG is attested in the `notarize` job **after** stapling, since stapling embeds the
 ticket into the file and therefore changes the released bytes.
 
-## OIDC subject alignment and the `prod` environment
+## The `prod` environment
 
-All three jobs declare `environment: prod`. Tag-triggered callers (`release.yml`)
-present an OIDC subject of `ref:refs/tags/<tag>`, which the signing role does not
-trust; the `prod` environment switches the subject to `environment:prod`, which it
-does. Nightly runs on `main` present either trusted form.
+All three jobs declare `environment: prod`, the only place the release secrets
+live, so a job that does not name it cannot read them.
 
 `prod` is protected by GitHub-side **ref restrictions** rather than required
 reviewers, which would stall the unattended scheduled nightly: a deployment
@@ -206,8 +212,33 @@ branch/tag policy limits the environment to `main` and `v*` tags, and a reposito
 ruleset restricts `v*` tag creation, update and deletion to repository admins. An
 unmerged commit can therefore only reach this environment if an admin deliberately
 tags it, which is the same principal who could merge it. The same policy is what
-scopes the Developer ID and Windows signing certificates, which is why they are
+scopes the R2 credentials, the CLI manifest key, the Apple notary credential and
+the Developer ID and Windows signing certificates, which is why they are all
 `prod` environment secrets.
+
+## R2 storage
+
+Both buckets live in Cloudflare R2 in the account named by `R2_ACCOUNT_ID`:
+
+- the **signing bucket** (`SIGNING_BUCKET`) is private, with no public access and
+  no custom domain;
+- the **distribution bucket** (`CLI_DIST_BUCKET`) has public access only through
+  its two custom domains, `download.warding.dev` and `updates.warding.dev`, both
+  in the `warding.dev` zone of the same account. Its `r2.dev` development URL
+  stays disabled.
+
+One R2 API token, created under **R2 > Manage API tokens** with **Object Read &
+Write** and scoped to exactly those two buckets, supplies `R2_ACCESS_KEY_ID` and
+`R2_SECRET_ACCESS_KEY`. R2 cannot narrow a token to a key prefix or to writes
+only, so treat it as able to rewrite every object in both buckets: keep it in
+`prod`, never in a repository secret.
+
+**Rotation** overlaps the two tokens, so publishing never stops: create the new
+token, replace both secrets, let the next nightly publish with it, then delete
+the old token.
+**If it is exposed**, delete the token at once (publishing stops until the new
+secrets land), create a replacement, and check the distribution bucket's recent
+objects against the published `SHA256SUMS` and feeds.
 
 ## The Developer ID certificate
 
@@ -236,18 +267,18 @@ project's Apple Developer team, exported with its private key as a `.p12`.
 The credential is an Apple app-specific password for the team's enrolled Apple
 account. Custody rules:
 
-- **CI copy: AWS Secrets Manager**, secret id `warding/signing/apple-notary`,
-  fetched by the same OIDC role that stages artifacts. The JSON carries
-  `apple_id`, `password` and `team_id`. It is never a GitHub secret and never a
-  workflow env literal: a dedicated secret store gives custody, an audit trail, and
-  a rotation lifecycle that a repository secret does not.
+- **CI copy: three `prod` environment secrets**, `APPLE_NOTARY_APPLE_ID`,
+  `APPLE_NOTARY_PASSWORD` and `APPLE_NOTARY_TEAM_ID`, handed only to the two
+  notarize steps. Never a repository secret and never a workflow env literal.
+  GitHub keeps no read audit trail for secrets, so the environment's ref policy
+  is the whole custody boundary; rotate on the schedule below rather than on
+  evidence of use.
 - **Local copy: the macOS Keychain**, via
   `xcrun notarytool store-credentials "WardingNotary" ...`. Every local command
   then uses `--keychain-profile "WardingNotary"`.
 - **Never paste the password** into chat, tickets, docs, or a shell command line
   that lands in a shared log. Type it only into the Apple portal, into
-  `store-credentials` in your own terminal, or into the Secrets Manager console
-  or CLI.
+  `store-credentials` in your own terminal, or into the environment secret.
 - **If it is ever exposed, revoke it immediately** at `appleid.apple.com`
   (app-specific passwords are individually revocable) and rotate.
 
@@ -263,8 +294,9 @@ The procedure takes a couple of minutes, quarterly or on any exposure:
 1. Sign in at `https://appleid.apple.com` with the enrolled account.
 2. Sign-In and Security, then App-Specific Passwords, then generate a new one.
    Label it with a version.
-3. Put the new value into the Secrets Manager secret yourself (console, or
-   `aws secretsmanager put-secret-value` in your own terminal).
+3. Put the new value into the `APPLE_NOTARY_PASSWORD` secret of the `prod`
+   environment yourself (repository settings, or
+   `gh secret set APPLE_NOTARY_PASSWORD --env prod` in your own terminal).
 4. **Verify before revoking the old one:**
    `xcrun notarytool history --apple-id <account> --team-id <team> --password <new>`
    must return history, or wait for the next green notarization run.
@@ -272,7 +304,7 @@ The procedure takes a couple of minutes, quarterly or on any exposure:
 6. Optionally refresh your local Keychain profile with `store-credentials`.
 
 Rotate immediately, without waiting for the schedule, when the credential has
-appeared anywhere outside the Keychain and Secrets Manager, when the owning Apple
+appeared anywhere outside the Keychain and the `prod` environment, when the owning Apple
 account holder departs, or when an automated secret-age finding names it.
 
 An App Store Connect API key is team-scoped rather than person-bound, so it has

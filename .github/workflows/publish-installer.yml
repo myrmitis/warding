@@ -52,19 +52,26 @@ jobs:
     name: Publish cli.sh
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Upstream only. Forks pushing to their own main have no publish role and
-    # nothing to publish to; skipping at the JOB level (rather than gating each
-    # step on a secret) is what keeps the fail-closed behaviour below honest.
-    if: github.repository == 'myrmitis/warding'
-    # REQUIRED: the publish role's OIDC trust accepts exactly two subjects --
-    # ref:refs/heads/main and environment:prod. See publish-cli.yml.
+    # Upstream only, and only once a distribution bucket exists. A fork, or this
+    # repository before its bucket is provisioned, has nothing to publish to;
+    # skipping at the JOB level (rather than gating each step on a secret) is
+    # what keeps the fail-closed behaviour below honest: with the bucket named,
+    # every other missing piece fails the run loudly.
+    if: github.repository == 'myrmitis/warding' && vars.CLI_DIST_BUCKET != ''
+    # The R2 credentials are secrets of the prod environment, whose protection
+    # rules gate every publish. See publish-cli.yml.
     environment: prod
     permissions:
       contents: read
-      id-token: write
     env:
       BUCKET: ${{ vars.CLI_DIST_BUCKET }}
       CDN_BASE: ${{ vars.CLI_CDN_BASE }}
+      # The AWS CLI speaks R2's S3 API at the account endpoint; the credentials
+      # are handed only to the step that uploads (see publish-cli.yml).
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL_S3: https://${{ vars.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -86,24 +93,28 @@ jobs:
       # present, so absence is a misconfiguration and must be loud.
       - name: Verify publish configuration
         env:
-          ROLE_ARN: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          HAS_R2_SECRET: ${{ secrets.R2_SECRET_ACCESS_KEY != '' && 'true' || '' }}
         run: |
           set -euo pipefail
           # main-only, enforced here rather than trusted from the trigger.
           # `push` is already filtered to main, but workflow_dispatch lets a
           # maintainer pick ANY ref in the Actions UI -- and `environment: prod`
-          # does not save us, because the environment switches any caller's OIDC
-          # subject to environment:prod (see publish-cli.yml). Without this
-          # check, dispatching from a feature branch would check that ref out
-          # and publish its cli.sh, making unreviewed shell publicly executable
-          # by every new user. Fails loudly rather than skipping, so a mistaken
-          # dispatch leaves a clear reason in the run log.
+          # does not save us unless its deployment-branch rule is set, which
+          # nothing here can check. Without this check, dispatching from a
+          # feature branch would check that ref out and publish its cli.sh,
+          # making unreviewed shell publicly executable by every new user.
+          # Fails loudly rather than skipping, so a mistaken dispatch leaves a
+          # clear reason in the run log.
           if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
             echo "::error::Refusing to publish from '${GITHUB_REF}'. cli.sh is published from main only -- it is publicly executable, so it must be reviewed and merged first."
             exit 1
           fi
           missing=""
-          [ -n "$ROLE_ARN" ] || missing="${missing} AWS_SIGNING_ROLE_ARN"
+          [[ "${R2_ACCOUNT_ID}" =~ ^[0-9a-f]{32}$ ]] || missing="${missing} vars.R2_ACCOUNT_ID"
+          [ -n "${R2_ACCESS_KEY_ID}" ] || missing="${missing} R2_ACCESS_KEY_ID"
+          [ -n "${HAS_R2_SECRET}" ] || missing="${missing} R2_SECRET_ACCESS_KEY"
           [ -n "${BUCKET}" ] || missing="${missing} vars.CLI_DIST_BUCKET"
           [ -n "${CDN_BASE}" ] || missing="${missing} vars.CLI_CDN_BASE"
           if [ -n "$missing" ]; then
@@ -112,8 +123,8 @@ jobs:
           fi
           test -f cli.sh || { echo "::error::cli.sh is missing from the checkout."; exit 1; }
 
-      # The strict installer ships fail-closed: until KMS provisioning pins a
-      # real key fingerprint, cli.sh carries CLI_MANIFEST_KEY_ID=UNCONFIGURED
+      # The strict installer ships fail-closed: until the release signing key
+      # is pinned, cli.sh carries CLI_MANIFEST_KEY_ID=UNCONFIGURED
       # and refuses every install before any network I/O. That is correct as a
       # repository contract, but publishing it would replace the live
       # `curl … | sh` one-liner with a script that hard-fails on all three
@@ -130,7 +141,7 @@ jobs:
             exit 1
           fi
           if [ "$key_id" = "UNCONFIGURED" ]; then
-            echo "::error::cli.sh pins CLI_MANIFEST_KEY_ID=UNCONFIGURED (fail-closed pre-KMS state). Publishing it would brick 'curl … | sh' for every channel. Complete packaging/signing/README.md steps 1-6 and pin the real key fingerprint first."
+            echo "::error::cli.sh pins CLI_MANIFEST_KEY_ID=UNCONFIGURED (fail-closed until the release key is pinned). Publishing it would brick 'curl … | sh' for every channel. Complete packaging/signing/README.md steps 1-6 and pin the real key fingerprint first."
             exit 1
           fi
           public_key_b64=$(sed -n 's/^CLI_MANIFEST_PUBLIC_KEY_B64="\(.*\)"$/\1/p' cli.sh | head -n 1)
@@ -204,19 +215,15 @@ jobs:
             exit 1
           fi
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
-          aws-region: us-west-2
-
-      # `--cache-control no-cache` is load-bearing, not cosmetic. The bucket
-      # root falls under the distribution's DEFAULT behaviour (CACHING_OPTIMIZED,
-      # 24h default TTL); feed/* is the only prefix with CACHING_DISABLED. Drop
-      # this header and CloudFront pins a stale installer at the edges for a day
-      # with no invalidation issued. With it, edges revalidate and the publish
-      # is live immediately.
+      # `--cache-control no-cache` is load-bearing, not cosmetic. The header is
+      # stored with the object and served on every response, so every cache --
+      # the CDN's edge included, should a cache rule ever cover the bucket root
+      # -- revalidates cli.sh instead of pinning a stale installer, and the
+      # publish is live immediately.
       - name: Publish cli.sh
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           aws s3api put-object \
@@ -228,7 +235,7 @@ jobs:
           echo "Uploaded s3://${BUCKET}/cli.sh"
 
       # "Uploaded" is not "live and correct". Read the object back over the
-      # PUBLIC CloudFront URL (not S3) and compare sha256 against the file we
+      # PUBLIC CDN URL (not the S3 endpoint) and compare sha256 against the file we
       # just published, so the check exercises what a user's curl actually
       # receives -- including the CDN path and the cache headers above. Retries
       # cover edge revalidation, then fail closed.
@@ -262,5 +269,5 @@ jobs:
             echo "Attempt ${attempt}: live sha256 '${ACTUAL:-<fetch failed>}' != '${EXPECTED}'; retrying..."
             sleep 10
           done
-          echo "::error::${URL} did not converge on the published bytes. The upload may have landed without going live -- check the CloudFront behaviour for the bucket root."
+          echo "::error::${URL} did not converge on the published bytes. The upload may have landed without going live -- check the custom domain and any cache rule covering the bucket root."
           exit 1

@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import argparse
 import base64
 import hashlib
-import importlib.util
 import json
 import os
 import re
@@ -29,6 +27,7 @@ VERSION = "1.2.3"
 CHANNEL = "stable"
 WHEEL_NAME = f"warding-{VERSION}-py3-none-any.whl"
 CDN_BASE = "https://fixtures.invalid"
+SIGNING_KEY_ENV = "CLI_MANIFEST_SIGNING_KEY"
 
 
 def _find_openssl() -> str | None:
@@ -652,14 +651,10 @@ def test_installer_and_repository_public_key_are_one_fail_closed_contract() -> N
         assert b"UNCONFIGURED" not in public_bytes
 
 
-def test_kms_signer_requires_matching_non_exportable_key_and_verifies_output(
-    tmp_path: Path, test_key: SigningKey, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    wheel = tmp_path / WHEEL_NAME
-    wheel.write_bytes(b"kms-signed wheel")
-    payload = tmp_path / "payload.json"
-    signature = tmp_path / "signature.bin"
-    manifest = tmp_path / "manifest.json"
+def _signing_payload(root: Path, key: SigningKey) -> Path:
+    wheel = root / WHEEL_NAME
+    wheel.write_bytes(b"release-signed wheel")
+    payload = root / "payload.json"
     _run_helper(
         "payload",
         "--channel",
@@ -675,70 +670,86 @@ def test_kms_signer_requires_matching_non_exportable_key_and_verifies_output(
         "--pub-date",
         "2026-08-01T00:00:00Z",
         "--public-key",
-        str(test_key.public),
+        str(key.public),
         "--output",
         str(payload),
     )
-    subprocess.run(
-        [
-            "openssl",
-            "dgst",
-            "-sha256",
-            "-sign",
-            str(test_key.private),
-            "-out",
-            str(signature),
-            str(payload),
-        ],
-        check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+    return payload
+
+
+def _sign(
+    payload: Path, key: SigningKey, manifest: Path, signing_key: str | None
+) -> subprocess.CompletedProcess[str]:
+    env = dict(os.environ)
+    env.pop(SIGNING_KEY_ENV, None)
+    if signing_key is not None:
+        env[SIGNING_KEY_ENV] = signing_key
+    return _run_helper(
+        "sign",
+        "--payload",
+        str(payload),
+        "--private-key-env",
+        SIGNING_KEY_ENV,
+        "--public-key",
+        str(key.public),
+        "--output",
+        str(manifest),
+        check=False,
+        env=env,
     )
-    public_der = subprocess.run(
-        ["openssl", "pkey", "-pubin", "-in", str(test_key.public), "-outform", "DER"],
+
+
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="the signer runs on the Linux publish runner and hands OpenSSL its key "
+    "on /dev/stdin, which a native Windows OpenSSL cannot open",
+)
+def test_signer_signs_with_the_release_key_and_verifies_its_output(
+    tmp_path: Path, test_key: SigningKey
+) -> None:
+    payload = _signing_payload(tmp_path, test_key)
+    manifest = tmp_path / "manifest.json"
+
+    signed = _sign(payload, test_key, manifest, test_key.private.read_text(encoding="ascii"))
+
+    assert signed.returncode == 0, signed.stderr
+    assert json.loads(manifest.read_text(encoding="utf-8"))["key_id"] == test_key.key_id
+    verified = _verify_manifest(manifest, test_key)
+    assert verified.returncode == 0, verified.stderr
+
+
+def test_signer_refuses_a_key_that_is_not_the_committed_trust_root(
+    tmp_path: Path, test_key: SigningKey
+) -> None:
+    other = subprocess.run(
+        ["openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:2048"],
         check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
+        encoding="ascii",
     ).stdout
+    payload = _signing_payload(tmp_path, test_key)
+    manifest = tmp_path / "manifest.json"
 
-    spec = importlib.util.spec_from_file_location("cli_manifest_test_helper", HELPER)
-    assert spec is not None and spec.loader is not None
-    helper = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(helper)
+    refused = _sign(payload, test_key, manifest, other)
 
-    key_arn = "arn:aws:kms:us-west-2:000000000000:key/test"
-    aws_calls: list[list[str]] = []
+    assert refused.returncode == 1
+    assert "does not match the committed public key" in refused.stderr
+    assert not manifest.exists()
 
-    def fake_aws_json(args: list[str]) -> dict[str, object]:
-        aws_calls.append(args)
-        if args[:2] == ["kms", "get-public-key"]:
-            return {
-                "KeyUsage": "SIGN_VERIFY",
-                "KeySpec": "RSA_3072",
-                "SigningAlgorithms": ["RSASSA_PKCS1_V1_5_SHA_256"],
-                "PublicKey": base64.b64encode(public_der).decode("ascii"),
-            }
-        if args[:2] == ["kms", "sign"]:
-            return {
-                "Signature": base64.b64encode(signature.read_bytes()).decode("ascii")
-            }
-        raise AssertionError(f"unexpected AWS CLI arguments: {args}")
 
-    monkeypatch.setattr(helper, "_run_aws_json", fake_aws_json)
-    helper._kms_sign_command(
-        argparse.Namespace(
-            payload=payload,
-            key_arn=key_arn,
-            public_key=test_key.public,
-            output=manifest,
-        )
-    )
+@pytest.mark.parametrize("signing_key", [None, "", "  \n"])
+def test_signer_refuses_to_run_without_a_key(
+    tmp_path: Path, test_key: SigningKey, signing_key: str | None
+) -> None:
+    payload = _signing_payload(tmp_path, test_key)
+    manifest = tmp_path / "manifest.json"
 
-    assert [call[:2] for call in aws_calls] == [
-        ["kms", "get-public-key"],
-        ["kms", "sign"],
-    ]
-    assert json.loads(manifest.read_text(encoding="utf-8"))["key_id"] == test_key.key_id
+    refused = _sign(payload, test_key, manifest, signing_key)
+
+    assert refused.returncode == 1
+    assert f"signing key is not set in {SIGNING_KEY_ENV}" in refused.stderr
+    assert not manifest.exists()
 
 
 def _workflow_steps() -> list[dict]:
@@ -750,20 +761,40 @@ def _workflow_step(name: str) -> dict:
     return next(step for step in _workflow_steps() if step.get("name") == name)
 
 
-def test_publish_workflow_fails_closed_and_uses_non_exportable_kms_signing() -> None:
+def _references(step: dict, secret: str) -> bool:
+    return f"secrets.{secret}" in json.dumps(step)
+
+
+def test_publish_workflow_fails_closed_and_keeps_the_signing_key_apart() -> None:
     steps = _workflow_steps()
     names = [step.get("name") for step in steps]
     guard = _workflow_step("Refuse partial CLI signing configuration")
+    r2_check = _workflow_step("Check R2 configuration")
     signer = _workflow_step("Build and sign CLI artifact manifest")
     publisher = _workflow_step("Publish wheel and signed channel manifest")
 
-    assert names.index("Configure AWS credentials") < names.index(signer["name"])
+    assert names.index(r2_check["name"]) < names.index(signer["name"])
     assert names.index(signer["name"]) < names.index(publisher["name"])
-    assert guard["if"] == "env.HAS_PUBLISH_ROLE != env.HAS_MANIFEST_KEY"
-    assert "kms-sign" in signer["run"]
-    assert "CLI_MANIFEST_SIGNING_KEY_ARN" in CLI_WORKFLOW.read_text(encoding="utf-8")
+    assert guard["if"] == "env.HAS_PUBLISH_CREDENTIALS != env.HAS_MANIFEST_KEY"
+    assert "cli-manifest.py sign" in signer["run"]
+    assert f"--private-key-env {SIGNING_KEY_ENV}" in signer["run"]
+    assert signer["env"][SIGNING_KEY_ENV] == "${{ secrets.CLI_MANIFEST_SIGNING_KEY }}"
+    # The key reaches the helper as step environment only: never a file, an
+    # argument, or GITHUB_ENV, where every later step could read it.
+    assert "GITHUB_ENV" not in signer["run"]
     assert "PRIVATE_KEY" not in signer["run"]
-    assert "AWS_SECRET_ACCESS_KEY" not in signer["run"]
+
+    # The signing key and the storage credential never share a step, so neither
+    # step can both mint a valid manifest and publish it.
+    assert [s["name"] for s in steps if _references(s, "CLI_MANIFEST_SIGNING_KEY")] == [
+        signer["name"]
+    ]
+    uploaders = [s for s in steps if _references(s, "R2_SECRET_ACCESS_KEY")]
+    assert publisher in uploaders
+    assert signer not in uploaders
+    for step in uploaders:
+        assert step["env"]["AWS_SECRET_ACCESS_KEY"] == "${{ secrets.R2_SECRET_ACCESS_KEY }}"
+        assert step["env"]["AWS_ACCESS_KEY_ID"] == "${{ secrets.R2_ACCESS_KEY_ID }}"
 
 
 def test_publish_workflow_uses_a_deterministic_manifest_publication_date() -> None:
@@ -855,8 +886,8 @@ def test_verify_refuses_a_valid_manifest_from_another_artifact_host(
 def test_installer_publish_refuses_an_unconfigured_trust_root() -> None:
     """Merging the strict cli.sh must not brick the live curl one-liner.
 
-    publish-installer.yml path-triggers on cli.sh pushes to main. Until KMS
-    provisioning pins a real fingerprint, cli.sh is deliberately fail-closed
+    publish-installer.yml path-triggers on cli.sh pushes to main. Until the
+    release key is pinned, cli.sh is deliberately fail-closed
     (CLI_MANIFEST_KEY_ID=UNCONFIGURED refuses every install), so the publish
     lane must refuse to replace the live installer with it. This pins the
     guard's presence, its refusal semantics, and its position before any
@@ -902,7 +933,7 @@ def test_installer_publish_refuses_an_unconfigured_trust_root() -> None:
     upload_indexes = [
         index
         for index, step in enumerate(steps)
-        if "aws" in str(step.get("run", "")) or "credentials" in str(step.get("uses", ""))
+        if "AWS_SECRET_ACCESS_KEY" in step.get("env", {}) or "aws s3" in str(step.get("run", ""))
     ]
     assert upload_indexes, "publish lane must still publish"
     assert names.index(guard["name"]) < names.index(feed_gate["name"]) < min(upload_indexes)
@@ -936,7 +967,7 @@ def test_installer_authenticates_before_reading_or_downloading_artifact() -> Non
 def test_publish_workflow_gates_all_artifact_work_before_side_effects() -> None:
     steps = _workflow_steps()
     assert steps[0]["name"] == "Refuse partial CLI signing configuration"
-    complete_config = "env.HAS_PUBLISH_ROLE && env.HAS_MANIFEST_KEY"
+    complete_config = "env.HAS_PUBLISH_CREDENTIALS && env.HAS_MANIFEST_KEY"
     for name in (
         "Checkout manifest verifier contract",
         "Download wheel artifact",
@@ -945,10 +976,10 @@ def test_publish_workflow_gates_all_artifact_work_before_side_effects() -> None:
         assert _workflow_step(name)["if"] == complete_config
 
     promote = (
-        "${{ env.HAS_PUBLISH_ROLE && env.HAS_MANIFEST_KEY && inputs.promote }}"
+        "${{ env.HAS_PUBLISH_CREDENTIALS && env.HAS_MANIFEST_KEY && inputs.promote }}"
     )
     fresh_build = (
-        "${{ env.HAS_PUBLISH_ROLE && env.HAS_MANIFEST_KEY && !inputs.promote }}"
+        "${{ env.HAS_PUBLISH_CREDENTIALS && env.HAS_MANIFEST_KEY && !inputs.promote }}"
     )
     assert _workflow_step("Verify immutable promotion bundle")["if"] == promote
     assert _workflow_step("Attest wheel provenance")["if"] == fresh_build

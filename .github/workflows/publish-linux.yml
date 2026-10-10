@@ -11,7 +11,7 @@ name: Publish Linux Desktop (reusable)
 #
 # Trust posture: Linux has no Gatekeeper equivalent, so there is no signing
 # gate to wait on. This lane attests its own signed SLSA provenance for the
-# exact bytes it uploads (before anything reaches S3), so a CDN-served
+# exact bytes it uploads (before anything reaches R2), so a CDN-served
 # AppImage always carries verifiable provenance even when the macOS
 # sign-and-notarize workflow (which independently attests the AppImage from
 # the same build artifact) fails or is cancelled. The same bytes also ship
@@ -19,7 +19,7 @@ name: Publish Linux Desktop (reusable)
 #
 # Key properties:
 #   - The versioned key desktop/<channel>/<version>/Warding-<arch>.<ext>
-#     is immutable-cached by CloudFront and is never republished with
+#     is immutable-cached by the CDN and is never republished with
 #     different bytes (--if-none-match conditional write; a 412 on a job
 #     re-run keeps the existing object and continues idempotently).
 #   - The mutable alias desktop/<channel>/latest/Warding-<arch>.<ext>
@@ -44,7 +44,7 @@ on:
         required: true
         type: string
       version:
-        description: "Version label used in S3 keys"
+        description: "Version label used in object keys"
         required: true
         type: string
       arch:
@@ -80,11 +80,13 @@ on:
         type: string
         default: ""
     secrets:
-      # The only secret this workflow reads. Declared so a caller can pass just
-      # this one rather than `secrets: inherit`, which would hand a reusable
+      # The only secrets this workflow reads. Declared so a caller can pass just
+      # these rather than `secrets: inherit`, which would hand a reusable
       # workflow every secret in the repository. Not `required`, because the job
-      # skips itself when it is absent (a fork has no signing role).
-      AWS_SIGNING_ROLE_ARN:
+      # skips itself when they are absent (a fork has no R2 credentials).
+      R2_ACCESS_KEY_ID:
+        required: false
+      R2_SECRET_ACCESS_KEY:
         required: false
 
 permissions:
@@ -104,13 +106,18 @@ jobs:
     if: ${{ inputs.publish && vars.CLI_DIST_BUCKET != '' && vars.CLI_CDN_BASE != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # REQUIRED: the publish role's OIDC trust accepts exactly two subjects,
-    # ref:refs/heads/main and environment:prod. Declaring the environment
-    # keeps tag-triggered (release) runs on the accepted subject, same as
-    # publish-cli.yml and every job in sign-and-notarize.yml.
+    # The R2 credentials are secrets of the prod environment, whose protection
+    # rules gate every publish, same as publish-cli.yml and every job in
+    # sign-and-notarize.yml.
     environment: prod
     env:
-      HAS_SIGNING_SECRETS: ${{ secrets.AWS_SIGNING_ROLE_ARN != '' && 'true' || '' }}
+      HAS_SIGNING_SECRETS: ${{ secrets.R2_SECRET_ACCESS_KEY != '' && 'true' || '' }}
+      # The AWS CLI speaks R2's S3 API at the account endpoint; the credentials
+      # are handed only to the steps that upload (see publish-cli.yml).
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL_S3: https://${{ vars.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
       GH_TOKEN: ${{ github.token }}
       CHANNEL: ${{ inputs.channel }}
       VERSION: ${{ inputs.version }}
@@ -189,12 +196,15 @@ jobs:
               ;;
           esac
 
-      - name: Configure AWS credentials
+      - name: Check R2 configuration
         if: env.HAS_SIGNING_SECRETS
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
-          aws-region: us-west-2
+        env:
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+        run: |
+          if [[ ! "${R2_ACCOUNT_ID}" =~ ^[0-9a-f]{32}$ ]]; then
+            echo "::error::vars.R2_ACCOUNT_ID must be the 32-character Cloudflare account id."
+            exit 1
+          fi
 
       - name: Download desktop build artifact
         if: env.HAS_SIGNING_SECRETS
@@ -290,7 +300,7 @@ jobs:
           fi
 
       # Signed SLSA provenance for the EXACT bytes this lane uploads,
-      # attested before anything reaches S3. This closes the decoupling
+      # attested before anything reaches R2. This closes the decoupling
       # gap: sign-and-notarize.yml independently attests the AppImage from
       # the same build artifact, but that workflow can fail or be cancelled
       # while this lane still publishes (per-platform releases) -- without
@@ -312,12 +322,15 @@ jobs:
             --signer-workflow "${{ github.repository }}/.github/workflows/publish-linux.yml"
 
       # Same never-republish discipline as the mac zip/DMG and the cli/*
-      # wheels: the versioned key is immutable-cached by CloudFront and must
+      # wheels: the versioned key is immutable-cached by the CDN and must
       # never carry different bytes. --if-none-match makes the write
       # conditional; a 412 on a job re-run keeps the existing object and
       # continues idempotently.
       - name: Publish artifact to distribution bucket
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           ARTIFACT_KEY="desktop/${CHANNEL}/${VERSION}/${LINUX_BASENAME}.${LINUX_EXT}"
@@ -339,8 +352,8 @@ jobs:
               # same version, and proceeding would let the mutable latest
               # alias (written below) diverge from the immutable versioned
               # key. Same discipline as publish-cli.yml's 412 path; the
-              # compare goes through the public CDN because the publish
-              # role's S3 read-back grant covers cli/* only.
+              # compare goes through the public CDN, so it checks exactly
+              # the bytes clients receive.
               echo "Key already published (job re-run) -- verifying existing bytes match this build: ${ARTIFACT_KEY}"
               curl -fsSL --retry 3 "${{ vars.CLI_CDN_BASE }}/${ARTIFACT_KEY}" -o /tmp/published.artifact
               PUBLISHED_SHA=$(sha256sum /tmp/published.artifact | awk '{print $1}')
@@ -365,10 +378,9 @@ jobs:
       # the 412 path verified identical bytes on a re-run), and BEFORE the
       # latest alias, mirroring the mac lane's go-live order: the feed is
       # the updater's go-live switch, the alias is a convenience that must
-      # never point ahead of it. Mutable key, served no-cache by the
-      # feed/* CloudFront behavior (the explicit header keeps downstream
-      # caches honest). Out-of-order overwrites are prevented by the
-      # caller workflows' per-channel concurrency groups.
+      # never point ahead of it. Mutable key; its explicit short max-age
+      # bounds every cache, the CDN's included. Out-of-order overwrites are
+      # prevented by the caller workflows' per-channel concurrency groups.
       #
       # Two properties are load-bearing (see test_publish_feed_contract.py):
       #   - sha512 is BASE64 of the raw digest (openssl -binary | base64),
@@ -387,6 +399,9 @@ jobs:
       # other. FEED_FILE is resolved fail-closed in the first step.
       - name: Write update feed
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           ARTIFACT_SHA512=$(openssl dgst -sha512 -binary "${ARTIFACT_PATH}" | base64 -w 0)
@@ -433,6 +448,9 @@ jobs:
       # of the go-live switch.
       - name: Update latest artifact alias
         if: env.HAS_SIGNING_SECRETS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
           LATEST_ARTIFACT_KEY="desktop/${CHANNEL}/latest/${LINUX_BASENAME}.${LINUX_EXT}"

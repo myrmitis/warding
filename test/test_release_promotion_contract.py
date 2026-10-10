@@ -198,10 +198,10 @@ def test_file_publishers_verify_manifest_and_prior_provenance() -> None:
     cli_attest = _step(CLI, "publish-cli", "Attest wheel provenance")
     cli_verify = _step(CLI, "publish-cli", "Verify promoted wheel provenance")
     cli_promote = (
-        "${{ env.HAS_PUBLISH_ROLE && env.HAS_MANIFEST_KEY && inputs.promote }}"
+        "${{ env.HAS_PUBLISH_CREDENTIALS && env.HAS_MANIFEST_KEY && inputs.promote }}"
     )
     cli_fresh = (
-        "${{ env.HAS_PUBLISH_ROLE && env.HAS_MANIFEST_KEY && !inputs.promote }}"
+        "${{ env.HAS_PUBLISH_CREDENTIALS && env.HAS_MANIFEST_KEY && !inputs.promote }}"
     )
     assert cli_manifest["if"] == cli_promote
     assert cli_attest["if"] == cli_fresh

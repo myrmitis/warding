@@ -11,7 +11,7 @@
 #
 # Installs the prebuilt `warding` wheel for a release channel. It resolves the
 # channel feed, verifies its RSA-SHA256 signature against the public key pinned
-# below, downloads the wheel over HTTPS from CloudFront, verifies its SHA-256
+# below, downloads the wheel over HTTPS from the CDN, verifies its SHA-256
 # against the signed digest, then installs it (pipx if available, else a managed
 # venv). No unsigned/checksum-only fallback exists. Unlike install.sh (which
 # builds from a git clone), this pulls the published wheel.
@@ -71,7 +71,7 @@ UV_SHA_MACOS_X64="ff90020b554cf02ef8008535c9aab6ef27bb7be6b075359300dec79c361df8
 UV_SHA_MACOS_ARM64="437a7d498dd6564d5bf986074249ba1fc600e73da55ae04d7bd4c24d5f149b95"
 
 # Offline trust root for CLI artifact manifests. These two values are replaced
-# together during the operational KMS-key enablement documented in
+# together when the release signing key is enabled, as documented in
 # packaging/signing/README.md, and must stay in lockstep with
 # packaging/signing/cli-manifest-public.pem -- KEY_ID is the SHA-256 of that
 # PEM's DER encoding, so a mismatched pair fails closed before any network I/O.

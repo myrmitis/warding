@@ -347,7 +347,7 @@ jobs:
   # Publishes the release wheel to the insider/stable CLI channel (cli/ +
   # latest-cli.json + PEP 503 index) -- previously release wheels only
   # reached GitHub Releases, so pip/cli.sh users could never track insider
-  # or stable. Depends only on the wheel and its CLI-specific KMS manifest signer
+  # or stable. Depends only on the wheel and its CLI-specific manifest signing key
   # (not build-desktop, Developer ID signing, or Apple notarization), so a macOS
   # signing failure never blocks the CLI release.
   publish-cli:
@@ -377,7 +377,7 @@ jobs:
   # trust chain, and needing only build-desktop means neither a wheel nor a
   # macOS signing failure can block it (per-platform releases).
   #
-  # ONE JOB PER ARCH, not a matrix over `arch`: each arch owns a distinct S3
+  # ONE JOB PER ARCH, not a matrix over `arch`: each arch owns a distinct object
   # key, feed file and alias, and separate jobs keep the per-arch publish
   # status visible in the run graph.
   #
@@ -385,7 +385,7 @@ jobs:
   # wrong: it decouples the PUBLISH steps, not the BUILDS. Both publishers
   # still `needs: build-desktop`, which is the reusable-workflow caller job
   # aggregating BOTH matrix legs, so a failed arm64 build skips the x64
-  # publish too. That is deliberate for now -- the versioned S3 keys are
+  # publish too. That is deliberate for now -- the versioned object keys are
   # immutable, so publishing half a release and then discovering the other
   # arch never built is the worse failure -- but it does mean a broken arm64
   # build can hold up an x64 release, which was not true before this lane
@@ -414,7 +414,8 @@ jobs:
       promote: ${{ needs.version.outputs.channel == 'stable' }}
       promotion_base_version: ${{ needs.version.outputs.base_version }}
     secrets:
-      AWS_SIGNING_ROLE_ARN: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
 
   publish-linux-appimage-arm64:
     name: Publish Linux appimage (${{ needs.version.outputs.channel }} channel · arm64)
@@ -438,7 +439,8 @@ jobs:
       promote: ${{ needs.version.outputs.channel == 'stable' }}
       promotion_base_version: ${{ needs.version.outputs.base_version }}
     secrets:
-      AWS_SIGNING_ROLE_ARN: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
 
   publish-linux-deb-x64:
     name: Publish Linux deb (${{ needs.version.outputs.channel }} channel · x64)
@@ -462,7 +464,8 @@ jobs:
       promote: ${{ needs.version.outputs.channel == 'stable' }}
       promotion_base_version: ${{ needs.version.outputs.base_version }}
     secrets:
-      AWS_SIGNING_ROLE_ARN: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
 
   publish-linux-deb-arm64:
     name: Publish Linux deb (${{ needs.version.outputs.channel }} channel · arm64)
@@ -486,7 +489,8 @@ jobs:
       promote: ${{ needs.version.outputs.channel == 'stable' }}
       promotion_base_version: ${{ needs.version.outputs.base_version }}
     secrets:
-      AWS_SIGNING_ROLE_ARN: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
 
   publish-linux-rpm-x64:
     name: Publish Linux rpm (${{ needs.version.outputs.channel }} channel · x64)
@@ -510,7 +514,8 @@ jobs:
       promote: ${{ needs.version.outputs.channel == 'stable' }}
       promotion_base_version: ${{ needs.version.outputs.base_version }}
     secrets:
-      AWS_SIGNING_ROLE_ARN: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
 
   publish-linux-rpm-arm64:
     name: Publish Linux rpm (${{ needs.version.outputs.channel }} channel · arm64)
@@ -534,7 +539,8 @@ jobs:
       promote: ${{ needs.version.outputs.channel == 'stable' }}
       promotion_base_version: ${{ needs.version.outputs.base_version }}
     secrets:
-      AWS_SIGNING_ROLE_ARN: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
 
   # ── Windows installer publish ─────────────────────────────────────────
   # INSIDER ONLY, and that is a deliberate boundary rather than an omission.
@@ -591,11 +597,12 @@ jobs:
       promote: ${{ needs.version.outputs.channel == 'stable' }}
       promotion_base_version: ${{ needs.version.outputs.base_version }}
     secrets:
-      AWS_SIGNING_ROLE_ARN: ${{ secrets.AWS_SIGNING_ROLE_ARN }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
 
   # ── Docker image publish ──────────────────────────────────────────────
   # Multi-arch gateway image from the SAME wheel publish-cli ships, pushed
-  # to ghcr.io with the workflow's own GITHUB_TOKEN (no AWS credentials).
+  # to ghcr.io with the workflow's own GITHUB_TOKEN (no bucket credentials).
   # Depends only on the wheel — a macOS signing failure never blocks the
   # image (per-platform releases). Channel alias insider|stable; stable
   # also moves :latest.
@@ -629,7 +636,7 @@ jobs:
 
   # Caller job for the reusable sign-and-notarize workflow: a workflow_call
   # callee can never exceed the caller job's permissions, so the caller must
-  # grant id-token explicitly. The signing job holds AWS creds (id-token)
+  # grant id-token explicitly. The signing job holds the bucket credential
   # but never contents:write -- that lives only in the separate
   # github-release job below (least-privilege split enforced by
   # test_workflow_permissions.py).
