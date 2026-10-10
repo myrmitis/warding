@@ -16826,6 +16826,59 @@ async def test_create_refuses_a_macos_case_alias_for_the_same_directory(tmp_path
 
 
 @pytest.mark.asyncio
+async def test_create_stays_inside_its_root_when_realpath_keeps_a_long_path_prefix(
+    tmp_path, monkeypatch
+):
+    """A spec directory created mid-resolution still lands under its root.
+
+    Windows realpath resolves a missing path in two lookups and keeps the
+    extended-length prefix when a concurrent create makes them disagree. Unless that
+    prefix is dropped, the losing create of a racing case-variant pair is refused as
+    ``spec_path_outside_root`` rather than as a conflict. The race is simulated by
+    returning the prefixed spelling for every spec path that does not exist yet.
+    """
+    project = tmp_path / "proj"
+    project.mkdir()
+    client, state = _create_client(monkeypatch, tmp_path)
+    real_realpath = os.path.realpath
+    specs_root = os.path.join(real_realpath(project), ".kiro", "specs")
+
+    def realpath_racing_a_create(path, *args, **kwargs):
+        resolved = real_realpath(path, *args, **kwargs)
+        if resolved.startswith(specs_root) and not os.path.exists(resolved):
+            return "\\\\?\\" + resolved
+        return resolved
+
+    monkeypatch.setattr(routes.os.path, "realpath", realpath_racing_a_create)
+
+    await client.start_server()
+    try:
+        client.app["state"] = state
+        response = await client.post(
+            f"{_BASE}/specs",
+            json={"name": "Raced", "working_dir": str(project), "spec_type": "feature"},
+        )
+        body = await response.json()
+    finally:
+        await client.close()
+
+    assert response.status == 201, body
+    assert body["spec_dir"] == os.path.join(specs_root, "Raced")
+
+
+def test_without_extended_prefix_keeps_only_paths_that_need_it():
+    """Drive and UNC paths lose the prefix; a volume-GUID path cannot, so it keeps it."""
+    prefix = "\\\\?\\"
+    absolute = os.path.abspath(os.sep + "proj")
+    assert routes._without_extended_prefix(prefix + absolute) == absolute
+    assert routes._without_extended_prefix(absolute) == absolute
+    volume = prefix + "Volume{00000000-0000-0000-0000-000000000000}" + os.sep + "proj"
+    assert routes._without_extended_prefix(volume) == volume
+    unc = prefix + "UNC\\server\\share\\proj"
+    assert routes._without_extended_prefix(unc) == "\\\\server\\share\\proj"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("import_existing", [False, True])
 async def test_create_refuses_an_equivalent_orphan_ledger_before_inserting(
     tmp_path, monkeypatch, import_existing
