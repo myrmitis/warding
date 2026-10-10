@@ -1303,36 +1303,38 @@ class TestCopyAppTree:
         assert app_lifecycle_lock("app-b") is not lock_a
 
     @pytest.mark.asyncio
-    async def test_install_off_loop_does_not_block_event_loop(self, tmp_path, app_home):
-        """Heartbeat latency stays low while a many-file install runs off-loop."""
+    async def test_install_off_loop_does_not_block_event_loop(
+        self, tmp_path, app_home, monkeypatch
+    ):
+        """The event loop keeps running while an off-loop install copies the tree.
+
+        The copy waits for a callback scheduled on the loop before it starts, so it
+        only proceeds once the loop has run while the copy is in progress. A copy on
+        the loop thread never sees the callback and fails at the backstop. A
+        stopwatch on the loop's heartbeat cannot tell that apart from a loaded runner.
+        """
         import asyncio
-        import time
+        import threading
+
+        from warding.apps import manager
 
         src = _make_app_source(tmp_path, name="fat-app")
-        payload = src / "payload"
-        payload.mkdir()
-        for i in range(2000):
-            (payload / f"f{i}.txt").write_text(str(i))
+        loop = asyncio.get_running_loop()
+        real_copytree = manager.shutil.copytree
+        loop_ran_during_copy: list[bool] = []
 
-        gaps: list[float] = []
+        def copytree_once_the_loop_runs(*args, **kwargs):
+            ran = threading.Event()
+            loop.call_soon_threadsafe(ran.set)
+            # A backstop, not a budget: a free loop runs the callback at once.
+            loop_ran_during_copy.append(ran.wait(timeout=30.0))
+            return real_copytree(*args, **kwargs)
 
-        async def heartbeat():
-            prev = time.monotonic()
-            while True:
-                await asyncio.sleep(0.01)
-                now = time.monotonic()
-                gaps.append(now - prev)
-                prev = now
+        monkeypatch.setattr(manager.shutil, "copytree", copytree_once_the_loop_runs)
+        result = await asyncio.to_thread(install_app, src)
 
-        hb = asyncio.ensure_future(heartbeat())
-        try:
-            result = await asyncio.to_thread(install_app, src)
-        finally:
-            hb.cancel()
         assert result.ok, result.error
-        # The watchdog threshold is 30s; anything close to that (or even 1s)
-        # would indicate the copy ran on the loop.
-        assert max(gaps) < 1.0
+        assert loop_ran_during_copy and all(loop_ran_during_copy)
 
     def test_orphaned_partial_install_self_heals(self, tmp_path, app_home):
         """dest exists with junk but no installed metadata → fresh install wins."""
