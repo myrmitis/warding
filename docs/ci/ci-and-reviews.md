@@ -464,4 +464,3 @@ resists this:
 
 The net effect: expensive or irreversible risk blocks, and everything else is advice a
 human can take or defer. "More mechanism" is deliberately not a demand that can block.
-
