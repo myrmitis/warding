@@ -83,8 +83,11 @@ jobs:
   # Keep the native installer fast without coupling the check to a custom UI.
   # This builds the real Windows artifact, installs it silently, verifies the
   # registration and payload, and fails if extraction exceeds five minutes.
+  # It runs only when a desktop-packaging input changed (see desktop-matrix).
   build-windows-installer:
     name: Build Windows Installer (x64)
+    needs: [desktop-matrix]
+    if: needs.desktop-matrix.outputs.desktop == 'true'
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -129,12 +132,11 @@ jobs:
             website/electron/runtime-evidence/native-install-mode.png
           if-no-files-found: warn
 
-  # Resolve which desktop platforms a PR builds. Linux (both arches) ALWAYS
-  # builds -- it is comparatively cheap and catches cross-platform bundle
-  # breakage, and cannot be cross-compiled. The macos-15 leg bills at ~10x and
-  # its UNIQUE coverage is macOS packaging (DMG, universal/Rosetta, mac
-  # electron-builder), so on a pull_request it builds only when a macOS-
-  # packaging input changed; push / release events always build it. The release
+  # Resolve which desktop platforms a pull request or a push to main builds.
+  # Linux x64 ALWAYS builds: it is the cheapest leg and catches cross-platform
+  # bundle breakage on every change. The macos-15 and ubuntu-22.04-arm legs and
+  # the Windows installer build only when a desktop-packaging input changed,
+  # because their unique coverage is packaging for that platform. The release
   # lane (build-desktop.yml) still ships every platform unconditionally.
   desktop-matrix:
     name: Resolve desktop matrix
@@ -144,34 +146,39 @@ jobs:
       pull-requests: read
     outputs:
       os: ${{ steps.compute.outputs.os }}
+      desktop: ${{ steps.compute.outputs.desktop }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # On a push, paths-filter compares against the commit before the push.
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
         with:
           filters: |
             desktop:
               - 'website/electron/**'
               - 'website/package.json'
               - 'website/package-lock.json'
-              - 'build-desktop.sh'
+              - 'packaging/**'
               - 'Makefile'
               - 'pyproject.toml'
               - 'setup.cfg'
+              - '.github/scripts/test-windows-installer.ps1'
               - '.github/workflows/build.yml'
               - '.github/workflows/build-desktop.yml'
       - id: compute
         env:
-          IS_PR: ${{ github.event_name == 'pull_request' }}
           DESKTOP_CHANGED: ${{ steps.filter.outputs.desktop }}
+          FILTERED: ${{ steps.filter.outcome == 'success' }}
         run: |
-          # Linux legs are unconditional; macos-15 only when a packaging-relevant
-          # path changed on a PR (always on push / non-PR events).
-          if [ "$IS_PR" != "true" ] || [ "$DESKTOP_CHANGED" = "true" ]; then
+          # Linux x64 is unconditional. Every other platform builds when a
+          # desktop-packaging path changed, or when no filter ran (fail safe).
+          if [ "$FILTERED" != "true" ] || [ "$DESKTOP_CHANGED" = "true" ]; then
+            echo 'desktop=true' >> "$GITHUB_OUTPUT"
             echo 'os=["macos-15","ubuntu-22.04","ubuntu-22.04-arm"]' >> "$GITHUB_OUTPUT"
           else
-            echo 'os=["ubuntu-22.04","ubuntu-22.04-arm"]' >> "$GITHUB_OUTPUT"
+            echo 'desktop=false' >> "$GITHUB_OUTPUT"
+            echo 'os=["ubuntu-22.04"]' >> "$GITHUB_OUTPUT"
           fi
 
   build-desktop:
@@ -183,10 +190,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Resolved by the desktop-matrix job: both Linux arches always (Linux
+        # Resolved by the desktop-matrix job: Linux x64 always, plus macos-15
+        # and ubuntu-22.04-arm when a desktop-packaging input changed. Linux
         # cannot be cross-compiled -- build-desktop.sh RUNS the interpreter it
-        # provisions -- so each arch needs its own runner), plus macos-15 when a
-        # macOS-packaging input changed or on any non-PR event. build-desktop.yml
+        # provisions -- so each arch needs its own runner. build-desktop.yml
         # stays the release matrix that ships every platform unconditionally.
         os: ${{ fromJSON(needs.desktop-matrix.outputs.os) }}
     steps:

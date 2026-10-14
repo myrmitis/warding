@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # The weekly run (or a manual dispatch) is the only one that adds the Python
+  # 3.10 and Windows backend lanes. Pull requests and pushes run 3.12 on Linux.
+  schedule:
+    - cron: "0 5 * * 1" # Mondays 05:00 UTC
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -66,8 +71,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # A weekly or dispatched run has no diff to classify: it skips the filter
+      # and runs the full matrix (FULL_RUN below).
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
         with:
           # 'some-with-excludes': a file matches a filter when it matches at
           # least one pattern AND none of the negated ones. That lets `backend`
@@ -112,7 +120,7 @@ jobs:
           # this workflow does not listen for the `labeled` event (that would
           # re-run everything on every bot label), so the label takes effect on
           # the NEXT push, not the instant it is applied.
-          FULL_RUN: ${{ contains(github.event.pull_request.labels.*.name, 'ci-full-run') }}
+          FULL_RUN: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci-full-run') }}
         run: |
           # A surface is "only" when it changed and NO other bucket did.
           # `backend` is a catch-all, so an unrecognised path counts as backend
@@ -395,8 +403,9 @@ jobs:
     timeout-minutes: 50
     strategy:
       matrix:
-        # PRs lint on the newer interpreter only; main covers both.
-        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.10", "3.12"]') }}
+        # Pull requests and pushes lint on the newer interpreter only; the
+        # weekly or dispatched run covers both.
+        python-version: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["3.10", "3.12"]' || '["3.12"]') }}
     steps:
       # Full history so the black gate can compute THIS change's own diff. A
       # shallow clone truncates parent info and leaves no base ref, and the gate
@@ -486,10 +495,10 @@ jobs:
       # picture across the suite, not just the first shard to break.
       fail-fast: false
       matrix:
-        # PRs run the one version the coverage gate reads (the 3.12 shards are
-        # the only ones that collect coverage); main runs both. Each extra leg is
-        # ~70 billed minutes a push on this suite.
-        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.10", "3.12"]') }}
+        # Pull requests and pushes run the one version the coverage gate reads
+        # (the 3.12 shards are the only ones that collect coverage); the weekly
+        # or dispatched run adds 3.10. Each extra leg is ~70 runner minutes.
+        python-version: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '["3.10", "3.12"]' || '["3.12"]') }}
         # Duration-balanced shards (pytest-split). 4 groups x 2 Python = 8
         # parallel jobs, each on its own runner (4 cores via -n auto). To add
         # shards, extend this list AND bump SHARD_COUNT to match -- mind the
@@ -632,9 +641,9 @@ jobs:
   backend-test-windows:
     name: Backend Tests (Windows)
     needs: [changes]
-    # Windows bills at 2x and runs four ~20-minute shards, so pull requests skip
-    # it; every push to main still runs it.
-    if: github.event_name != 'pull_request'
+    # Windows bills at 2x and runs four ~20-minute shards, so pull requests and
+    # pushes skip it; the weekly or dispatched run holds the Windows line.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     # windows-latest runs the same shards measurably slower than POSIX.
     timeout-minutes: 40
