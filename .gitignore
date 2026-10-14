@@ -23,6 +23,10 @@ __pycache__/
 # Python build artifacts (wheels / sdists from `python -m build` / `make wheel`)
 /dist/
 
+# Keep Swift package build outputs and local workspace state out of git.
+/.build/
+/.swiftpm/
+
 # Generated agent config — contains machine-specific absolute paths
 .kiro/agents/warding.json
 
