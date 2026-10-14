@@ -117,12 +117,25 @@ sequence stamps it first: that dispatch's success and later ones clear it,
 older tickets do not.
 
 Some harnesses end a turn normally with the limit notice as the whole reply.
-`limit_notice_failure` treats a reply as a lane failure only when it is short
-(`LIMIT_NOTICE_MAX_CHARS`), starts with a recognizable usage-limit or auth
-notice, and the turn ran no tools. Short answers such as `Run codex login`
-or explanations of a daily limit remain successful output. The broader
-exception classifier is not applied to successful replies; `rate_limit` is
-never inferred from them.
+`limit_notice_failure` recognizes short whole failure replies
+(`LIMIT_NOTICE_MAX_CHARS`) on a turn that ran no tools. Usage-limit and auth
+notices must start the reply. Codex additionally recognizes its exact
+`exceeded retry limit, last status: <code> <reason>` notice (a standard HTTP
+status and its reason, with no appended explanation) and a complete JSON
+provider error with `type: "error"`, an integer HTTP error `status`, and an
+`error` object containing string `type` and `message`. These additional
+signatures are scoped to the Codex harness. Quoted, fenced, malformed,
+explanatory and long responses remain answers, as do ordinary mentions of
+HTTP 429 or rate limits. The broader exception classifier is not applied to
+successful output.
+
+Codex HTTP 429 failures use `rate_limit` and its short default backoff; that
+class is not evidence of exhausted subscription capacity or of the underlying
+cause. A structured 429 explicitly typed `insufficient_quota` is
+`usage_limit`, and HTTP 401 is `auth`. Other provider request errors,
+including unsupported-model HTTP 400, are `other`: failed dispatches with
+no inferred cooldown or free lane failover. The explicit failure class wins
+over incidental error words in the provider's message.
 
 ## Dispatch
 
@@ -253,7 +266,13 @@ upgrade. Live behavior is unverified.
 Runs one prompt on the resolved lane with the same failover rules, streaming to
 stdout. Tool permission requests are asked at the terminal when both ends are a
 TTY, else denied (`--no-prompt` forces deny). It warms the sandbox probe before
-the event loop starts, because the probe never runs on a live loop.
+the event loop starts, because the probe never runs on a live loop. Approved
+permissions, tool-call notifications and native child tool activity all mark
+tool work: failure notices cannot replay those turns. Refused permissions and
+text-only child notifications do not imply a tool ran. A pending tool
+notification followed by a refusal is excluded by its session-scoped call
+id; that refusal cannot erase earlier text, another child's work or an
+approved tool. Id-less tool activity remains conservative evidence of work.
 
 ## Connecting harnesses (`connect.py`)
 

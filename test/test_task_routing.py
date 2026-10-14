@@ -36,6 +36,11 @@ from warding.task_routing import (
 
 _BINS = {"claude": "/b/claude", "codex": "/b/codex", "npx": "/b/npx", "grok": "/b/grok"}
 _USAGE_LIMIT = "You've hit your usage limit. Try again in 3 hours."
+_CODEX_429 = "exceeded retry limit, last status: 429 Too Many Requests"
+_CODEX_400 = (
+    '{"type":"error","status":400,"error":{"type":"invalid_request_error",'
+    '"message":"The \'gpt-6.1-sol\' model is not supported when using Codex with a ChatGPT account."}}'
+)
 
 
 def _router(tmp_path: Path, *, route_tasks: bool = True, harnesses=("codex", "claude")) -> Any:
@@ -369,19 +374,38 @@ async def test_a_limit_after_tool_use_moves_on_the_next_attempt(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("reply", "failure"), [(_USAGE_LIMIT, "usage_limit"), (_CODEX_429, "rate_limit")]
+)
 async def test_a_limit_notice_reply_is_a_lane_failure_not_a_result(
-    router: Any, monkeypatch: pytest.MonkeyPatch
+    router: Any, monkeypatch: pytest.MonkeyPatch, reply: str, failure: str
 ) -> None:
     _quiet_executor(monkeypatch)
     task = Task(index=1, title="build it", description="d", kind="implement")
-    sessions = _sessions([_Client(reply=_USAGE_LIMIT), _Client(reply="done")])
+    sessions = _sessions([_Client(reply=reply), _Client(reply="done")])
     assert await _execute(_run(task, route_steps=True), task, sessions) is True
     assert [o["acp_backend_override"] for o in sessions.opened] == ["codex", "claude"]
     assert task.attempts == 1
     assert task.result == "done"
     usage = router.ledger.snapshot()
-    assert usage["codex"].cooldown_reason == "usage_limit"
+    assert usage["codex"].cooldown_reason == failure
     assert usage["codex"].ok == 0
+
+
+@pytest.mark.asyncio
+async def test_unsupported_codex_model_fails_task_without_quota_cooldown(
+    router: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from warding.task_models import MAX_RETRIES
+
+    _quiet_executor(monkeypatch)
+    task = Task(index=1, title="build it", description="d", kind="implement")
+    sessions = _sessions([_Client(reply=_CODEX_400) for _ in range(MAX_RETRIES)])
+    assert await _execute(_run(task, route_steps=True), task, sessions) is False
+    assert all(o["acp_backend_override"] == "codex" for o in sessions.opened)
+    usage = router.ledger.snapshot()["codex"]
+    assert (usage.ok, usage.failed, usage.limited) == (0, MAX_RETRIES, 0)
+    assert usage.cooldown_until == 0
 
 
 @pytest.mark.asyncio
@@ -399,13 +423,14 @@ async def test_exhausting_all_lanes_cannot_pass_a_limit_notice(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("reply", [_USAGE_LIMIT, _CODEX_429, _CODEX_400])
 async def test_a_notice_after_tool_use_is_the_steps_result(
-    router: Any, monkeypatch: pytest.MonkeyPatch
+    router: Any, monkeypatch: pytest.MonkeyPatch, reply: str
 ) -> None:
     # The notice check applies only to a turn that did no work.
     _quiet_executor(monkeypatch)
     task = Task(index=1, title="build it", description="d", kind="implement")
-    sessions = _sessions([_Client(tool=True, reply=_USAGE_LIMIT)])
+    sessions = _sessions([_Client(tool=True, reply=reply)])
     assert await _execute(_run(task, route_steps=True), task, sessions) is True
     assert [o["acp_backend_override"] for o in sessions.opened] == ["codex"]
     assert router.ledger.snapshot()["codex"].ok == 1
@@ -549,16 +574,31 @@ async def test_a_routed_review_moves_lanes_after_a_lane_failure(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("notice", [_USAGE_LIMIT, _CODEX_429])
 async def test_a_routed_review_treats_a_notice_reply_as_a_lane_failure(
-    router: Any, monkeypatch: pytest.MonkeyPatch
+    router: Any, monkeypatch: pytest.MonkeyPatch, notice: str
 ) -> None:
-    replies = AsyncMock(side_effect=[_USAGE_LIMIT, '{"ok": true}'])
+    replies = AsyncMock(side_effect=[notice, '{"ok": true}'])
     monkeypatch.setattr(task_executor, "stream_and_collect", replies)
     task = Task(index=2, title="build it", description="d", harness="claude")
     sessions, opened = _review_sessions()
     assert await task_executor.self_review(_review_run(task), task, sessions, "") is True
     assert [kw["acp_backend_override"] for _key, kw in opened] == ["codex", "claude"]
     assert router.ledger.snapshot()["codex"].ok == 0
+
+
+@pytest.mark.asyncio
+async def test_provider_request_error_cannot_be_counted_as_a_successful_review(
+    router: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(task_executor, "stream_and_collect", AsyncMock(return_value=_CODEX_400))
+    task = Task(index=2, title="build it", description="d", harness="claude")
+    sessions, opened = _review_sessions()
+    # Review failures stay non-blocking for the task, but are failed dispatches.
+    assert await task_executor.self_review(_review_run(task), task, sessions, "") is True
+    assert [kw["acp_backend_override"] for _key, kw in opened] == ["codex"]
+    usage = router.ledger.snapshot()["codex"]
+    assert (usage.ok, usage.failed, usage.limited) == (0, 1, 0)
 
 
 @pytest.mark.asyncio

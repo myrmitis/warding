@@ -6398,7 +6398,7 @@ class SubagentManager:
         # that reply is a lane failure, not a result: raise so the router rests
         # the lane (and, for a routed run, moves the task to another one).
         if info.lane and info.tool_count == 0:
-            _notice = limit_notice_failure(result_text)
+            _notice = limit_notice_failure(result_text, harness=info.harness)
             if _notice:
                 raise HarnessLaneFailure(_notice, result_text)
         cleaned, _ = extract_options(result_text) if result_text else (result_text, [])

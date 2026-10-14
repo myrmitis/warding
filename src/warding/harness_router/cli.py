@@ -22,7 +22,7 @@ import os
 import sys
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from warding.harness_router.kinds import KIND_DESCRIPTIONS, TASK_KINDS
@@ -229,13 +229,23 @@ def _make_provider(lane: Any, cwd: str) -> Any:
 class _TurnProgress:
     """What a streamed turn has already done, readable after it raised.
 
-    ``produced`` flips the moment text reaches stdout or a permission request
-    is approved (the tool may have run), so a lane that fails MID-stream is
-    still known to have done work and the turn is not re-run on another lane.
-    A refused request leaves it unset: nothing ran, so moving is safe.
+    ``produced`` records text reaching stdout. ``tool_ran`` includes approvals
+    and observed tools without a matching refusal: ACP can announce a pending
+    call before it requests permission. Session-scoped ids keep a parent's
+    refusal from hiding an unrelated child's work. Id-less activity cannot be
+    disproved, so it conservatively prevents replay.
     """
 
     produced: bool = False
+    approved_tool: bool = False
+    observed_tools: set[tuple[str, str]] = field(default_factory=set)
+    refused_tools: set[tuple[str, str]] = field(default_factory=set)
+
+    @property
+    def tool_ran(self) -> bool:
+        return self.approved_tool or any(
+            not key[1] or key not in self.refused_tools for key in self.observed_tools
+        )
 
 
 async def _stream_once(
@@ -246,7 +256,9 @@ async def _stream_once(
     from warding.providers.base import (
         EVENT_COMPLETE,
         EVENT_PERMISSION_REQUEST,
+        EVENT_SUBAGENT_ACTIVITY,
         EVENT_TEXT_CHUNK,
+        EVENT_TOOL_CALL,
     )
 
     gate = None
@@ -262,7 +274,17 @@ async def _stream_once(
             # A refused call never ran, so only an approval marks the turn as
             # having done work.
             if await _answer_permission(provider, event, interactive=interactive, gate=gate):
-                progress.produced = True
+                progress.approved_tool = True
+            elif getattr(event, "tool_call_id", ""):
+                progress.refused_tools.add(
+                    (getattr(event, "sub_session_id", ""), event.tool_call_id)
+                )
+        elif event.kind == EVENT_TOOL_CALL or (
+            event.kind == EVENT_SUBAGENT_ACTIVITY and event.tool_call_id
+        ):
+            progress.observed_tools.add(
+                (getattr(event, "sub_session_id", ""), getattr(event, "tool_call_id", ""))
+            )
         elif event.kind == EVENT_COMPLETE:
             break
     print()
@@ -299,7 +321,9 @@ async def _run(router: HarnessRouter, args: argparse.Namespace) -> int:
             reply = await _stream_once(
                 provider, args.prompt, interactive=interactive, progress=progress
             )
-            notice = limit_notice_failure(reply) if reply else ""
+            notice = (
+                limit_notice_failure(reply, harness=lane.harness) if not progress.tool_ran else ""
+            )
             if notice:
                 raise HarnessLaneFailure(notice, reply)
         except (KeyboardInterrupt, asyncio.CancelledError):
@@ -310,7 +334,10 @@ async def _run(router: HarnessRouter, args: argparse.Namespace) -> int:
                 resolution.routed
                 and failure in LANE_FAILURES
                 and len(tried) <= max_hops
-                and (not progress.produced or isinstance(exc, HarnessLaneFailure))
+                and (
+                    not (progress.produced or progress.tool_ran)
+                    or isinstance(exc, HarnessLaneFailure)
+                )
             )
             nxt = router.next_lane(kind, tried) if can_move else None
             if nxt is None:

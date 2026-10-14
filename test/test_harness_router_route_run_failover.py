@@ -27,6 +27,12 @@ from warding.harness_router.limits import FAILURE_RATE_LIMIT, FAILURE_USAGE_LIMI
 from warding.harness_router.service import HarnessRouter
 from warding.providers.base import EVENT_COMPLETE, EVENT_PERMISSION_REQUEST, EVENT_TEXT_CHUNK
 
+_CODEX_429 = "exceeded retry limit, last status: 429 Too Many Requests"
+_CODEX_400 = (
+    '{"type":"error","status":400,"error":{"type":"invalid_request_error",'
+    '"message":"The \'gpt-6.1-sol\' model is not supported when using Codex with a ChatGPT account."}}'
+)
+
 _BINS = {"codex": "/b/codex", "claude": "/b/claude", "npx": "/b/npx", "grok": "/b/grok"}
 
 _THREE_LANES = {
@@ -248,3 +254,139 @@ def test_route_run_still_moves_when_the_only_tool_call_was_refused(
     assert _run_exit_code(_parse("run", "x", "--no-prompt")) == 0
     assert [lane for lane, _ in made] == ["pro", "max"]
     assert "[route] pro unavailable (rate_limit); moving to max" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        _CODEX_429,
+        '{"type":"error","status":429,"error":{"type":"rate_limit_error",'
+        '"message":"Too many requests"}}',
+    ],
+)
+def test_route_run_backs_off_codex_provider_429_and_routes_to_next_lane(
+    monkeypatch: pytest.MonkeyPatch, reply: str
+) -> None:
+    router = _router(monkeypatch, doc=_THREE_LANES)
+    made = _providers(monkeypatch, _FakeProvider(_reply(reply)), _FakeProvider(_reply("pong")))
+    assert _run_exit_code(_parse("run", "Reply pong", "--no-prompt")) == 0
+    assert [lane for lane, _ in made] == ["pro", "max"]
+    usage = router.ledger.snapshot()
+    assert (usage["pro"].ok, usage["pro"].failed, usage["pro"].limited) == (0, 1, 1)
+    assert usage["pro"].cooldown_reason == FAILURE_RATE_LIMIT
+    assert usage["max"].ok == 1
+    assert router.resolve("route", kind="implement").lane.id == "max"
+
+
+@pytest.mark.parametrize("reply", [_CODEX_400, _CODEX_429])
+def test_pinned_codex_provider_errors_exit_nonzero_and_are_not_successes(
+    monkeypatch: pytest.MonkeyPatch, reply: str
+) -> None:
+    router = _router(monkeypatch, doc=_THREE_LANES)
+    made = _providers(monkeypatch, _FakeProvider(_reply(reply)))
+    assert _run_exit_code(_parse("run", "x", "--harness", "pro", "--no-prompt")) == 1
+    assert [lane for lane, _ in made] == ["pro"]
+    usage = router.ledger.snapshot()["pro"]
+    assert (usage.ok, usage.failed) == (0, 1)
+    assert usage.cooldown_reason == (FAILURE_RATE_LIMIT if reply == _CODEX_429 else "")
+    assert usage.limited == (1 if reply == _CODEX_429 else 0)
+
+
+def test_unsupported_inherited_codex_model_error_is_not_a_transient_lane_failure(
+    monkeypatch,
+) -> None:
+    router = _router(monkeypatch, doc=_THREE_LANES)
+    assert router.settings().lanes_for_harness("codex")[0].model == ""
+    made = _providers(monkeypatch, _FakeProvider(_reply(_CODEX_400)))
+    assert _run_exit_code(_parse("run", "x", "--no-prompt")) == 1
+    assert [lane for lane, _ in made] == ["pro"]
+    assert router.ledger.snapshot()["pro"].cooldown_until == 0
+
+
+@pytest.mark.parametrize("approved", [False, True])
+def test_codex_notice_after_permission_never_replays_approved_tools(
+    monkeypatch: pytest.MonkeyPatch, approved: bool
+) -> None:
+    _router(monkeypatch, doc=_THREE_LANES)
+    _answer_with(monkeypatch, approved=approved)
+    events = [_event(EVENT_PERMISSION_REQUEST), *_reply(_CODEX_429)]
+    made = _providers(monkeypatch, _FakeProvider(events), _FakeProvider(_reply("pong")))
+    assert _run_exit_code(_parse("run", "x", "--no-prompt")) == 0
+    assert [lane for lane, _ in made] == (["pro"] if approved else ["pro", "max"])
+
+
+@pytest.mark.parametrize("event_kind", ["tool_call", "subagent_activity"])
+def test_codex_notice_after_native_tool_activity_is_not_replayed(monkeypatch, event_kind) -> None:
+    _router(monkeypatch, doc=_THREE_LANES)
+    tool_event = SimpleNamespace(kind=event_kind, tool_call_id="child-edit", text="")
+    made = _providers(
+        monkeypatch, _FakeProvider([tool_event, *_reply(_CODEX_429)]), _FakeProvider(_reply("pong"))
+    )
+    assert _run_exit_code(_parse("run", "x", "--no-prompt")) == 0
+    assert [lane for lane, _ in made] == ["pro"]
+
+
+@pytest.mark.parametrize("reply", ["HTTP 429 Too Many Requests", "Fixed HTTP 400 model errors"])
+def test_route_run_error_discussion_remains_a_success(monkeypatch, reply) -> None:
+    router = _router(monkeypatch, doc=_THREE_LANES)
+    made = _providers(monkeypatch, _FakeProvider(_reply(reply)))
+    assert _run_exit_code(_parse("run", "x", "--no-prompt")) == 0
+    assert [lane for lane, _ in made] == ["pro"]
+    assert router.ledger.snapshot()["pro"].ok == 1
+
+
+@pytest.mark.parametrize("permission_first", [False, True])
+@pytest.mark.parametrize("raises", [False, True])
+def test_denied_pending_tool_does_not_hide_a_codex_provider_failure(
+    monkeypatch, permission_first: bool, raises: bool
+) -> None:
+    router = _router(monkeypatch, doc=_THREE_LANES)
+    _answer_with(monkeypatch, approved=False)
+    pending = SimpleNamespace(kind="tool_call", tool_call_id="pending", sub_session_id="")
+    permission = SimpleNamespace(
+        kind=EVENT_PERMISSION_REQUEST, tool_call_id="pending", sub_session_id=""
+    )
+    events = [permission, pending] if permission_first else [pending, permission]
+    failed = _FakeProvider(
+        events if raises else [*events, *_reply(_CODEX_429)],
+        stream_error=RuntimeError("HTTP 429 Too Many Requests") if raises else None,
+    )
+    made = _providers(monkeypatch, failed, _FakeProvider(_reply("pong")))
+    assert _run_exit_code(_parse("run", "x", "--no-prompt")) == 0
+    assert [lane for lane, _ in made] == ["pro", "max"]
+    assert router.ledger.snapshot()["pro"].cooldown_reason == FAILURE_RATE_LIMIT
+    assert router.ledger.snapshot()["pro"].ok == 0
+
+
+@pytest.mark.parametrize("activity", ["text", "approved", "child", "idless"])
+def test_denial_cannot_erase_independent_turn_activity(monkeypatch, activity: str) -> None:
+    _router(monkeypatch, doc=_THREE_LANES)
+    import warding.cli_chat as cli_chat
+
+    monkeypatch.setattr(cli_chat, "_build_tool_gate", lambda agent="": object())
+
+    async def answer(_provider, event, **kwargs):
+        return event.tool_call_id == "approved"
+
+    monkeypatch.setattr(cli_chat, "_answer_permission", answer)
+    first = {
+        "text": _event(EVENT_TEXT_CHUNK, "partial answer"),
+        "approved": SimpleNamespace(
+            kind=EVENT_PERMISSION_REQUEST, tool_call_id="approved", sub_session_id=""
+        ),
+        "child": SimpleNamespace(
+            kind="subagent_activity", tool_call_id="pending", sub_session_id="child"
+        ),
+        "idless": SimpleNamespace(kind="tool_call", tool_call_id="", sub_session_id=""),
+    }[activity]
+    pending = SimpleNamespace(kind="tool_call", tool_call_id="pending", sub_session_id="")
+    permission = SimpleNamespace(
+        kind=EVENT_PERMISSION_REQUEST, tool_call_id="pending", sub_session_id=""
+    )
+    made = _providers(
+        monkeypatch,
+        _FakeProvider([first, pending, permission], stream_error=RuntimeError("HTTP 429")),
+        _FakeProvider(_reply("pong")),
+    )
+    assert _run_exit_code(_parse("run", "x", "--no-prompt")) == 1
+    assert [lane for lane, _ in made] == ["pro"]
