@@ -263,15 +263,15 @@ def test_linux_lane_verifies_artifact_architecture_before_publishing() -> None:
 
 
 def test_pr_desktop_matrix_gates_macos_but_never_linux() -> None:
-    """PR desktop-build coverage policy.
+    """Desktop-build coverage policy for pull requests and pushes.
 
-    Linux (both arches) builds on EVERY PR -- it is comparatively cheap and
-    cannot be cross-compiled, so a broken arch must be caught before merge, not
-    only at nightly. The macos-15 leg bills at ~10x and its unique coverage is
-    macOS packaging, so on a PR it builds only when a macOS-packaging input
-    changed (the ``desktop-matrix`` job's paths filter); push / release always
-    build it. The release lane (``build-desktop.yml``) still ships every
-    platform unconditionally, so nothing macOS ever reaches users unbuilt.
+    Linux x64 builds on EVERY change -- it is the cheapest leg and catches
+    cross-platform bundle breakage before merge. The macos-15 and
+    ubuntu-22.04-arm legs and the Windows installer cover packaging for their
+    platform only, so they build when a desktop-packaging input changed (the
+    ``desktop-matrix`` job's paths filter). The release lane
+    (``build-desktop.yml``) still ships every platform unconditionally, so
+    nothing reaches users unbuilt.
     """
     pr = yaml.safe_load((WORKFLOWS / "build.yml").read_text(encoding="utf-8"))
     release = yaml.safe_load((WORKFLOWS / "build-desktop.yml").read_text(encoding="utf-8"))
@@ -296,18 +296,27 @@ def test_pr_desktop_matrix_gates_macos_but_never_linux() -> None:
     os_lines = [ln for ln in compute["run"].splitlines() if "os=[" in ln]
     assert os_lines, "the compute step must emit at least one os= matrix list"
 
-    # Linux is UNCONDITIONAL: both arches appear in every branch the script emits.
+    # Linux x64 is UNCONDITIONAL: it appears in every branch the script emits.
     for ln in os_lines:
-        assert '"ubuntu-22.04"' in ln and '"ubuntu-22.04-arm"' in ln, (
-            f"both Linux arches must be in every PR desktop matrix branch: {ln}"
+        assert '"ubuntu-22.04"' in ln, (
+            f"Linux x64 must be in every desktop matrix branch: {ln}"
         )
-    # macOS is GATED: it must be buildable (packaging-relevant PR / push) but must
-    # NOT appear in every branch, or the 10x build still runs on every PR.
-    with_mac = [ln for ln in os_lines if '"macos-15"' in ln]
-    assert with_mac, "macos-15 must still build on packaging-relevant PRs and pushes"
-    assert len(with_mac) < len(os_lines), (
-        "macos-15 must be gated -- at least one branch (a non-packaging PR) must "
-        "omit it, or the 10x macOS build still runs on every PR"
+    # macOS and Linux arm64 are GATED: each must be buildable (a packaging-relevant
+    # change) but must NOT appear in every branch, or it still builds on every change.
+    for gated in ("macos-15", "ubuntu-22.04-arm"):
+        with_leg = [ln for ln in os_lines if f'"{gated}"' in ln]
+        assert with_leg, f"{gated} must still build on packaging-relevant changes"
+        assert len(with_leg) < len(os_lines), (
+            f"{gated} must be gated -- at least one branch (a non-packaging change) "
+            "must omit it"
+        )
+    # The Windows installer follows the same gate as the gated desktop legs.
+    installer = jobs["build-windows-installer"]
+    assert "desktop-matrix" in installer.get("needs", []), (
+        "build-windows-installer must read the desktop-matrix gate"
+    )
+    assert "needs.desktop-matrix.outputs.desktop" in installer.get("if", ""), (
+        "build-windows-installer must build only when a desktop-packaging input changed"
     )
 
 

@@ -89,6 +89,12 @@ Tag-triggered releases and PR checks retain their existing triggers. The product
 dependency audit keeps its own daily 06:00 UTC schedule so vulnerability-exception
 expiry warnings still appear even when no builds are requested.
 
+CI keeps the per-change lanes small. Pull requests and pushes to `main` run the
+backend on Python 3.12 on Linux. A weekly CI run (Mondays 05:00 UTC), or a manual
+dispatch of CI, adds Python 3.10 and the Windows backend shards. `build.yml` builds
+the macOS, Linux arm64, and Windows desktop artifacts only when a desktop-packaging
+input changed. Dependabot opens one grouped GitHub Actions update a month.
+
 PR Readiness still updates from workflow and PR events, with an hourly recovery
 sweep for missed events. Fork and merge-conflict labels keep their event-driven
 updates and run a daily backstop sweep instead of polling throughout the day.
@@ -107,12 +113,12 @@ Every job here is blocking.
 |---|---|
 | `scrub-lint` | `scripts/scrub-lint.sh --no-history`. Fails on any internal marker in this public tree, so a sync cannot reintroduce a coupling |
 | `vendor-manifest` | `scripts/verify_vendor_manifest.py`. Hashes every file under `src/warding/_vendor` against the committed `scripts/vendor_manifest.sha256` — the tree is excluded from semgrep and the AI reviewers' diff, so this checksum is its only content review. Always-on (not behind the `changes` path filter) |
-| `backend-lint` | `isort --check-only`, `flake8`, `mypy` on Python 3.12 for pull requests (3.10 and 3.12 on `main` and nightly runs), plus `scripts/check_black_formatting.py` — black enforced on every file outside `.github/black-baseline.txt`, which can only shrink — and `scripts/check_subprocess_encoding.py` (self-test first) — no text-mode subprocess call without an explicit `encoding=`, `**UTF8_TEXT`, or a `# subprocess-encoding: locale` marker, outside `.github/subprocess-encoding-baseline.txt`, which can only shrink |
+| `backend-lint` | `isort --check-only`, `flake8`, `mypy` on Python 3.12 for pull requests and pushes to `main` (3.10 and 3.12 on the weekly run), plus `scripts/check_black_formatting.py` — black enforced on every file outside `.github/black-baseline.txt`, which can only shrink — and `scripts/check_subprocess_encoding.py` (self-test first) — no text-mode subprocess call without an explicit `encoding=`, `**UTF8_TEXT`, or a `# subprocess-encoding: locale` marker, outside `.github/subprocess-encoding-baseline.txt`, which can only shrink |
 | `harness-parity` | `scripts/check_harness_parity.py`, self-test first. Fails on a newly added line that expresses "this is the Kiro harness" as the absence of another one — a shape that fails toward the permissive answer, so nothing else goes red. Diff-scoped; the whole-tree backlog is a non-failing report |
 | `brand-lint` | Two gates, each self-test first. `scripts/check_brand_name.py` is diff-scoped and fails on a newly added line that carries the retired product identity. `scripts/check_company_names.py` is whole-tree and fails on any tracked line that names the retired company name, except the functional identifiers an external system defines (AWS hostnames, package and model ids), which are listed in `scripts/company-name-allowlist.txt` |
 | `loop-bound-locks` | `scripts/check_loop_bound_locks.py`, self-test first. Fails on any module-global `asyncio.Lock()`/`Event()`/`Queue()` declaration — those bind to the import-time (or first-use) event loop and raise `RuntimeError` when acquired from another loop (Python 3.10+). The tree uses `warding.loop_lock.LoopBoundLock`; whole-tree, since the backlog is zero |
-| `backend-test` | 4 duration-balanced pytest-split shards, `-n auto` within each. Pull requests run Python 3.12 only, because the coverage gate reads the 3.12 shard data; `main` and nightly runs add 3.10 (8 jobs), which passes `--no-cov` for a trace-free run. 40-minute job ceiling |
-| `backend-test-windows` | windows-latest, 4 shards, `--no-cov`, 180s per-test timeout. Skipped on pull requests (Windows minutes bill at twice the Linux rate) and run on `main` and nightly. The backend supports Windows natively via `platform_compat`, and nothing else in CI holds that line |
+| `backend-test` | 4 duration-balanced pytest-split shards, `-n auto` within each. Pull requests and pushes to `main` run Python 3.12 only, because the coverage gate reads the 3.12 shard data; the weekly run adds 3.10 (8 jobs), which passes `--no-cov` for a trace-free run. 40-minute job ceiling |
+| `backend-test-windows` | windows-latest, 4 shards, `--no-cov`, 180s per-test timeout. Runs only on the weekly run (Mondays 05:00 UTC) or a manual dispatch of CI; pull requests and pushes skip it. The backend supports Windows natively via `platform_compat`, and nothing else in CI holds that line |
 | `backend-test-macos` | macos-14, deliberately SCOPED (gateway, socketsec, platform-compat, pod and MCP-apps suites via a glob). A full macOS run needs its own exclusion burn-down first, and a job that is red on arrival trains people to ignore it |
 | `backend-test-sandbox` | The one job that clears the AppArmor userns restriction, so the tests guarded by `skipif(not userns_available())` EXECUTE instead of skipping. Runs all eleven sandbox-dependent suites. The shards collect the same files — nothing is deselected — but there the sandbox-guarded tests skip, so this is the only lane where those 85 assertions (the `~/.warding` keystone among them) actually execute |
 | `coverage-combine` then `coverage-gate` | Combines the 3.12 shard data, then enforces the project line-rate floors, plus a per-file floor with a shrink-only baseline (all floors live in the job's `env:` block) |
@@ -191,8 +197,11 @@ PR-time proof only, no publishing.
 
 - **`build-wheel`** builds the frontend, stages it into the package, builds the
   wheel, then `pip install dist/*.whl` and `warding --version` as a smoke test.
-- **`build-desktop`** builds the Electron app unsigned on macos-15 and
-  ubuntu-22.04 via `make desktop`, and uploads the artifacts.
+- **`build-desktop`** builds the Electron app unsigned via `make desktop`, and
+  uploads the artifacts. ubuntu-22.04 builds on every pull request and push.
+  macos-15, ubuntu-22.04-arm and `build-windows-installer` build only when a
+  desktop-packaging input changed (the `desktop-matrix` paths filter). The
+  release lane `build-desktop.yml` builds every platform unconditionally.
 
 **Neither desktop lane ever RUNS the bundled backend.** `build-desktop` here and
 `build-desktop.yml` in the release lane both build the real `warding-backend`

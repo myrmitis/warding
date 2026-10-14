@@ -1,6 +1,12 @@
 version: 2
 updates:
+  # One grouped pull request a month: each action bump otherwise opens its own
+  # pull request, and each one runs the full CI and Build workflows.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
