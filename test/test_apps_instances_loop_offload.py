@@ -16,9 +16,9 @@ Two enforcement tiers:
   thread and fails the test.
 - AST ratchet: no direct (non-offloaded) call of the walk / registry-write
   functions may appear lexically inside an ``async def`` frame of the owning
-  modules, so a future call site cannot silently regress. A nested ``def`` /
-  ``lambda`` is a separate frame (the offloaded callable itself) and is not
-  scanned, matching the scoping of ``test_no_blocking_call_on_loop.py``.
+  modules. A directly called local synchronous helper is scanned in its caller's
+  frame. Passing a helper to an executor does not scan its body. Aliases and
+  other indirect calls still require the behavior tier.
 """
 
 from __future__ import annotations
@@ -325,32 +325,117 @@ def test_list_apps_is_read_only_under_version_drift(
 # AST ratchet: no direct sync call of the walk / registry writes in async frames
 # ---------------------------------------------------------------------------
 
-# Scopes not descended into from an async def body: a nested function or lambda
-# is a different execution frame (typically the offloaded callable itself).
+# Definitions run in a separate frame. Follow a local synchronous helper only
+# when its name is called directly; passing it to an executor does not run it.
 _NESTED_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
 
 
 def _calls_in_async_frames(tree: ast.AST) -> list[tuple[str, ast.Call]]:
-    """All Call nodes lexically inside async def bodies (own frame only)."""
+    """Calls in async frames, including directly invoked local sync helpers."""
     found: list[tuple[str, ast.Call]] = []
 
-    def _scan(node: ast.AST, owner: str) -> None:
-        for child in ast.iter_child_nodes(node):
-            if isinstance(child, _NESTED_SCOPES):
-                continue
-            if isinstance(child, ast.Call):
-                found.append((owner, child))
-            _scan(child, owner)
+    def _scope(
+        body: list[ast.stmt],
+        owner: str,
+        inherited: dict[str, ast.FunctionDef],
+        active: set[int],
+    ) -> None:
+        helpers = dict(inherited)
+
+        def _bindings(node: ast.AST) -> None:
+            if isinstance(node, ast.FunctionDef):
+                helpers[node.name] = node
+                return
+            if isinstance(node, _NESTED_SCOPES):
+                return
+            for child in ast.iter_child_nodes(node):
+                _bindings(child)
+
+        for stmt in body:
+            _bindings(stmt)
+
+        def _scan(node: ast.AST) -> None:
+            if isinstance(node, _NESTED_SCOPES):
+                return
+            if isinstance(node, ast.Call):
+                found.append((owner, node))
+                if isinstance(node.func, ast.Name):
+                    helper = helpers.get(node.func.id)
+                    if helper is not None and id(helper) not in active:
+                        _scope(helper.body, owner, helpers, active | {id(helper)})
+            for child in ast.iter_child_nodes(node):
+                _scan(child)
+
+        for stmt in body:
+            _scan(stmt)
 
     for node in ast.walk(tree):
         if isinstance(node, ast.AsyncFunctionDef):
-            for stmt in node.body:
-                _scan(stmt, node.name)
+            _scope(node.body, node.name, {}, set())
     return found
 
 
 def _module_tree(module: Any) -> ast.AST:
     return ast.parse(inspect.getsource(module))
+
+
+def test_frame_scan_counts_a_nested_def_only_when_called_directly() -> None:
+    """A nested ``def`` handed to an executor runs off the loop, so its calls
+    do not count. A nested ``def`` that the async frame calls directly runs on
+    the loop, so its calls count, at any block depth. A nested ``async def`` is
+    scanned once, as its own frame."""
+    tree = ast.parse(
+        "async def handler(loop, pool, lock):\n"
+        "    def _offloaded():\n"
+        "        return offloaded_call()\n"
+        "    def _called_here():\n"
+        "        return helper_call()\n"
+        "    async def _inner():\n"
+        "        inner_call()\n"
+        "    direct_call()\n"
+        "    _called_here()\n"
+        "    async with lock:\n"
+        "        def _in_block():\n"
+        "            return block_call()\n"
+        "        _in_block()\n"
+        "    return await loop.run_in_executor(pool, _offloaded)\n"
+    )
+    named_calls = sorted(
+        (owner, call.func.id)
+        for owner, call in _calls_in_async_frames(tree)
+        if isinstance(call.func, ast.Name)
+    )
+    assert named_calls == [
+        ("_inner", "inner_call"),
+        ("handler", "_called_here"),
+        ("handler", "_in_block"),
+        ("handler", "block_call"),
+        ("handler", "direct_call"),
+        ("handler", "helper_call"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "invoke,expected",
+    [
+        ("copy()", True),
+        ("await loop.run_in_executor(pool, copy)", False),
+        ("await asyncio.to_thread(copy)", False),
+    ],
+)
+def test_frame_scan_follows_only_synchronously_called_nested_helpers(
+    invoke: str, expected: bool
+) -> None:
+    tree = ast.parse(
+        "async def future_handler(loop, pool):\n"
+        "    def copy():\n"
+        "        install_app(source)\n"
+        f"    {invoke}\n"
+    )
+    calls = [
+        call.func.id for _, call in _calls_in_async_frames(tree) if isinstance(call.func, ast.Name)
+    ]
+    assert ("install_app" in calls) is expected
 
 
 @pytest.mark.parametrize(
