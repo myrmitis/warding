@@ -3334,6 +3334,17 @@ class TestIsSensitivePath:
         home = str(Path.home())
         assert is_sensitive_path(f"{home}/.aws/credentials") is True
 
+    def test_extended_length_spelling_is_matched(self, tmp_path) -> None:
+        """A ``\\\\?\\`` spelling of a protected path matches like the plain one."""
+        home = Path.home()
+        prefix = "\\\\?\\"
+        assert is_sensitive_path(prefix + str(home / ".ssh" / "id_rsa")) is True
+        assert is_sensitive_path(prefix + str(home / ".aws" / "credentials")) is True
+        assert security.path_contains_sensitive(prefix + str(home)) is True
+        assert is_sensitive_path(prefix + str(tmp_path / "project")) is False
+        unc = security._without_extended_prefix("\\\\?\\UNC\\host\\share\\x")
+        assert unc == "\\\\host\\share\\x"
+
     def test_unrelated_dotfile(self) -> None:
         assert is_sensitive_path("~/.bashrc") is False
 
