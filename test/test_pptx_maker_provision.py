@@ -500,13 +500,22 @@ class TestRenderAgents:
         subprocess. So this asserts the engine's own resolution (``shutil.which``
         against the rendered value), which is what an overlay applied to the wrong
         child silently fails to satisfy.
+
+        The managed directory is appended, so a ``pdftoppm`` on the host ``PATH``
+        wins the lookup. The inherited ``PATH`` is pinned to an empty directory so
+        the managed tool is the only candidate on any host.
         """
         managed = tmp_path / "preview-tools" / "bin"
         managed.mkdir(parents=True)
         tool = _fake_tool(managed, "pdftoppm")
+        no_tools = tmp_path / "no-tools"
+        no_tools.mkdir()
 
         install_dir = tmp_path / "install"
-        with mock.patch.object(provision.paths, "preview_tools_bin", return_value=managed):
+        with (
+            mock.patch.object(provision.paths, "preview_tools_bin", return_value=managed),
+            mock.patch.dict(os.environ, {"PATH": str(no_tools)}),
+        ):
             assert provision._render_agents(install_dir, log=[]) > 0
 
         for rendered in sorted((install_dir / "agents").glob("*.json")):
