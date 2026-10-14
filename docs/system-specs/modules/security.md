@@ -317,6 +317,28 @@ the path directly, as keystone writers must, so it would have followed the link.
 also deliberately NOT a field on the app's `index.json`, which is agent-writable by
 design.
 
+**Spec Builder path resolution** (`_realpath` in `apps/builtins/spec_builder/backend/routes.py`)
+— Spec Builder resolves a path through `_realpath` before it tests containment or
+sensitivity, and before it stores the path. On Windows, `realpath` gets an extended-length
+(`\\?\`) path from the OS. It removes the prefix only when a second lookup returns the same
+string, or fails with the same Win32 error. Create prepares the spec directory before it
+takes the directory turn lock. A concurrent create can therefore make the path, or a
+missing parent, between the two lookups. A kept prefix makes `relative_to` compare a
+`\\?\C:` anchor with `C:`, and a legitimate create then fails with 400
+`spec_path_outside_root`.
+
+- `_realpath` removes the prefix only when the input had none, and maps `\\?\UNC\` back to
+  `\\`. A prefix that the caller supplied stays, as `realpath` keeps it. A volume-GUID
+  path also keeps it, because it has no plain spelling.
+- The prefixed spelling and the plain spelling (without the prefix) have the same
+  components, so containment gives the same answer for either. The sensitive-path test
+  sees the plain spelling, which is the one the index stores.
+- `_safe_dir`, both sides of `_contained`, `_resolve_spec_dir`, `_spec_file` and the
+  folder-picker scan resolve through it.
+- `_verified_spec_dir` compares the unchanged `realpath` result on purpose. It checks a
+  directory that already exists, so a kept prefix means that the plain spelling did not
+  reach that directory for the whole lookup. Refusing the directory is correct in that case.
+
 **Ops Mission Control authorization inputs** (`apps/ops-mission-control/data/rotation.yaml`,
 `apps/ops-mission-control/data/incidents/index.json`) — two app-owned files that are
 write-protected on both layers for the same reason as the marker above, and with the same
