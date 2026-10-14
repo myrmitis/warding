@@ -601,9 +601,11 @@ async def handle_install_app(request: web.Request) -> web.Response:
     if not source:
         return web.json_response({"error": "source path required"}, status=400)
 
-    # Check minWardingVersion before installing
-    source_path = Path(source).expanduser().resolve()
-    if not source_path.is_dir():
+    # Check minWardingVersion before installing. The resolve, the directory and
+    # file checks, and the manifest read touch the filesystem, so each one runs
+    # off the loop.
+    source_path = await asyncio.to_thread(Path(source).expanduser().resolve)
+    if not await asyncio.to_thread(source_path.is_dir):
         detail = f"source is not a directory: {source_path}"
         sel().log_api_access(
             caller="dashboard",
@@ -624,9 +626,11 @@ async def handle_install_app(request: web.Request) -> web.Response:
 
     manifest_path = source_path / "app.json"
     lock_name: str | None = None
-    if manifest_path.is_file():
+    if await asyncio.to_thread(manifest_path.is_file):
         try:
-            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_data = json.loads(
+                await asyncio.to_thread(manifest_path.read_text, encoding="utf-8")
+            )
             ver_err = _check_min_version(manifest_data)
             if ver_err:
                 return web.json_response({"error": ver_err}, status=400)
@@ -738,7 +742,8 @@ async def _refuse_while_startup_hook_runs(
 async def handle_update_app(request: web.Request) -> web.Response:
     """POST /api/apps/{name}/update — update an installed app from its source path."""
     name = request.match_info["name"]
-    info = get_app(name)
+    # Off-loop: get_app reads installed.json and app.json.
+    info = await asyncio.to_thread(get_app, name)
     if not info:
         return web.json_response({"error": f"app {name!r} not installed"}, status=404)
 
