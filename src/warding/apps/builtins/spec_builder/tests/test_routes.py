@@ -16815,21 +16815,24 @@ async def test_create_stays_inside_its_root_when_realpath_keeps_a_long_path_pref
     """A spec directory created mid-resolution still lands under its root.
 
     Windows realpath resolves a missing path in two lookups and keeps the
-    extended-length prefix when a concurrent create makes them disagree. Unless that
-    prefix is dropped, the losing create of a racing case-variant pair is refused as
+    extended-length prefix when a concurrent create makes them disagree. Unless the
+    lookup is retried, the losing create of a racing case-variant pair is refused as
     ``spec_path_outside_root`` rather than as a conflict. The race is simulated by
-    returning the prefixed spelling for every spec path that does not exist yet.
+    returning the prefixed spelling the first time each missing spec path resolves.
     """
     project = tmp_path / "proj"
     project.mkdir()
     client, state = _create_client(monkeypatch, tmp_path)
     real_realpath = os.path.realpath
     specs_root = os.path.join(real_realpath(project), ".kiro", "specs")
+    raced: set[str] = set()
 
     def realpath_racing_a_create(path, *args, **kwargs):
         resolved = real_realpath(path, *args, **kwargs)
         if resolved.startswith(specs_root) and not os.path.exists(resolved):
-            return "\\\\?\\" + resolved
+            if resolved not in raced:
+                raced.add(resolved)
+                return "\\\\?\\" + resolved
         return resolved
 
     monkeypatch.setattr(routes.os.path, "realpath", realpath_racing_a_create)
@@ -16849,16 +16852,53 @@ async def test_create_stays_inside_its_root_when_realpath_keeps_a_long_path_pref
     assert body["spec_dir"] == os.path.join(specs_root, "Raced")
 
 
-def test_without_extended_prefix_keeps_only_paths_that_need_it():
-    """Drive and UNC paths lose the prefix; a volume-GUID path cannot, so it keeps it."""
-    prefix = "\\\\?\\"
-    absolute = os.path.abspath(os.sep + "proj")
-    assert routes._without_extended_prefix(prefix + absolute) == absolute
-    assert routes._without_extended_prefix(absolute) == absolute
-    volume = prefix + "Volume{00000000-0000-0000-0000-000000000000}" + os.sep + "proj"
-    assert routes._without_extended_prefix(volume) == volume
-    unc = prefix + "UNC\\server\\share\\proj"
-    assert routes._without_extended_prefix(unc) == "\\\\server\\share\\proj"
+@pytest.mark.parametrize(
+    ("requested", "resolved", "expected"),
+    [
+        # A raced UNC lookup: the retry returns the settled, plain spelling.
+        ("\\\\host\\share\\proj", "\\\\?\\UNC\\host\\share\\proj", "\\\\host\\share\\proj"),
+        # The caller asked for the extended-length namespace, so there is no retry.
+        ("\\\\?\\C:\\proj", "\\\\?\\C:\\proj", "\\\\?\\C:\\proj"),
+    ],
+    ids=["unc", "caller-prefix"],
+)
+def test_realpath_retries_a_transient_prefix_but_keeps_a_caller_prefix(
+    monkeypatch, requested, resolved, expected
+):
+    """A raced lookup settles on the retry; a caller's extended semantics stay."""
+    results = iter([resolved, expected])
+    monkeypatch.setattr(routes.os.path, "realpath", lambda _path: next(results))
+    assert routes._realpath(requested) == expected
+
+
+@pytest.mark.parametrize(
+    ("requested", "canonical"),
+    [
+        ("C:\\project-link", "\\\\?\\C:\\project. "),
+        ("\\\\host\\share\\project-link", "\\\\?\\UNC\\host\\share\\project."),
+        ("C:\\mounted-link", "\\\\?\\Volume{00000000-0000-0000-0000-000000000000}\\proj"),
+    ],
+    ids=["drive-target", "unc-target", "volume-target"],
+)
+def test_realpath_keeps_a_prefix_the_plain_spelling_cannot_replace(
+    monkeypatch, requested, canonical
+):
+    """Realpath keeps the prefix on every lookup when the plain spelling differs.
+
+    A link target whose name ends in a dot or a space changes when Win32 drops the
+    prefix, and a volume with no drive letter has no plain spelling at all. Unlike
+    the transient create race, the retry returns the same canonical result, and it
+    must reach the caller unchanged.
+    """
+    calls: list[str] = []
+
+    def _canonical_target(path):
+        calls.append(os.fspath(path))
+        return canonical
+
+    monkeypatch.setattr(routes.os.path, "realpath", _canonical_target)
+    assert routes._realpath(requested) == canonical
+    assert calls == [requested, requested]
 
 
 # ── Windows realpath race: a transient extended-length prefix ────────────────
@@ -17090,10 +17130,15 @@ def test_a_prefix_kept_by_one_lookup_reaches_no_result_or_comparison(tmp_path, m
         ),
     }[site]
     real_realpath = os.path.realpath
+    raced = False
 
     def _keeps_prefix(path: Any, *, strict: Any = False) -> Any:
+        nonlocal raced
         resolved = real_realpath(path, strict=strict)
-        return _WIN_EXTENDED + resolved if resolved == str(kept) else resolved
+        if resolved == str(kept) and not raced:
+            raced = True
+            return _WIN_EXTENDED + resolved
+        return resolved
 
     monkeypatch.setattr(routes.os.path, "realpath", _keeps_prefix)
     assert call() == expected

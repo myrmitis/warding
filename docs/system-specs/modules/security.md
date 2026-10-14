@@ -327,12 +327,14 @@ missing parent, between the two lookups. A kept prefix makes `relative_to` compa
 `\\?\C:` anchor with `C:`, and a legitimate create then fails with 400
 `spec_path_outside_root`.
 
-- `_realpath` removes the prefix only when the input had none, and maps `\\?\UNC\` back to
-  `\\`. A prefix that the caller supplied stays, as `realpath` keeps it. A volume-GUID
-  path also keeps it, because it has no plain spelling.
-- The prefixed spelling and the plain spelling (without the prefix) have the same
-  components, so containment gives the same answer for either. The sensitive-path test
-  sees the plain spelling, which is the one the index stores.
+- When an input without the prefix gains one, `_realpath` resolves the original input
+  once more. After the race settles, `realpath` can verify the plain spelling itself. The
+  same rule covers UNC paths.
+- `_realpath` never strips the prefix. `realpath` also keeps it when the plain spelling
+  names something else: a link target whose name ends in a dot or a space, or a volume
+  with no drive letter. Stripping it would hand the caller that other path. A prefix that
+  the caller supplied stays too. Continued mutation can still fail containment, but it
+  cannot redirect an operation to another path.
 - `_safe_dir`, both sides of `_contained`, `_resolve_spec_dir`, `_spec_file` and the
   folder-picker scan resolve through it.
 - `_verified_spec_dir` compares the unchanged `realpath` result on purpose. It checks a
