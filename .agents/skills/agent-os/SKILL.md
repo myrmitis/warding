@@ -15,11 +15,11 @@ Envelope: [`../../../WORKING_BRIEF.md`](../../../WORKING_BRIEF.md).
 3. **Reviewer** — review someone else's PR, label `agent-os/approved` or
    request changes, stop.
 
-A human merges.
+An agent squash-merges once `PR Readiness` passes (owner decision, 2026-10-14).
 
 ## Rules
 
-- Do not merge. Do not push to `main`. Do not approve a PR you authored.
+- Merge only after `PR Readiness` passes. Do not push to `main`. Do not approve a PR you authored.
 - Do not buy domains, change DNS, or spend.
 - Do not weaken keystone or harness-parity.
 - Do not edit `CHANGELOG.md`.

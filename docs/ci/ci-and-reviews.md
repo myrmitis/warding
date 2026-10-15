@@ -32,9 +32,9 @@ pull_request
 
 Two structural facts explain most of the rest:
 
-- **The real merge gate is human approval plus armed auto-merge.** `PR Readiness`
-  is the one status worth watching; individual red checks are strong signals a
-  human can weigh.
+- **The merge gate is `PR Readiness`.** Since 2026-10-14 (owner decision) an agent
+  squash-merges a PR once `PR Readiness` passes and no check fails; no human
+  approval is needed. Individual red checks are strong signals to weigh first.
 - **A fork PR is aggregated like any other and can reach a passing readiness
   state**; CodeQL is the one lane it cannot run. See [Fork PRs](#fork-prs).
 
