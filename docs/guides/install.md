@@ -37,12 +37,15 @@ Builds use plain `pip` + `npm`/Vite + `pytest`, driven by the repo-root
 | Requirement | Needed for | Floor |
 |-------------|------------|-------|
 | **Python** | Backend | `>= 3.10` (`requires-python` in `pyproject.toml`; `make build` provisions a 3.12 `.venv` by default) |
-| **Node.js + npm** | Building the dashboard | `20 \|\| >= 22` (`website/package.json` `engines`); `ensure-node.sh` targets 20, and drops to 16 on AL2 where newer official builds need a glibc that host does not have |
+| **Node.js + npm** | Building the dashboard and launching npm-based ACP adapters | `>= 22.12` for the source walkthrough (24 LTS recommended); check the locked Vite engine floor as well as `website/package.json` |
 | **An ACP runtime** | Driving the LLM | Optional; Cursor, Claude, Codex, Grok, … — a vendor agent CLI is optional |
 
-Node is only needed to *build* the dashboard. A source install that already
-has `website/dist` staged does not need Node at runtime. Local desktop
-artifacts from `make desktop` also bundle the dashboard.
+A staged dashboard does not need Node to serve its static files. Claude/Codex
+ACP adapters launched through `npx` still need Node/npm at runtime, including
+access for the initial adapter download. Local desktop artifacts bundle the
+dashboard separately from those harness requirements. The
+[macOS subscription walkthrough](../../README.md#quickstart) covers signing in
+to both official CLIs and a bounded implement/review handoff.
 
 ### Agent backend (optional)
 
@@ -422,8 +425,8 @@ already open keeps the agent it started on). Work handed to a
 spawned subagent can go to whichever installed coding agent you already pay for
 is best placed to do it: Claude Code, Codex (ChatGPT), Cursor, Grok Build, and
 OpenCode (OpenRouter and any other provider it logs into). The router picks an
-agent and never forwards provider traffic; each agent keeps its own login and
-Warding never sees a key. kiro-cli is optional. The router and OpenCode are
+agent and never forwards provider traffic; each agent keeps its own login, with
+no provider-key transfer required for subscription sign-in. kiro-cli is optional. The router and OpenCode are
 registered and unit-tested; neither is verified on a live run yet.
 
 1. `warding up` and open the dashboard. On first run, the setup screen lists
@@ -431,8 +434,9 @@ registered and unit-tested; neither is verified on a live run yet.
 2. For each agent: **Install** (if it is missing), then **Sign in**. Both run
    the agent's own command in the dashboard terminal: `claude auth login`,
    `codex login`, `cursor-agent login`, `grok login`, `opencode auth login`
-   (choose OpenRouter there). Then **Check**: the agent is started once, with
-   no prompt, and shows **Connected** or what it still needs.
+   (choose OpenRouter there). Then **Check** starts the adapter once without a
+   model prompt. Treat its connection result as startup evidence; send an actual
+   bounded prompt through each harness to exercise the selected login/model.
 3. On first run, **Continue with these agents** opens the dashboard once any
    agent is connected.
 4. Per agent, set **Billing**, **Plan size** (relative size of the plan), and
@@ -442,9 +446,11 @@ registered and unit-tested; neither is verified on a live run yet.
 The same from a terminal: `warding route check`, `warding route`, and
 `warding route run -k review "review the diff on this branch"`. Ask the
 dashboard agent to fan a plan out and it calls `spawn_run` with
-`harness="route"` and a `kind` per step (from chat, that needs a chat harness
-that carries Warding's MCP tools, which today is kiro-cli). Work that hits a usage limit before
-doing anything moves to the next agent on its own.
+`harness="route"` and a `kind` per step. From chat, that requires the managed MCP
+tools, which current source supplies to eligible Claude/Codex sessions as well
+as the established Kiro path; live cross-harness delegation still needs
+qualification. Work that hits a usage limit before doing anything can move to
+another eligible lane under the existing failover limits.
 
 How lanes are scored and when work fails over:
 [harness-router](../system-specs/modules/harness-router.md).
