@@ -1,13 +1,15 @@
-"""The app install/update metadata reads and writes stay off the event loop.
+"""The app routes and the registry install keep their file I/O off the event loop.
 
 An app install or update reads and writes small metadata files. ``get_app``
 reads ``installed.json`` and ``app.json``. ``register_external_app`` registers a
 self-managed app, and ``set_app_provenance`` records the source the app came
-from. The local install route also resolves the source path and reads its
-manifest. Each call is short, but on a stalled filesystem it blocks in the
-kernel. On the loop thread that freezes every task, including the liveness
-heartbeat, until the loop-stall watchdog kills the gateway. So each async caller
-hands these calls to a worker thread.
+from. The registry install also checks the trust grants, the admission policy
+and the execution policy, which read config files, and resolves the app's
+subdirectory. The app routes read app metadata, app config, UI files, cached
+blobs and ``config.json``. Each call is short, but on a stalled filesystem it
+blocks in the kernel. On the loop thread that freezes every task, including the
+liveness heartbeat, until the loop-stall watchdog kills the gateway. So each
+async caller hands these calls to a worker thread.
 
 The guards use the two tiers of ``test_apps_instances_loop_offload.py``:
 
@@ -16,10 +18,10 @@ The guards use the two tiers of ``test_apps_instances_loop_offload.py``:
   then does the real filesystem work. A double records the thread it runs on, so
   a direct call records the loop thread and fails the test.
 - AST ratchet: no direct call of a moved function may appear in an
-  ``async def`` frame of ``registry.py``. A nested ``def`` that the frame calls
-  directly counts as part of the frame. Other ``routes.py`` handlers still call
-  ``get_app`` on the loop, so the ``routes.py`` check covers only the install
-  and update handler frames.
+  ``async def`` frame of ``registry.py`` or ``routes.py``. A nested ``def`` that
+  the frame calls directly counts as part of the frame. Other async functions
+  of ``registry.py`` still run the policy checks on the loop, so that check
+  covers only ``install_from_registry``.
 
 ``install_from_registry`` runs under its caller's ``app_lifecycle_lock``. The
 cancellation tests cancel an install during a metadata write. The install must
@@ -60,22 +62,96 @@ _REGISTRY_METADATA_CALLS = frozenset({"get_app", "register_external_app", "set_a
 # The Path methods that the install handler calls on the source tree.
 _SOURCE_PATH_CALLS = ("resolve", "is_dir", "is_file", "read_text")
 
-# The route handlers under guard, and the blocking filesystem calls they may not
-# make on the loop.
-_ROUTE_HANDLERS = frozenset({"handle_install_app", "handle_update_app"})
-_ROUTE_FILESYSTEM_CALLS = frozenset({"get_app", *_SOURCE_PATH_CALLS})
+# The policy and containment checks of install_from_registry. Each reads a
+# config file or resolves a path. Other async registry functions still call
+# some of them on the loop, so this set is checked in that one frame only.
+_REGISTRY_INSTALL_FRAME = "install_from_registry"
+_REGISTRY_INSTALL_POLICY_CALLS = frozenset(
+    {
+        "trusted_app_repository",
+        "repository_bound_grant_denied",
+        "app_admission_denied",
+        "app_execution_denied",
+        "_contained_join",
+    }
+)
+
+# The blocking filesystem calls that no async frame of routes.py may make
+# directly. A method name matches on any receiver, so a Path method is covered
+# whatever the variable is called. The underscored names are the routes.py
+# helpers that group several of these calls into one worker hop.
+_ROUTE_FILESYSTEM_CALLS = frozenset(
+    {
+        "_ui_file_refusal",
+        "_prepare_blob_cache_path",
+        "_read_config_object",
+        "_write_config_object",
+        "_remove_app_workspace",
+        "get_app",
+        "get_app_manifest",
+        "app_data_dir",
+        "atomic_write",
+        "rmtree",
+        "resolve",
+        "exists",
+        "is_dir",
+        "is_file",
+        "mkdir",
+        "read_text",
+        "read_bytes",
+        "write_text",
+        "write_bytes",
+    }
+)
+
+# Handlers that the module-wide routes.py check must find as async frames.
+# Each one did blocking file I/O on the loop before it was moved.
+_ROUTE_HANDLERS = frozenset(
+    {
+        "handle_install_app",
+        "handle_update_app",
+        "handle_get_app",
+        "handle_get_manifest",
+        "handle_uninstall_preview",
+        "handle_uninstall_app",
+        "handle_enable_app",
+        "handle_disable_app",
+        "handle_open_app",
+        "handle_app_config",
+        "handle_app_ui_file",
+        "handle_blob_proxy",
+        "_fetch_git_blob",
+        "handle_registries",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _write_source(root: Path) -> Path:
+def _write_source(root: Path, **manifest_fields: Any) -> Path:
     """Create an app source tree whose manifest names ``_APP``."""
     root.mkdir(parents=True)
     manifest = {"name": _APP, "version": "1.0.0", "description": "metadata offload guard"}
+    manifest.update(manifest_fields)
     (root / APP_MANIFEST_FILENAME).write_text(json.dumps(manifest), encoding="utf-8")
     return root
+
+
+def _spy(record: list[threading.Thread], real: Callable[..., Any]) -> Callable[..., Any]:
+    """A stand-in that records the thread it runs on, then calls *real*."""
+
+    def _fn(*args: Any, **kwargs: Any) -> Any:
+        record.append(threading.current_thread())
+        return real(*args, **kwargs)
+
+    return _fn
+
+
+def _on_loop(calls: Iterable[tuple[str, threading.Thread]], loop: threading.Thread) -> list[str]:
+    """The names of the recorded *calls* that ran on the *loop* thread."""
+    return sorted({name for name, thread in calls if thread is loop})
 
 
 def _json_post(
@@ -93,7 +169,11 @@ async def _no_retained_startup_hook(app_name: str, *, bounded: bool) -> bool:
 
 
 def _stub_registry_install(
-    monkeypatch: pytest.MonkeyPatch, source: Path, *, self_managed: bool
+    monkeypatch: pytest.MonkeyPatch,
+    source: Path,
+    *,
+    self_managed: bool,
+    subdirectory: str = "",
 ) -> None:
     """Take ``install_from_registry`` to its registration step without git or network.
 
@@ -109,7 +189,11 @@ def _stub_registry_install(
     }
     if self_managed:
         entry["resources"] = "app"  # the app registers its own resources
-    manifest = json.loads((source / APP_MANIFEST_FILENAME).read_text(encoding="utf-8"))
+    if subdirectory:
+        entry["subdirectory"] = subdirectory
+    manifest = json.loads(
+        (source / subdirectory / APP_MANIFEST_FILENAME).read_text(encoding="utf-8")
+    )
     copied = AppResult(ok=True, name=_APP, message="copied")
 
     async def _fetch_manifest(*args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -147,12 +231,14 @@ def _patch_registry_writes(
     monkeypatch.setattr(registry_mod, "set_app_provenance", provenance)
 
 
-def _recording_path_class(calls: list[tuple[str, threading.Thread]]) -> type[Path]:
-    """Return a ``Path`` class that records the thread of each source-tree call.
+def _recording_path_class(
+    calls: list[tuple[str, threading.Thread]], names: Iterable[str] = _SOURCE_PATH_CALLS
+) -> type[Path]:
+    """Return a ``Path`` class that records the thread of each call of *names*.
 
-    Each recorded method then calls the real one, so the handler still reads
-    the real source tree. A path derived from an instance keeps the class, so
-    ``source_path / "app.json"`` records too.
+    Each recorded method then calls the real one, so the handler still works
+    on the real files. A path derived from an instance keeps the class, so
+    ``source_path / "app.json"`` and ``path.parent`` record too.
     """
     concrete = type(Path())
 
@@ -165,7 +251,7 @@ def _recording_path_class(calls: list[tuple[str, threading.Thread]]) -> type[Pat
 
         return _method
 
-    return type("_RecordingPath", (concrete,), {name: _spy(name) for name in _SOURCE_PATH_CALLS})
+    return type("_RecordingPath", (concrete,), {name: _spy(name) for name in names})
 
 
 class _BlockingCall:
@@ -275,23 +361,330 @@ async def test_handle_install_app_reads_the_source_off_the_loop_thread(
 
 
 @pytest.mark.asyncio
-async def test_handle_update_app_reads_the_installed_metadata_off_the_loop_thread(
-    monkeypatch: pytest.MonkeyPatch,
+async def test_install_from_registry_policy_checks_run_off_the_loop_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """POST /api/apps/{name}/update must not read the installed metadata on the
-    loop thread. The app is not installed, so the handler answers 404 right
-    after that read."""
+    """A registry install must not check its trust grants, its admission and
+    execution policies, or its subdirectory's containment on the loop thread.
+
+    The app sits in a subdirectory and declares an install script, so the
+    install reaches the containment check and all three admission gates: before
+    the clone, after the build and after the script. The script does not run:
+    a fake process stands in for it.
+    """
+    loop_thread = threading.current_thread()
+    source = tmp_path / "source"
+    _write_source(source / "pkg", setup={"onInstall": "true"})
+    _stub_registry_install(monkeypatch, source, self_managed=False, subdirectory="pkg")
+    monkeypatch.setattr(registry_mod, "get_app", lambda name: None)
+    _patch_registry_writes(
+        monkeypatch,
+        register=lambda *a, **k: AppResult(ok=True, name=_APP),
+        provenance=lambda *a, **k: True,
+    )
+    threads: dict[str, list[threading.Thread]] = {
+        name: [] for name in _REGISTRY_INSTALL_POLICY_CALLS
+    }
+    monkeypatch.setattr(
+        registry_mod, "trusted_app_repository", _recorder(threads["trusted_app_repository"], "")
+    )
+    monkeypatch.setattr(
+        registry_mod,
+        "repository_bound_grant_denied",
+        _recorder(threads["repository_bound_grant_denied"]),
+    )
+    monkeypatch.setattr(
+        registry_mod, "app_admission_denied", _recorder(threads["app_admission_denied"])
+    )
+    monkeypatch.setattr(
+        registry_mod, "app_execution_denied", _recorder(threads["app_execution_denied"])
+    )
+    monkeypatch.setattr(
+        registry_mod,
+        "_contained_join",
+        _spy(threads["_contained_join"], registry_mod._contained_join),
+    )
+
+    class _FinishedScript:
+        """A finished install script: exit 0, no output, no process group."""
+
+        pid = None
+        returncode = 0
+
+        async def communicate(self) -> tuple[bytes, None]:
+            return b"", None
+
+    async def _spawn(*args: Any, **kwargs: Any) -> _FinishedScript:
+        return _FinishedScript()
+
+    monkeypatch.setattr(registry_mod, "wrap_argv", lambda argv, **k: (argv, None))
+    monkeypatch.setattr(registry_mod, "cgroup_scope_argv", lambda argv: argv)
+    monkeypatch.setattr(registry_mod, "create_subprocess_limited", _spawn)
+
+    result = await registry_mod.install_from_registry(_APP)
+
+    assert result["ok"] is True, result
+    assert len(threads["app_admission_denied"]) == 3, "not every admission gate was reached"
+    unreached = sorted(name for name, record in threads.items() if not record)
+    assert not unreached, f"the install never reached: {unreached}"
+    on_loop = sorted(name for name, record in threads.items() if loop_thread in record)
+    assert not on_loop, f"install policy checks ran on the event loop thread: {on_loop}"
+
+
+# Each handler reads the app's metadata before it does anything else, and
+# answers 404 when the app is not installed.
+_METADATA_HANDLERS = [
+    ("handle_update_app", "POST", f"/api/apps/{_APP}/update"),
+    ("handle_get_app", "GET", f"/api/apps/{_APP}"),
+    ("handle_uninstall_preview", "GET", f"/api/apps/{_APP}/uninstall/preview"),
+    ("handle_uninstall_app", "POST", f"/api/apps/{_APP}/uninstall"),
+    ("handle_enable_app", "POST", f"/api/apps/{_APP}/enable"),
+    ("handle_disable_app", "POST", f"/api/apps/{_APP}/disable"),
+    ("handle_open_app", "POST", f"/api/apps/{_APP}/open"),
+    ("handle_app_config", "GET", f"/api/apps/{_APP}/config"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "handler,method,path", _METADATA_HANDLERS, ids=[h for h, _, _ in _METADATA_HANDLERS]
+)
+async def test_route_handlers_read_the_app_metadata_off_the_loop_thread(
+    monkeypatch: pytest.MonkeyPatch, handler: str, method: str, path: str
+) -> None:
+    """An app route must not read the installed metadata on the loop thread.
+
+    The app is not installed, so each handler answers 404 right after that
+    read.
+    """
     loop_thread = threading.current_thread()
     read_threads: list[threading.Thread] = []
     monkeypatch.setattr(routes_mod, "get_app", _recorder(read_threads))
 
-    resp = await routes_mod.handle_update_app(
-        make_mocked_request("POST", f"/api/apps/{_APP}/update", match_info={"name": _APP})
+    resp = await getattr(routes_mod, handler)(
+        make_mocked_request(method, path, match_info={"name": _APP})
     )
 
     assert resp.status == 404
     assert read_threads, "get_app was never invoked"
     assert loop_thread not in read_threads, "get_app ran on the event loop thread"
+
+
+@pytest.mark.asyncio
+async def test_handle_get_manifest_reads_the_manifest_off_the_loop_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GET /api/apps/{name}/manifest must not read app.json on the loop thread."""
+    loop_thread = threading.current_thread()
+    read_threads: list[threading.Thread] = []
+    monkeypatch.setattr(routes_mod, "get_app_manifest", _recorder(read_threads))
+
+    resp = await routes_mod.handle_get_manifest(
+        make_mocked_request("GET", f"/api/apps/{_APP}/manifest", match_info={"name": _APP})
+    )
+
+    assert resp.status == 404
+    assert read_threads, "get_app_manifest was never invoked"
+    assert loop_thread not in read_threads, "get_app_manifest ran on the event loop thread"
+
+
+@pytest.mark.asyncio
+async def test_handle_app_config_touches_the_data_dir_off_the_loop_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GET /api/apps/{name}/config must not create the data directory or look
+    for config.json on the loop thread. No config exists, so the handler seeds
+    an empty one and answers ``{}``."""
+    loop_thread = threading.current_thread()
+    calls: list[tuple[str, threading.Thread]] = []
+    data_threads: list[threading.Thread] = []
+    data_dir = _recording_path_class(calls, ("is_file", "mkdir"))(tmp_path / "data")
+    data_dir.mkdir()
+    calls.clear()
+    monkeypatch.setattr(routes_mod, "get_app", lambda name: {"name": name})
+    # handle_app_config imports app_data_dir when it runs, so patch the
+    # defining module.
+    monkeypatch.setattr(manager_mod, "app_data_dir", _recorder(data_threads, data_dir))
+
+    resp = await routes_mod.handle_app_config(
+        make_mocked_request("GET", f"/api/apps/{_APP}/config", match_info={"name": _APP})
+    )
+
+    assert resp.status == 200
+    assert data_threads, "app_data_dir was never invoked"
+    assert loop_thread not in data_threads, "app_data_dir ran on the event loop thread"
+    assert "is_file" in {name for name, _ in calls}, "the config file was never checked"
+    on_loop = _on_loop(calls, loop_thread)
+    assert not on_loop, f"the config handler touched the disk on the loop thread: {on_loop}"
+
+
+@pytest.mark.asyncio
+async def test_handle_app_ui_file_checks_the_file_off_the_loop_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GET /apps/{name}/ui/{path} must not check or resolve the file on the
+    loop thread. The handler serves every asset of an app's UI."""
+    loop_thread = threading.current_thread()
+    calls: list[tuple[str, threading.Thread]] = []
+    apps = _recording_path_class(calls, ("is_file", "resolve"))(tmp_path / "apps")
+    (tmp_path / "apps" / _APP / "ui").mkdir(parents=True)
+    (tmp_path / "apps" / _APP / "ui" / "app.js").write_text("export {};", encoding="utf-8")
+    monkeypatch.setattr(routes_mod, "apps_dir", lambda: apps)
+
+    resp = await routes_mod.handle_app_ui_file(
+        make_mocked_request(
+            "GET",
+            f"/apps/{_APP}/ui/app.js",
+            match_info={"name": _APP, "path": "app.js"},
+        )
+    )
+
+    assert isinstance(resp, web.FileResponse)
+    assert {"is_file", "resolve"} <= {name for name, _ in calls}
+    on_loop = _on_loop(calls, loop_thread)
+    assert not on_loop, f"the UI file handler touched the disk on the loop thread: {on_loop}"
+
+
+@pytest.mark.asyncio
+async def test_handle_blob_proxy_checks_the_cache_off_the_loop_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GET /api/apps/blob must not resolve, create or check the cache path on
+    the loop thread. The blob is already cached, so no clone runs."""
+    loop_thread = threading.current_thread()
+    calls: list[tuple[str, threading.Thread]] = []
+    clone_url = "https://example.com/acme.git"
+    cache_root = _recording_path_class(calls, ("is_file", "mkdir", "resolve"))(tmp_path / "blobs")
+    cached = tmp_path / "blobs" / routes_mod._blob_cache_key("acme", clone_url) / "main"
+    cached.mkdir(parents=True)
+    (cached / "logo.png").write_bytes(b"\x89PNG")
+    entry = {"repo": "acme", "gitUrl": clone_url, "branch": "main"}
+    monkeypatch.setattr(routes_mod, "get_registry_app_by_repo", lambda repo: entry)
+    monkeypatch.setattr(routes_mod, "known_registry_repos", lambda: {"acme"})
+    monkeypatch.setattr(routes_mod, "_blob_cache_dir", lambda: cache_root)
+
+    resp = await routes_mod.handle_blob_proxy(
+        make_mocked_request("GET", "/api/apps/blob?repo=acme&path=logo.png&ref=main")
+    )
+
+    assert isinstance(resp, web.FileResponse)
+    assert {"is_file", "mkdir", "resolve"} <= {name for name, _ in calls}
+    on_loop = _on_loop(calls, loop_thread)
+    assert not on_loop, f"the blob proxy touched the cache on the loop thread: {on_loop}"
+
+
+@pytest.mark.asyncio
+async def test_fetch_git_blob_reads_the_checkout_off_the_loop_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blob fetch must not resolve or check the checkout, or create the
+    cache directory, on the loop thread. A fake clone writes the blob."""
+    loop_thread = threading.current_thread()
+    calls: list[tuple[str, threading.Thread]] = []
+    recording_path = _recording_path_class(calls, ("is_file", "mkdir", "resolve"))
+    monkeypatch.setattr(routes_mod, "Path", recording_path)
+    # _fetch_git_blob imports this name when it runs, so patch the defining module.
+    monkeypatch.setattr(registry_mod, "is_clone_host_trusted", lambda url: True)
+    monkeypatch.setattr(routes_mod, "anonymous_git_env", lambda **extra: {})
+    monkeypatch.setattr(routes_mod, "wrap_argv", lambda argv, **k: (argv, None))
+    monkeypatch.setattr(routes_mod, "cgroup_scope_argv", lambda argv: argv)
+
+    class _FinishedClone:
+        """A finished ``git clone`` that left the blob in its checkout."""
+
+        returncode = 0
+
+        def __init__(self, checkout: str) -> None:
+            Path(checkout, "logo.png").write_bytes(b"\x89PNG")
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            return b"", b""
+
+    async def _spawn(*argv: Any, **kwargs: Any) -> _FinishedClone:
+        return _FinishedClone(argv[-1])
+
+    monkeypatch.setattr(routes_mod, "create_subprocess_limited", _spawn)
+    cache_path = recording_path(tmp_path / "blobs" / "acme" / "main" / "logo.png")
+
+    ok = await routes_mod._fetch_git_blob(
+        "acme", "main", "logo.png", cache_path, git_url="https://example.com/acme.git"
+    )
+
+    assert ok is True
+    assert (tmp_path / "blobs" / "acme" / "main" / "logo.png").read_bytes() == b"\x89PNG"
+    assert {"is_file", "mkdir", "resolve"} <= {name for name, _ in calls}
+    on_loop = _on_loop(calls, loop_thread)
+    assert not on_loop, f"the blob fetch touched the disk on the loop thread: {on_loop}"
+
+
+@pytest.mark.asyncio
+async def test_handle_registries_put_reads_and_writes_the_config_off_the_loop_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PUT /api/apps/registries must not read, create or write config.json on
+    the loop thread."""
+    loop_thread = threading.current_thread()
+    calls: list[tuple[str, threading.Thread]] = []
+    write_threads: list[threading.Thread] = []
+    cfg = tmp_path / "config.json"
+    cfg.write_text(json.dumps({"registries": []}), encoding="utf-8")
+    monkeypatch.setattr(
+        routes_mod, "Path", _recording_path_class(calls, ("is_file", "read_text", "mkdir"))
+    )
+    monkeypatch.setattr(routes_mod, "config_path", lambda: cfg)
+    monkeypatch.setattr(routes_mod, "atomic_write", _spy(write_threads, routes_mod.atomic_write))
+
+    resp = await routes_mod.handle_registries(
+        _json_post("/api/apps/registries", {"registries": []})
+    )
+
+    assert resp.status == 200
+    assert {"is_file", "read_text", "mkdir"} <= {name for name, _ in calls}
+    assert write_threads, "config.json was never written"
+    assert loop_thread not in write_threads, "config.json was written on the event loop thread"
+    on_loop = _on_loop(calls, loop_thread)
+    assert not on_loop, f"the registries handler touched config.json on the loop: {on_loop}"
+
+
+@pytest.mark.asyncio
+async def test_handle_uninstall_app_removes_the_workspace_off_the_loop_thread(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /api/apps/{name}/uninstall must not look for or remove a registry
+    app's source workspace on the loop thread."""
+    loop_thread = threading.current_thread()
+    calls: list[tuple[str, threading.Thread]] = []
+    workspace = _recording_path_class(calls, ("is_dir",))(tmp_path / "workspace")
+    workspace.mkdir()
+    calls.clear()
+    info = {
+        "name": _APP,
+        "source": f"registry:{_APP}",
+        "resources": "app",
+        "lifecycle": "gateway",
+        "manifest": {},
+    }
+    monkeypatch.setattr(routes_mod, "get_app", lambda name: info)
+    monkeypatch.setattr(routes_mod, "app_lifecycle_lock", lambda name: asyncio.Lock())
+    monkeypatch.setattr(routes_mod, "stop_retained_startup_hooks", _no_retained_startup_hook)
+    monkeypatch.setattr(routes_mod, "trust_grant_removal_blocked", lambda name: None)
+    monkeypatch.setattr(
+        routes_mod, "classify_and_clean_for_uninstall", lambda *a, **k: {"removable": []}
+    )
+    monkeypatch.setattr(routes_mod, "uninstall_app", lambda *a, **k: AppResult(ok=True, name=_APP))
+    # _remove_app_workspace imports this name when it runs, so patch the
+    # defining module.
+    monkeypatch.setattr(registry_mod, "app_source_dir", lambda name: workspace)
+    request = _json_post(f"/api/apps/{_APP}/uninstall", {})
+    request.match_info.update({"name": _APP})  # type: ignore[attr-defined]
+
+    resp = await routes_mod.handle_uninstall_app(request)
+
+    assert resp.status == 200, resp.text
+    assert not (tmp_path / "workspace").exists(), "the workspace was not removed"
+    assert "is_dir" in {name for name, _ in calls}, "the workspace was never checked"
+    on_loop = _on_loop(calls, loop_thread)
+    assert not on_loop, f"the uninstall touched the workspace on the loop thread: {on_loop}"
 
 
 def test_get_app_version_sync_cannot_erase_a_concurrent_provenance_write(
@@ -620,16 +1013,32 @@ def test_no_direct_metadata_call_in_registry_async_frames() -> None:
     assert not offenders, "direct app metadata I/O on the event loop:\n" + "\n".join(offenders)
 
 
-def test_no_direct_filesystem_call_in_the_install_and_update_handlers() -> None:
-    """The install and update handlers may not call a blocking filesystem
-    function directly. The check names its frames, so it fails when one of
-    them disappears instead of passing with nothing to scan."""
+def test_no_direct_policy_check_in_install_from_registry() -> None:
+    """``install_from_registry`` may not run a policy or containment check
+    directly. The check names its frame, so it fails when the frame
+    disappears instead of passing with nothing to scan."""
+    tree = _module_tree(registry_mod)
+    async_frames = {node.name for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef)}
+    assert _REGISTRY_INSTALL_FRAME in async_frames, f"{_REGISTRY_INSTALL_FRAME} not found"
+
+    offenders = _direct_calls(
+        tree,
+        registry_mod.__name__,
+        _REGISTRY_INSTALL_POLICY_CALLS,
+        frames=frozenset({_REGISTRY_INSTALL_FRAME}),
+    )
+    assert not offenders, "direct policy check on the event loop:\n" + "\n".join(offenders)
+
+
+def test_no_direct_filesystem_call_in_routes_async_frames() -> None:
+    """No async frame of ``routes.py`` may call a blocking filesystem function
+    directly. The handlers that were moved off the loop must still be async
+    frames, so a renamed handler cannot leave the check scanning less than it
+    did."""
     tree = _module_tree(routes_mod)
     async_frames = {node.name for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef)}
     missing = sorted(_ROUTE_HANDLERS - async_frames)
     assert not missing, f"guarded handlers not found in {routes_mod.__name__}: {missing}"
 
-    offenders = _direct_calls(
-        tree, routes_mod.__name__, _ROUTE_FILESYSTEM_CALLS, frames=_ROUTE_HANDLERS
-    )
+    offenders = _direct_calls(tree, routes_mod.__name__, _ROUTE_FILESYSTEM_CALLS)
     assert not offenders, "direct filesystem call on the event loop:\n" + "\n".join(offenders)

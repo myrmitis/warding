@@ -6441,8 +6441,9 @@ async def install_from_registry(
     # record that coordinate; a legacy name-only grant needs one-time re-consent
     # before repository-backed bytes can be fetched or executed. This gate runs
     # before manifest fetch, credential selection, clone, build, or setup code.
-    granted_repository = trusted_app_repository(name)
-    trust_denied = repository_bound_grant_denied(name, repository=git_url)
+    # Off-loop: both read the trust grants from config.json.
+    granted_repository = await asyncio.to_thread(trusted_app_repository, name)
+    trust_denied = await asyncio.to_thread(repository_bound_grant_denied, name, repository=git_url)
     if trust_denied:
         # The exact coordinates are comparison inputs, not log/API data. Clone
         # URLs can contain userinfo credentials; every copy of this reason is
@@ -6617,7 +6618,10 @@ async def install_from_registry(
     # but BEFORE the repo is cloned and setup.onInstall runs, so a banned /
     # non-allowlisted / unsigned app is never cloned nor its install script run.
     admission_manifest = AppManifest.from_dict(manifest) if manifest else None
-    denied = app_admission_denied(name, manifest=admission_manifest, action="install_from_registry")
+    # Off-loop: the admission check reads the fleet policy file.
+    denied = await asyncio.to_thread(
+        app_admission_denied, name, manifest=admission_manifest, action="install_from_registry"
+    )
     if denied:
         sel().log_api_access(
             caller="app_install_from_registry",
@@ -6679,7 +6683,9 @@ async def install_from_registry(
 
     # detectInstalled, clone/build, dependency setup, and onInstall are all
     # executable third-party surfaces and share the same explicit admission.
-    execution_denied = app_execution_denied(
+    # Off-loop: the check reads the trust grants from config.json.
+    execution_denied = await asyncio.to_thread(
+        app_execution_denied,
         name,
         action="registry_install",
         caller="registry",
@@ -6780,7 +6786,8 @@ async def install_from_registry(
             # under the cloned source root with symlink-resolving containment so
             # an absolute/``..``/symlink value cannot point app.json (and thus
             # setup.onInstall) at an attacker-selected path outside the clone.
-            contained = _contained_join(app_source, subdirectory)
+            # Off-loop: the containment check resolves symlinks.
+            contained = await asyncio.to_thread(_contained_join, app_source, subdirectory)
             if contained is None:
                 # subdirectory FAILED containment here — by definition it is
                 # an escaping value (absolute, "..", or a symlink pointing
@@ -6889,7 +6896,8 @@ async def install_from_registry(
         # install_app/update_app will actually register, and a build step can
         # rewrite app.json; a manifest that no longer satisfies the admission
         # policy (e.g. signature required and now absent) must not install.
-        denied = app_admission_denied(
+        denied = await asyncio.to_thread(
+            app_admission_denied,
             name,
             manifest=AppManifest.from_dict(manifest_data),
             action="install_from_registry",
@@ -7068,7 +7076,8 @@ async def install_from_registry(
                 # Retained-stale reporting for this post-script refusal is owned
                 # by the `finally` below (it re-stamps outcome["log"]).
                 return outcome
-            denied = app_admission_denied(
+            denied = await asyncio.to_thread(
+                app_admission_denied,
                 name,
                 manifest=AppManifest.from_dict(manifest_data),
                 action="install_from_registry",

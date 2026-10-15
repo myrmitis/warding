@@ -534,7 +534,8 @@ async def handle_publish_providers(request: web.Request) -> web.Response:
 async def handle_get_app(request: web.Request) -> web.Response:
     """GET /api/apps/{name} — get single app details."""
     name = request.match_info["name"]
-    info = get_app(name)
+    # Off-loop: get_app reads installed.json and app.json.
+    info = await asyncio.to_thread(get_app, name)
     if not info:
         return web.json_response({"error": f"app {name!r} not installed"}, status=404)
     return web.json_response(
@@ -545,7 +546,7 @@ async def handle_get_app(request: web.Request) -> web.Response:
 async def handle_get_manifest(request: web.Request) -> web.Response:
     """GET /api/apps/{name}/manifest — get app manifest."""
     name = request.match_info["name"]
-    manifest = get_app_manifest(name)
+    manifest = await asyncio.to_thread(get_app_manifest, name)
     if not manifest:
         return web.json_response({"error": f"app {name!r} not installed"}, status=404)
     return web.json_response(manifest.to_dict())
@@ -976,7 +977,8 @@ async def handle_uninstall_preview(request: web.Request) -> web.Response:
     Returns resource list and dependency classification (removable/shared/userInstalled).
     """
     name = request.match_info["name"]
-    info = get_app(name)
+    # Off-loop: get_app reads installed.json and app.json.
+    info = await asyncio.to_thread(get_app, name)
     if not info:
         return web.json_response({"error": f"app {name!r} not installed"}, status=404)
 
@@ -1010,6 +1012,20 @@ async def handle_uninstall_preview(request: web.Request) -> web.Response:
     )
 
 
+def _remove_app_workspace(app_reg_name: str) -> bool:
+    """Remove a registry app's source workspace. True when it existed.
+
+    Blocking filesystem work: an async caller runs it in a worker thread.
+    """
+    from warding.apps.registry import app_source_dir
+
+    ws_dir = app_source_dir(app_reg_name)
+    if not ws_dir.is_dir():
+        return False
+    shutil.rmtree(ws_dir, ignore_errors=True)
+    return True
+
+
 async def handle_uninstall_app(request: web.Request) -> web.Response:
     """POST /api/apps/{name}/uninstall — uninstall an app.
 
@@ -1025,7 +1041,8 @@ async def handle_uninstall_app(request: web.Request) -> web.Response:
     atomic and the cron precondition can abort before any irreversible action.
     """
     name = request.match_info["name"]
-    info = get_app(name)
+    # Off-loop: get_app reads installed.json and app.json.
+    info = await asyncio.to_thread(get_app, name)
     if not info:
         return web.json_response({"error": f"app {name!r} not installed"}, status=404)
 
@@ -1302,11 +1319,7 @@ async def handle_uninstall_app(request: web.Request) -> web.Response:
     if is_registry_source(info.get("source", "")):
         app_reg_name = registry_name_from_source(info.get("source", ""))
         if app_reg_name:
-            from warding.apps.registry import app_source_dir
-
-            ws_dir = app_source_dir(app_reg_name)
-            if ws_dir.is_dir():
-                shutil.rmtree(ws_dir, ignore_errors=True)
+            if await asyncio.to_thread(_remove_app_workspace, app_reg_name):
                 uninstall_log.append(f"Removed workspace for {app_reg_name}")
 
     sel().log_api_access(
@@ -1373,7 +1386,8 @@ async def handle_enable_app(request: web.Request) -> web.Response:
     cannot succeed there.
     """
     name = request.match_info["name"]
-    info = get_app(name)
+    # Off-loop: get_app reads installed.json and app.json.
+    info = await asyncio.to_thread(get_app, name)
     if not info:
         return web.json_response({"error": f"app {name!r} not installed"}, status=404)
 
@@ -1565,7 +1579,8 @@ async def handle_disable_app(request: web.Request) -> web.Response:
     If onDisable fails, disable proceeds anyway (with warnings).
     """
     name = request.match_info["name"]
-    info = get_app(name)
+    # Off-loop: get_app reads installed.json and app.json.
+    info = await asyncio.to_thread(get_app, name)
     if not info:
         return web.json_response({"error": f"app {name!r} not installed"}, status=404)
 
@@ -1662,7 +1677,8 @@ async def handle_open_app(request: web.Request) -> web.Response:
     for the user to run locally instead of executing it.
     """
     name = request.match_info["name"]
-    info = get_app(name)
+    # Off-loop: get_app reads installed.json and app.json.
+    info = await asyncio.to_thread(get_app, name)
     if not info:
         return web.json_response({"error": f"app {name!r} not found"}, status=404)
 
@@ -2047,18 +2063,20 @@ async def handle_app_config(request: web.Request) -> web.Response:
     PUT replaces the config with the request body.
     """
     name = request.match_info["name"]
-    info = get_app(name)
+    # Off-loop: get_app reads installed.json and app.json.
+    info = await asyncio.to_thread(get_app, name)
     if not info:
         return web.json_response({"error": f"app {name!r} not installed"}, status=404)
 
     from warding.apps.manager import app_data_dir
     from warding.atomic_write import atomic_write
 
-    data_dir = app_data_dir(name)
+    # Off-loop: app_data_dir creates the data directory.
+    data_dir = await asyncio.to_thread(app_data_dir, name)
     config_path = data_dir / "config.json"
 
     if request.method == "GET":
-        if not config_path.is_file():
+        if not await asyncio.to_thread(config_path.is_file):
             # Missing config (e.g. data dir wiped by an app update) — seed an
             # empty config so the app gets a valid response instead of hanging
             # on a perpetual "loading" state. The app repopulates it on first use.
@@ -2097,6 +2115,23 @@ async def handle_app_config(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "name": name})
 
 
+def _ui_file_refusal(full_path: Path, ui_dir: Path) -> tuple[str, int] | None:
+    """Return ``(error, status)`` when *full_path* may not be served, else None.
+
+    The file must exist and resolve inside *ui_dir*, so a symlink cannot serve
+    a file from outside the app's UI bundle. Blocking filesystem work: an
+    async caller runs it in a worker thread.
+    """
+    if not full_path.is_file():
+        return "not found", 404
+    ui_root = ui_dir.resolve()
+    try:
+        full_path.resolve().relative_to(ui_root)
+    except ValueError:
+        return "invalid path", 400
+    return None
+
+
 async def handle_app_ui_file(request: web.Request) -> web.Response:
     """GET /apps/{name}/ui/{path:.*} — serve app UI bundle files."""
     name = request.match_info["name"]
@@ -2109,13 +2144,11 @@ async def handle_app_ui_file(request: web.Request) -> web.Response:
     if ext not in _ALLOWED_EXTENSIONS:
         return web.json_response({"error": f"file type {ext!r} not allowed"}, status=403)
     full_path = apps_dir() / name / "ui" / file_path
-    if not full_path.is_file():
-        return web.json_response({"error": "not found"}, status=404)
-    ui_root = (apps_dir() / name / "ui").resolve()
-    try:
-        full_path.resolve().relative_to(ui_root)
-    except ValueError:
-        return web.json_response({"error": "invalid path"}, status=400)
+    # One worker hop: this handler serves every asset of an app's UI.
+    refusal = await asyncio.to_thread(_ui_file_refusal, full_path, apps_dir() / name / "ui")
+    if refusal is not None:
+        error, status = refusal
+        return web.json_response({"error": error}, status=status)
     content_type = _CONTENT_TYPES.get(ext, "application/octet-stream")
     # Dev-mode apps: never cache — the file-watch live-reload reloads on every
     # change and must always see the latest bytes. Use the in-memory cache
@@ -2550,8 +2583,8 @@ async def _fetch_git_blob(
 
         # Read the requested file from the checkout, guarding against escapes
         # out of the clone via symlinks or traversal.
-        clone_root = clone_root.resolve()
-        blob_path = (clone_root / file_path).resolve()
+        clone_root = await asyncio.to_thread(clone_root.resolve)
+        blob_path = await asyncio.to_thread((clone_root / file_path).resolve)
         try:
             blob_path.relative_to(clone_root)
         except ValueError:
@@ -2561,7 +2594,7 @@ async def _fetch_git_blob(
                 file_path,
             )
             return False
-        if not blob_path.is_file():
+        if not await asyncio.to_thread(blob_path.is_file):
             return False
         data = await asyncio.to_thread(blob_path.read_bytes)
     except OSError as exc:
@@ -2576,8 +2609,36 @@ async def _fetch_git_blob(
         if tmp_root:
             await asyncio.to_thread(platform_compat.rmtree_force, tmp_root)
 
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(cache_path.parent.mkdir, parents=True, exist_ok=True)
     await asyncio.to_thread(cache_path.write_bytes, data)
+    return True
+
+
+def _prepare_blob_cache_path(cache_path: Path) -> bool:
+    """Create *cache_path*'s directory if the path stays in the blob cache.
+
+    SECURITY: the resolved path is verified to stay within the cache dir
+    BEFORE any filesystem side effect (mkdir). The parent is resolved against
+    the cache root to catch symlink-based escapes. Returns False on an escape.
+    Blocking filesystem work: an async caller runs it in a worker thread.
+    """
+    cache_root_resolved = _blob_cache_dir().resolve()
+    try:
+        resolved_parent = cache_path.parent.resolve()
+    except OSError:
+        resolved_parent = cache_path.parent
+    try:
+        resolved_parent.relative_to(cache_root_resolved)
+    except ValueError:
+        return False
+    resolved = cache_path.resolve()
+    try:
+        resolved.relative_to(cache_root_resolved)
+    except ValueError:
+        return False
+
+    # Safe to create directories now that path is validated
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
     return True
 
 
@@ -2690,25 +2751,10 @@ async def handle_blob_proxy(request: web.Request) -> web.Response:
     # SECURITY: Verify resolved path stays within cache dir BEFORE any
     # filesystem side effects (mkdir).  We resolve the parent against the
     # cache root to catch symlink-based escapes.
-    cache_root_resolved = _blob_cache_dir().resolve()
-    try:
-        resolved_parent = cache_path.parent.resolve()
-    except OSError:
-        resolved_parent = cache_path.parent
-    try:
-        resolved_parent.relative_to(cache_root_resolved)
-    except ValueError:
-        return web.json_response({"error": "invalid path"}, status=400)
-    resolved = cache_path.resolve()
-    try:
-        resolved.relative_to(cache_root_resolved)
-    except ValueError:
+    if not await asyncio.to_thread(_prepare_blob_cache_path, cache_path):
         return web.json_response({"error": "invalid path"}, status=400)
 
-    # Safe to create directories now that path is validated
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if not cache_path.is_file():
+    if not await asyncio.to_thread(cache_path.is_file):
         # Same-repo credential carve-out (extended to the blob chokepoint):
         # only when the entry's clone URL is byte-identical to the owner-typed
         # registry repo does the clone get owner credentials.  Reuse the merged
@@ -2764,7 +2810,7 @@ async def handle_blob_proxy(request: web.Request) -> web.Response:
                     owner_designated = bool(owner_credential_target)
         async with _BLOB_FETCH_SEMAPHORE:
             # Re-check after acquiring semaphore (another request may have cached it)
-            if not cache_path.is_file():
+            if not await asyncio.to_thread(cache_path.is_file):
                 fetch_kwargs: dict[str, Any] = {
                     "git_url": clone_url,
                     "owner_designated": owner_designated,
@@ -3086,6 +3132,24 @@ async def handle_migrate_cleanup(request: web.Request) -> web.Response:
     return web.json_response(result.to_dict())
 
 
+def _read_config_object(cfg: Path) -> Any:
+    """Parse *cfg*, or return ``{}`` when it does not exist.
+
+    Raises what the read and the parse raise. Blocking filesystem work: an
+    async caller runs it in a worker thread.
+    """
+    return json.loads(cfg.read_text(encoding="utf-8")) if cfg.is_file() else {}
+
+
+def _write_config_object(cfg: Path, data: Any) -> None:
+    """Write *data* to *cfg* atomically, so a crash cannot corrupt it.
+
+    Blocking filesystem work: an async caller runs it in a worker thread.
+    """
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(cfg, json.dumps(data, indent=2) + "\n")
+
+
 async def handle_registries(request: web.Request) -> web.Response:
     """GET/PUT /api/apps/registries — manage external federated registries."""
     if request.method == "GET":
@@ -3218,7 +3282,7 @@ async def handle_registries(request: web.Request) -> web.Response:
     # Update config file (atomic write to prevent corruption on crash)
     cfg = Path(config_path())
     try:
-        data = json.loads(cfg.read_text(encoding="utf-8")) if cfg.is_file() else {}
+        data = await asyncio.to_thread(_read_config_object, cfg)
     except json.JSONDecodeError:
         sel().log_api_access(
             caller="dashboard",
@@ -3270,8 +3334,7 @@ async def handle_registries(request: web.Request) -> web.Response:
             )
 
     data["registries"] = validated
-    cfg.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(cfg, json.dumps(data, indent=2) + "\n")
+    await asyncio.to_thread(_write_config_object, cfg, data)
 
     sel().log_api_access(
         caller="dashboard",
