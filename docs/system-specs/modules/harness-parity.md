@@ -1,9 +1,10 @@
-# Harness parity: Kiro first, everything else adapted
+# Harness parity: automatic selection, explicit capabilities
 
 **Warding inverts H1's default, not H5–H12.** `agent.acp_backend`
-defaults to `auto` (first installed spec-family ACP runtime). kiro-cli remains
-selectable and optional. Identity is still a positive comparison; capabilities
-are still opt-in membership sets. Unknown values degrade to `auto`, not kiro-cli.
+defaults to `auto` (first installed runtime in `acp/runtimes.py`'s
+`AUTO_PREFERENCE`, with kiro-cli last). kiro-cli remains selectable and optional.
+Identity is still a positive comparison; capabilities are still opt-in
+membership sets. Unknown values normalize to `auto` and follow that preference.
 Pinned by `test_harness_parity.py::test_auto_is_the_default_backend` and
 `::test_unselectable_backend_degrades_to_auto`.
 
@@ -49,17 +50,25 @@ invariants and names what pins each one.
 - The ids are stable. Source docstrings and review findings cite them bare
   (`H4`, `H6`), so the id is the lookup key.
 
-## Group A: Kiro is the default and the floor
+## Group A: auto is the default; Kiro stays selectable
 
-These break by *addition*: a harness lands, nothing at these sites is edited,
-and Kiro stops being the guaranteed path.
+These can break by *addition*: a harness lands and changes the configured
+default or removes an established backend choice.
 
 | Id | Guarantees | Pinned by | Constrains |
 |---|---|---|---|
-| H1 | **Fork:** `agent.acp_backend` defaults to `ACP_BACKEND_AUTO`. `ACP_BACKEND_KIRO` stays in `ACP_BACKENDS_SELECTABLE` unconditionally. Configuring nothing auto-selects an installed spec-family ACP; kiro-cli is optional. | `test_harness_parity.py::test_auto_is_the_default_backend`, `::test_kiro_is_always_selectable` | `config/loader.py` (`AgentConfig.acp_backend`), `acp/types.py` (`ACP_BACKENDS_SELECTABLE`) |
+| H1 | **Fork:** `agent.acp_backend` defaults to `ACP_BACKEND_AUTO`. `ACP_BACKEND_KIRO` stays in `ACP_BACKENDS_SELECTABLE` unconditionally. Auto selects the first installed runtime, preferring every spec-family runtime over optional kiro-cli. | `test_harness_parity.py::test_auto_is_the_default_backend`, `::test_kiro_is_always_selectable`, `test_acp_runtimes.py::TestSelectRuntime` | `config/loader.py` (`AgentConfig.acp_backend`), `acp/types.py` (`ACP_BACKENDS_SELECTABLE`), `acp/runtimes.py` (`AUTO_PREFERENCE`, `select_runtime`) |
 | H2 | A harness is chosen at `agent.acp_backend`. `agent.provider` stays `enum=["acp"]`: there is one provider and it is never the harness selector, because a second provider value would route around every invariant below. | `test_harness_parity.py::test_provider_enum_is_acp_only` | `config/loader.py` (`AgentConfig.provider`, `build_provider_factory`) |
-| H3 | **Fork:** an unknown or unselectable persisted backend degrades to `auto` with a logged reason. It never raises and never silently spawns kiro-cli. Explicit `kiro` / `""` still select kiro-cli. | `test_harness_parity.py::test_unselectable_backend_degrades_to_auto` | `config/loader.py` (`_normalize_acp_backend`) |
+| H3 | **Fork:** an unknown or unselectable persisted backend normalizes to `auto` with a logged reason. Normalization never raises; subsequent runtime selection follows H1. Explicit `kiro` / `""` still select kiro-cli. | `test_harness_parity.py::test_unselectable_backend_degrades_to_auto` | `config/loader.py` (`_normalize_acp_backend`) |
 | H4 | Enum membership and selectability stay two mechanisms. `validate_config_data` *deletes* an out-of-enum value before the loader sees it, and the degrade log only fires on a non-empty value — so a preview harness missing from the enum vanishes with no log line at all. Everything the enum admits must still resolve to a selectable backend. | `test_harness_parity.py::test_enum_and_selectability_are_separate` | `config/loader.py` (`AgentConfig.acp_backend` metadata), `config/validation.py` (`validate_config_data`) |
+
+Chat selection and routed work are separate controls. Disabling a `kiro` lane
+in `routing.json` excludes it from router selection; it does not alter
+`agent.acp_backend` or `AUTO_PREFERENCE`. Auto checks executable availability,
+not a subscription or successful login, and can still select Kiro when it is
+the only installed runtime. To exclude Kiro from chat, explicitly select an
+installed, authenticated alternative. Retiring Kiro support or changing this
+fallback is a product change, not an identity cleanup.
 
 ## Group B: identity is tested positively
 

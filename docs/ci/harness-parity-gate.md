@@ -1,9 +1,10 @@
 # The harness-parity gate
 
-Warding drives one first-class agent harness — `kiro-cli` — and adapts the
-others. This gate is the mechanical half of that rule: it reads the lines a
-change ADDS under `src/warding/` and fails on any that let a harness other
-than Kiro inherit something by default. The invariants it enforces, and the
+Warding defaults to `auto`, selecting an installed runtime with optional
+kiro-cli last. Every harness has explicit capability and sandbox boundaries;
+adapted harnesses must preserve the established Kiro path. This gate reads
+the lines a change ADDS under `src/warding/` and fails on implicit capability
+inheritance or an unapproved harness default. The invariants it enforces, and the
 judgment-only ones it cannot, are catalogued in
 [../system-specs/modules/harness-parity.md](../system-specs/modules/harness-parity.md).
 
@@ -12,7 +13,7 @@ judgment-only ones it cannot, are catalogued in
 | Where | Command | Fails the build |
 |---|---|---|
 | CI job `harness-parity` in `ci.yml` | `check_harness_parity.py --test` then the diff-scoped run | yes — `CI` is a required check, so every job in it is blocking |
-| CI job `test` (ordinary pytest) | `test/test_harness_parity.py` | yes — 22 structural pins, groups A and C |
+| CI job `test` (ordinary pytest) | `test/test_harness_parity.py` | yes — structural pins, groups A and C |
 | Local review (`prepare-pr`) | the `harness-parity` rule in `REVIEW_RULES.yaml`, `blocking: true` | no — a violation is a BLOCKING finding fixed before the push |
 | Locally | `HARNESS_BASE_REF=origin/main python3 scripts/check_harness_parity.py` | exit 1 on any violation |
 
@@ -34,7 +35,7 @@ none of them needs to resolve an import, which is why the job needs no
 | `bare-literal` | H8 | `backend == "kas"` — `ACP_BACKEND_KIRO` is the empty string, so only the named constant is legible |
 | `sandbox-delegation` | H7 | `is_kiro_cli=` derived from a negation. This flag makes `wrap_argv` SKIP Warding's seatbelt, so it fails OPEN |
 | `vocabulary-home` | H8 | an `ACP_BACKEND_*` identifier or `ACP_BACKENDS_*` set defined outside `acp/types.py` |
-| `non-kiro-default` | H1 | `default=ACP_BACKEND_KAS` and equivalents — an operator who configures nothing gets Kiro |
+| `non-kiro-default` (legacy rule id) | H1 | A concrete adapted harness used as an implicit default. `ACP_BACKEND_AUTO` is allowed for Warding's configured default; existing Kiro-specific APIs retain `ACP_BACKEND_KIRO`. Structural tests separately pin `AgentConfig.acp_backend` to `auto`. |
 
 ## Why diff-scoped rather than whole-tree
 

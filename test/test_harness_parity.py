@@ -1,6 +1,7 @@
 """Structural pins for the harness-parity invariants.
 
-Warding drives one first-class harness, ``kiro-cli``, and adapts the others.
+Warding defaults to automatic runtime selection and keeps explicit per-harness
+capability boundaries, including the established ``kiro-cli`` path.
 Each test here closes one invariant from
 ``docs/system-specs/modules/harness-parity.md`` by its id, so a change that
 degrades the Kiro path goes red here rather than at an operator's first message.
@@ -72,7 +73,7 @@ def _field_enum(name: str) -> object:
 
 
 # ---------------------------------------------------------------------------
-# Group A: Kiro is the default and the floor
+# Group A: auto is the default; Kiro stays selectable
 # ---------------------------------------------------------------------------
 
 
@@ -84,8 +85,8 @@ def test_auto_is_the_default_backend() -> None:
 def test_kiro_is_always_selectable() -> None:
     """H1: the Kiro harness is never gated behind a preview flag or an edition.
 
-    Every other member is a policy decision; this one is the floor. Without it
-    an operator can persist a configuration in which no harness is selectable.
+    Optional installation does not remove the explicit backend choice or grant
+    another harness any of its capabilities.
     """
     assert ACP_BACKEND_KIRO in ACP_BACKENDS_SELECTABLE
 

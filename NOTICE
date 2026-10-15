@@ -7,6 +7,10 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 
+Warding's modifications — including the multi-runtime ACP registry, the
+names-only model catalog, and the Warding product overlay — are original
+to this project and licensed under the same Apache License 2.0.
+
 Portions of this software incorporate third-party components; see
 THIRD-PARTY-NOTICES for their respective copyright notices and licenses.
 
@@ -23,3 +27,18 @@ recipe are derived from prior MIT-licensed open-source projects that
 reverse-engineered that path. No third-party code is copied; the
 implementation is independent, and the module is isolated so the
 dependency is auditable in one place.
+
+------------------------------------------------------------------------
+Attribution notices of the original work
+------------------------------------------------------------------------
+
+Warding is a derivative work of software licensed under the Apache License,
+Version 2.0. The original work's attribution notices are reproduced verbatim
+below under section 4(d). They describe the origin of the original work,
+not Warding's product identity or an endorsement of Warding.
+
+KiroCrew
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+This product includes software developed at
+Amazon.com, Inc. (https://www.amazon.com/).

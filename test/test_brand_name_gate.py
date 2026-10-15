@@ -232,6 +232,41 @@ class TestIdentifiers:
         assert not hasattr(gate, "SUPPRESSION")
 
 
+class TestNoticeAttribution:
+    def test_crlf_notice_keeps_the_exact_attribution_exception(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setattr(gate, "REPO_ROOT", str(tmp_path))
+        notice = tmp_path / "NOTICE"
+        notice.write_bytes(f"Warding\r\n{_NAME}\r\n".encode("utf-8"))
+        assert gate.scan_file("NOTICE") == []
+        notice.write_bytes(f"{_NAME} \r\n".encode("utf-8"))
+        assert gate.scan_file("NOTICE")
+        assert _hits(_NAME + "\r", path="docs/NOTICE")
+        assert _hits(_NAME + "\r\r", path="NOTICE")
+
+    def test_exact_product_line_is_allowed_only_in_root_notice(self) -> None:
+        assert _hits(_NAME, path="NOTICE") == []
+        assert _hits(_NAME, path=os.path.join(_REPO_ROOT, "NOTICE")) == []
+        for path in ("README.md", "docs/NOTICE", "NOTICE.txt", "website/NOTICE"):
+            assert _hits(_NAME, path=path) == [_NAME]
+
+    @pytest.mark.parametrize(
+        "line", [_NAME + " endorsement", "Use " + _NAME, _NAME.lower(), " " + _NAME, _NAME + " "]
+    )
+    def test_notice_does_not_exempt_other_branding(self, line: str) -> None:
+        assert _hits(line, path="NOTICE")
+
+    def test_original_attribution_is_preserved_verbatim(self) -> None:
+        company = ("ama" + "zon").capitalize()
+        original = (
+            f"{_NAME}\n"
+            f"Copyright {company}.com, Inc. or its affiliates. All Rights Reserved.\n\n"
+            "This product includes software developed at\n"
+            f"{company}.com, Inc. (https://www.{company.lower()}.com/).\n"
+        )
+        with open(os.path.join(_REPO_ROOT, "NOTICE"), encoding="utf-8") as notice:
+            assert original in notice.read()
+
+
 class TestDataHome:
     def test_the_posix_data_home_is_flagged(self) -> None:
         assert _kinds(f"state lives under {_HOME_POSIX}/workspace") == ["home"]

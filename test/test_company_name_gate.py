@@ -86,6 +86,23 @@ class TestLineVerdicts:
         assert not _scan("docs/a.md", "Runs on AL2023 with S3 and Polly.")
 
 
+class TestNoticeAttribution:
+    @pytest.mark.parametrize(
+        "line",
+        [
+            f"Copyright {CAP}.com, Inc. or its affiliates. All Rights Reserved.",
+            f"{CAP}.com, Inc. (https://www.{LOW}.com/).",
+        ],
+    )
+    def test_attribution_is_exact_and_root_notice_only(self, line: str) -> None:
+        rules = gate.load_rules()
+        assert gate.scan_text("NOTICE", line, rules) == []
+        for path in ("README.md", "docs/NOTICE", "NOTICE.txt"):
+            assert gate.scan_text(path, line, rules)
+        for altered in ("Use " + line, line + " Endorsement", " " + line, line + " "):
+            assert gate.scan_text("NOTICE", altered, rules)
+
+
 class TestRuleParsing:
     def test_unknown_entry_kind_is_rejected(self) -> None:
         with pytest.raises(SystemExit):

@@ -29,7 +29,8 @@ Lane map: [`docs/TASK_MAP.md`](docs/TASK_MAP.md).
   approval for gated calls. Never describe asking as the default.
 - **Retired identity:** The brand gate fails any added line that spells the
   retired product name (in any joining), its hosts, its bundle id or its
-  GitHub organisation. Never Kiro in the product name, tagline, logo or domain.
+  GitHub organisation. The exact original-work attribution in root `NOTICE`
+  is retained under Apache-2.0; it is not product branding. Never Kiro in the product name, tagline, logo or domain.
 - **Not the product:** Codex Router, Hearth, Relay, Rudder, and the Warden
   cluster of other companies' products.
 - **Visual:** paper and the Ward Seal by day; the night office by night. The
@@ -101,7 +102,7 @@ Electron package name `warding-desktop`, GitHub slug `myrmitis/warding`. The
 data home is `~/.warding` (override: `WARDING_HOME`); there is no fallback to
 another product's directory, no legacy env prefix, and no console script
 besides `warding`. The brand gate fails any added line that spells a retired
-identity.
+identity, except the exact original-work attribution in root `NOTICE`.
 
 ## Visual identity
 
