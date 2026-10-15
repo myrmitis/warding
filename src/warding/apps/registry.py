@@ -27,6 +27,7 @@ minimal environment that excludes process secrets.
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import logging
 import os
@@ -37,11 +38,13 @@ import sys
 import time
 import unicodedata
 import uuid
+from collections.abc import Callable
+from concurrent.futures import Executor
 from datetime import datetime, timezone
 from hashlib import sha256
 from ipaddress import IPv6Address
 from pathlib import Path
-from typing import Any
+from typing import Any, ParamSpec, TypeVar
 
 from warding.apps import install_receipt, official_catalog
 from warding.apps.admission import app_admission_denied, verified_signer
@@ -1823,6 +1826,64 @@ async def _rmtree_force_settled(path: str | Path) -> None:
                 await asyncio.wait({worker})
             except asyncio.CancelledError:
                 continue
+        raise
+
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+async def _to_thread_settled(func: Callable[_P, _R], /, *args: _P.args, **kwargs: _P.kwargs) -> _R:
+    """Run *func* in a worker thread, and unwind only after the worker is done.
+
+    ``install_from_registry`` runs under its caller's ``app_lifecycle_lock``.
+    Cancelling ``asyncio.to_thread`` stops only the await; the worker keeps
+    running. If the caller unwound at once, it would release the lock while an
+    ``installed.json`` write or a tree copy is still in flight. A concurrent
+    uninstall could then remove the app, and the late worker would re-create
+    its files. So on cancellation this waits for the worker, then propagates
+    the cancellation. The worker inherits the caller's context variables, as
+    with a plain ``asyncio.to_thread``.
+    """
+    worker = asyncio.create_task(asyncio.to_thread(func, *args, **kwargs))
+    return await _await_settled(worker, func)
+
+
+async def _run_in_executor_settled(
+    executor: Executor, func: Callable[_P, _R], /, *args: _P.args, **kwargs: _P.kwargs
+) -> _R:
+    """Run *func* on *executor*, and unwind only after the worker is done.
+
+    The executor form of ``_to_thread_settled``, for a caller that holds an
+    ``app_lifecycle_lock`` and runs its blocking work on a dedicated pool. Like
+    ``loop.run_in_executor``, it does not copy context variables to the worker.
+    """
+    loop = asyncio.get_running_loop()
+    worker = loop.run_in_executor(executor, functools.partial(func, *args, **kwargs))
+    return await _await_settled(worker, func)
+
+
+async def _await_settled(worker: asyncio.Future[_R], func: Callable[..., Any]) -> _R:
+    """Await *worker*; on cancellation, wait until it is done, then re-raise.
+
+    A repeated cancellation during the wait is absorbed, because the thread
+    finishes either way. The caller receives the cancellation, so a worker
+    failure after it is logged with the name of *func*.
+    """
+    try:
+        return await asyncio.shield(worker)
+    except asyncio.CancelledError:
+        while not worker.done():
+            try:
+                await asyncio.wait({worker})
+            except asyncio.CancelledError:
+                continue
+        if not worker.cancelled() and worker.exception() is not None:
+            logger.warning(
+                "%s failed after its caller was cancelled",
+                getattr(func, "__name__", func),
+                exc_info=worker.exception(),
+            )
         raise
 
 
@@ -6531,8 +6592,9 @@ async def install_from_registry(
         _sel_credential_grant("install_from_registry_owner_tier", _entry_git_url(entry) or "")
     # Capture event kind before clone/build/install scripts can register or
     # otherwise change app state. The receipt describes this call's starting
-    # state, not an intermediate side effect.
-    was_installed = get_app(name) is not None
+    # state, not an intermediate side effect. Off-loop: get_app reads
+    # installed.json and app.json.
+    was_installed = (await asyncio.to_thread(get_app, name)) is not None
 
     # Fetch the app's manifest for platform info and install script. This is a
     # read-only metadata fetch (git archive of app.json), safe to do before the
@@ -7104,24 +7166,32 @@ async def install_from_registry(
             # launch. Leaving it False would report success to the caller while the
             # `finally` rolled the source checkout back underneath it.
             durable_success = True
-            reg_result = register_external_app(
-                name=name,
-                version=version,
-                display_name=display,
-                source=f"{SOURCE_REGISTRY_PREFIX}{name}",
-                manifest_data=manifest_data,
-                origin="registry",
-                source_repository=persisted_git_url,
-            )
-            if reg_result.ok:
-                set_app_provenance(
-                    name,
+
+            # One worker runs both writes off the loop. A cancellation cannot land
+            # between them and leave a registration without its provenance. It
+            # unwinds only after both finish, so the caller's lifecycle lock stays
+            # held across them.
+            def _register_with_provenance() -> None:
+                reg_result = register_external_app(
+                    name=name,
+                    version=version,
+                    display_name=display,
                     source=f"{SOURCE_REGISTRY_PREFIX}{name}",
-                    url=persisted_git_url,
-                    registry=source_registry,
-                    commit=source_commit,
-                    signer=source_signer,
+                    manifest_data=manifest_data,
+                    origin="registry",
+                    source_repository=persisted_git_url,
                 )
+                if reg_result.ok:
+                    set_app_provenance(
+                        name,
+                        source=f"{SOURCE_REGISTRY_PREFIX}{name}",
+                        url=persisted_git_url,
+                        registry=source_registry,
+                        commit=source_commit,
+                        signer=source_signer,
+                    )
+
+            await _to_thread_settled(_register_with_provenance)
 
             log_lines.append("Pre-registered from cloned manifest (self-managed)")
             log_lines.append("App will update its own registration on next launch")
@@ -7153,19 +7223,21 @@ async def install_from_registry(
         # Lock-free: the route handler holds app_lifecycle_lock(name) across
         # the whole transaction (clone/build → copy → register → backend
         # start); asyncio.Lock is not reentrant, so no acquisition here.
-        existing = get_app(name)
+        existing = await asyncio.to_thread(get_app, name)
         # Off-loop: install_app/update_app do a blocking filesystem copy
         # that can take minutes on large source trees — on the loop it
-        # would trip the loop-stall watchdog and kill the gateway.
+        # would trip the loop-stall watchdog and kill the gateway. Settled:
+        # a cancelled install waits for the copy, so the caller's lock and the
+        # `finally` restore below never run while the copy reads the checkout.
         # Preserve the long-standing one-positional-argument manager contract.
         # The scoped coordinate is copied into asyncio.to_thread's context, so
         # the manager still performs its final repository-binding check and
         # writes safe provisional provenance without trusting app.json.
         with registry_source_repository(persisted_git_url):
             if existing:
-                result = await asyncio.to_thread(update_app, str(app_source))
+                result = await _to_thread_settled(update_app, str(app_source))
             else:
-                result = await asyncio.to_thread(install_app, str(app_source))
+                result = await _to_thread_settled(install_app, str(app_source))
         log_lines.append(result.message or result.error or "done")
 
         # Record the source marker plus structured provenance, so a later update
@@ -7182,7 +7254,8 @@ async def install_from_registry(
             # either outcome. A failed receipt is a bookkeeping problem to log; it does
             # not un-install what is installed.
             durable_success = True
-            set_app_provenance(
+            await _to_thread_settled(
+                set_app_provenance,
                 result.name,
                 source=f"{SOURCE_REGISTRY_PREFIX}{name}",
                 url=persisted_git_url,
@@ -7197,7 +7270,8 @@ async def install_from_registry(
             # above runs while durable_success is already True: if it raises, the
             # generic `except` catches it, the `finally` does NOT restore (durable
             # success), and it reports with filter_restorable=not durable_success
-            # = False — so the restorable stale is reported, not stranded.
+            # = False — so the restorable stale is reported, not stranded. A
+            # cancellation takes the same `finally` path once the write finishes.
             if official_entry:
                 # Detached best-effort telemetry runs only after durable success.
                 install_receipt.dispatch(
