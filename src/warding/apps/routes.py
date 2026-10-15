@@ -2115,20 +2115,22 @@ async def handle_app_config(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "name": name})
 
 
-def _ui_file_refusal(full_path: Path, ui_dir: Path) -> tuple[str, int] | None:
-    """Return ``(error, status)`` when *full_path* may not be served, else None.
+def _ui_file_refusal(full_path: Path, ui_dir: Path) -> str | None:
+    """Return ``"not_found"`` or ``"outside_bundle"`` when *full_path* may not be served.
+
+    Return None when the file may be served.
 
     The file must exist and resolve inside *ui_dir*, so a symlink cannot serve
     a file from outside the app's UI bundle. Blocking filesystem work: an
     async caller runs it in a worker thread.
     """
     if not full_path.is_file():
-        return "not found", 404
+        return "not_found"
     ui_root = ui_dir.resolve()
     try:
         full_path.resolve().relative_to(ui_root)
     except ValueError:
-        return "invalid path", 400
+        return "outside_bundle"
     return None
 
 
@@ -2146,9 +2148,12 @@ async def handle_app_ui_file(request: web.Request) -> web.Response:
     full_path = apps_dir() / name / "ui" / file_path
     # One worker hop: this handler serves every asset of an app's UI.
     refusal = await asyncio.to_thread(_ui_file_refusal, full_path, apps_dir() / name / "ui")
-    if refusal is not None:
-        error, status = refusal
-        return web.json_response({"error": error}, status=status)
+    if refusal == "not_found":
+        return web.json_response({"error": "not found", "code": "ui_file_not_found"}, status=404)
+    if refusal == "outside_bundle":
+        return web.json_response(
+            {"error": "invalid path", "code": "ui_file_outside_bundle"}, status=400
+        )
     content_type = _CONTENT_TYPES.get(ext, "application/octet-stream")
     # Dev-mode apps: never cache — the file-watch live-reload reloads on every
     # change and must always see the latest bytes. Use the in-memory cache
