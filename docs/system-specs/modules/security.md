@@ -317,6 +317,30 @@ the path directly, as keystone writers must, so it would have followed the link.
 also deliberately NOT a field on the app's `index.json`, which is agent-writable by
 design.
 
+**Spec Builder path resolution** (`_realpath` in `apps/builtins/spec_builder/backend/routes.py`)
+— Spec Builder resolves a path through `_realpath` before it tests containment or
+sensitivity, and before it stores the path. On Windows, `realpath` gets an extended-length
+(`\\?\`) path from the OS. It removes the prefix only when a second lookup returns the same
+string, or fails with the same Win32 error. Create prepares the spec directory before it
+takes the directory turn lock. A concurrent create can therefore make the path, or a
+missing parent, between the two lookups. A kept prefix makes `relative_to` compare a
+`\\?\C:` anchor with `C:`, and a legitimate create then fails with 400
+`spec_path_outside_root`.
+
+- When an input without the prefix gains one, `_realpath` resolves the original input
+  once more. After the race settles, `realpath` can verify the plain spelling itself. The
+  same rule covers UNC paths.
+- `_realpath` never strips the prefix. `realpath` also keeps it when the plain spelling
+  names something else: a link target whose name ends in a dot or a space, or a volume
+  with no drive letter. Stripping it would hand the caller that other path. A prefix that
+  the caller supplied stays too. Continued mutation can still fail containment, but it
+  cannot redirect an operation to another path.
+- `_safe_dir`, both sides of `_contained`, `_resolve_spec_dir`, `_spec_file` and the
+  folder-picker scan resolve through it.
+- `_verified_spec_dir` compares the unchanged `realpath` result on purpose. It checks a
+  directory that already exists, so a kept prefix means that the plain spelling did not
+  reach that directory for the whole lookup. Refusing the directory is correct in that case.
+
 **Ops Mission Control authorization inputs** (`apps/ops-mission-control/data/rotation.yaml`,
 `apps/ops-mission-control/data/incidents/index.json`) — two app-owned files that are
 write-protected on both layers for the same reason as the marker above, and with the same

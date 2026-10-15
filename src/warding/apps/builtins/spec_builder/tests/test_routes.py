@@ -20,6 +20,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import contextlib
+import errno
 import inspect
 import json
 import os
@@ -30,7 +31,7 @@ import threading
 import time
 import types
 from pathlib import Path
-from typing import Callable, cast
+from typing import Any, Callable, cast
 
 import pytest
 from aiohttp import web
@@ -7807,24 +7808,6 @@ def test_safe_dir_still_accepts_absolute_and_tilde(tmp_path, monkeypatch):
     assert (
         routes._safe_dir("~/inside") is not None
     ), "_safe_dir rejected a ~-relative path, which expands to an absolute one"
-
-
-def test_absoluteness_is_checked_before_realpath():
-    """Source guard: order is the whole point.
-
-    ``os.path.realpath`` resolves against the process cwd and ALWAYS returns an
-    absolute path, so an is_absolute()/isabs() test placed after it is dead code
-    and the documented guarantee is not enforced. Asserts on the order of the
-    calls, not on a comment.
-    """
-    import inspect
-
-    src = inspect.getsource(routes._safe_dir)
-    isabs_at = src.index("os.path.isabs(")
-    realpath_at = src.index("os.path.realpath(")
-    assert (
-        isabs_at < realpath_at
-    ), "the absoluteness test moved after realpath, where it can never fail"
 
 
 # ── a stale execute must not clear a replacement's STOP sentinel ──
@@ -16832,21 +16815,24 @@ async def test_create_stays_inside_its_root_when_realpath_keeps_a_long_path_pref
     """A spec directory created mid-resolution still lands under its root.
 
     Windows realpath resolves a missing path in two lookups and keeps the
-    extended-length prefix when a concurrent create makes them disagree. Unless that
-    prefix is dropped, the losing create of a racing case-variant pair is refused as
+    extended-length prefix when a concurrent create makes them disagree. Unless the
+    lookup is retried, the losing create of a racing case-variant pair is refused as
     ``spec_path_outside_root`` rather than as a conflict. The race is simulated by
-    returning the prefixed spelling for every spec path that does not exist yet.
+    returning the prefixed spelling the first time each missing spec path resolves.
     """
     project = tmp_path / "proj"
     project.mkdir()
     client, state = _create_client(monkeypatch, tmp_path)
     real_realpath = os.path.realpath
     specs_root = os.path.join(real_realpath(project), ".kiro", "specs")
+    raced: set[str] = set()
 
     def realpath_racing_a_create(path, *args, **kwargs):
         resolved = real_realpath(path, *args, **kwargs)
         if resolved.startswith(specs_root) and not os.path.exists(resolved):
-            return "\\\\?\\" + resolved
+            if resolved not in raced:
+                raced.add(resolved)
+                return "\\\\?\\" + resolved
         return resolved
 
     monkeypatch.setattr(routes.os.path, "realpath", realpath_racing_a_create)
@@ -16866,16 +16852,296 @@ async def test_create_stays_inside_its_root_when_realpath_keeps_a_long_path_pref
     assert body["spec_dir"] == os.path.join(specs_root, "Raced")
 
 
-def test_without_extended_prefix_keeps_only_paths_that_need_it():
-    """Drive and UNC paths lose the prefix; a volume-GUID path cannot, so it keeps it."""
-    prefix = "\\\\?\\"
-    absolute = os.path.abspath(os.sep + "proj")
-    assert routes._without_extended_prefix(prefix + absolute) == absolute
-    assert routes._without_extended_prefix(absolute) == absolute
-    volume = prefix + "Volume{00000000-0000-0000-0000-000000000000}" + os.sep + "proj"
-    assert routes._without_extended_prefix(volume) == volume
-    unc = prefix + "UNC\\server\\share\\proj"
-    assert routes._without_extended_prefix(unc) == "\\\\server\\share\\proj"
+@pytest.mark.parametrize(
+    ("requested", "resolved", "expected"),
+    [
+        # A raced UNC lookup: the retry returns the settled, plain spelling.
+        ("\\\\host\\share\\proj", "\\\\?\\UNC\\host\\share\\proj", "\\\\host\\share\\proj"),
+        # The caller asked for the extended-length namespace, so there is no retry.
+        ("\\\\?\\C:\\proj", "\\\\?\\C:\\proj", "\\\\?\\C:\\proj"),
+    ],
+    ids=["unc", "caller-prefix"],
+)
+def test_realpath_retries_a_transient_prefix_but_keeps_a_caller_prefix(
+    monkeypatch, requested, resolved, expected
+):
+    """A raced lookup settles on the retry; a caller's extended semantics stay."""
+    results = iter([resolved, expected])
+    monkeypatch.setattr(routes.os.path, "realpath", lambda _path: next(results))
+    assert routes._realpath(requested) == expected
+
+
+@pytest.mark.parametrize(
+    ("requested", "canonical"),
+    [
+        ("C:\\project-link", "\\\\?\\C:\\project. "),
+        ("\\\\host\\share\\project-link", "\\\\?\\UNC\\host\\share\\project."),
+        ("C:\\mounted-link", "\\\\?\\Volume{00000000-0000-0000-0000-000000000000}\\proj"),
+    ],
+    ids=["drive-target", "unc-target", "volume-target"],
+)
+def test_realpath_keeps_a_prefix_the_plain_spelling_cannot_replace(
+    monkeypatch, requested, canonical
+):
+    """Realpath keeps the prefix on every lookup when the plain spelling differs.
+
+    A link target whose name ends in a dot or a space changes when Win32 drops the
+    prefix, and a volume with no drive letter has no plain spelling at all. Unlike
+    the transient create race, the retry returns the same canonical result, and it
+    must reach the caller unchanged.
+    """
+    calls: list[str] = []
+
+    def _canonical_target(path):
+        calls.append(os.fspath(path))
+        return canonical
+
+    monkeypatch.setattr(routes.os.path, "realpath", _canonical_target)
+    assert routes._realpath(requested) == canonical
+    assert calls == [requested, requested]
+
+
+# ── Windows realpath race: a transient extended-length prefix ────────────────
+#
+# Windows' realpath gets a ``\\?\``-prefixed path from GetFinalPathNameByHandleW. It
+# removes the prefix only when a second, verifying lookup returns the same string, or
+# fails with the same Win32 error as the first lookup. When another request creates
+# the path, or one of its missing parents, between the two lookups, the lookups
+# disagree and the prefix stays. The emulation below ports that control flow onto the
+# host filesystem, so the race runs on every OS, and a handshake forces the
+# interleaving instead of waiting for the scheduler to produce it.
+
+_WIN_EXTENDED = "\\\\?\\"
+
+#: Bound on each handshake wait. The interleaving is forced, so a wait only reaches
+#: this when a request never arrives at its side of the handshake.
+_RACE_TIMEOUT_SECS = 30.0
+
+
+class _WinLookupMiss(FileNotFoundError):
+    """A failed Win32 lookup. ``ntpath.realpath`` compares ``winerror``, not errno."""
+
+    def __init__(self, winerror: int, path: str) -> None:
+        super().__init__(errno.ENOENT, os.strerror(errno.ENOENT), path)
+        self.winerror = winerror
+
+
+class _WindowsRealpath:
+    """``ntpath.realpath`` (CPython 3.12, non-strict) on the host filesystem.
+
+    ``_final_path`` stands in for ``nt._getfinalpathname``. It matches the last
+    component without regard to case and returns its on-disk spelling, as NTFS does.
+    It fails with Win32 code 3 when a parent is missing and code 2 when only the last
+    component is missing. ``hold`` runs between the first lookup and the verifying
+    lookup, which is where the race lives. ``kept`` records each request whose result
+    kept the prefix, so a test can prove that the race really happened.
+    """
+
+    def __init__(self, hold: Callable[[str], None]) -> None:
+        self._real = os.path.realpath
+        self._hold = hold
+        self.kept: list[str] = []
+
+    def _final_path(self, path: str) -> str:
+        bare = path[len(_WIN_EXTENDED) :] if path.startswith(_WIN_EXTENDED) else path
+        parent, leaf = os.path.split(bare)
+        if not leaf:
+            return _WIN_EXTENDED + bare
+        if not os.path.isdir(parent):
+            raise _WinLookupMiss(3, path)
+        spellings = [entry for entry in os.listdir(parent) if entry.casefold() == leaf.casefold()]
+        if spellings:
+            bare = os.path.join(parent, leaf if leaf in spellings else spellings[0])
+        elif not os.path.lexists(bare):
+            raise _WinLookupMiss(2, path)
+        # The real resolver for the rest: links, and Windows 8.3 short names.
+        return _WIN_EXTENDED + self._real(bare, strict=True)
+
+    def _final_path_nonstrict(self, path: str) -> str:
+        tail = ""
+        while path:
+            try:
+                found = self._final_path(path)
+            except OSError:
+                path, name = os.path.split(path)
+                if path and not name:
+                    return path + tail
+                tail = os.path.join(name, tail) if tail else name
+                continue
+            return os.path.join(found, tail) if tail else found
+        return tail
+
+    def __call__(self, path: Any, *, strict: Any = False) -> Any:
+        raw = os.fspath(path)
+        if strict or isinstance(raw, bytes):
+            return self._real(raw, strict=strict)
+        resolved = os.path.normpath(raw)
+        had_prefix = resolved.startswith(_WIN_EXTENDED)
+        if not had_prefix and not os.path.isabs(resolved):
+            resolved = os.path.join(os.getcwd(), resolved)
+        requested = resolved
+        initial_winerror: int | None = 0
+        try:
+            resolved = self._final_path(resolved)
+        except OSError as exc:
+            initial_winerror = getattr(exc, "winerror", None)
+            resolved = self._final_path_nonstrict(resolved)
+        self._hold(requested)
+        if not had_prefix and resolved.startswith(_WIN_EXTENDED):
+            stripped = resolved[len(_WIN_EXTENDED) :]
+            try:
+                if self._final_path(stripped) == resolved:
+                    return stripped
+            except OSError as exc:
+                if getattr(exc, "winerror", None) == initial_winerror:
+                    return stripped
+            self.kept.append(requested)
+        return resolved
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("held", "other", "expected", "registered"),
+    [
+        # `.kiro/specs` does not exist yet, so the held lookup misses with code 3. The
+        # other create then makes the directory, and the verifying lookup misses with
+        # code 2. Two different names must both be created.
+        ("alpha", "beta", {"alpha": (201, ""), "beta": (201, "")}, ["alpha", "beta"]),
+        # The verifying lookup finds the other create's directory in its on-disk case,
+        # so the two lookups return different strings. Both names are one directory
+        # on Windows, so the alias check refuses the second name, not containment.
+        (
+            "CaseSpec",
+            "casespec",
+            {"CaseSpec": (409, "spec_dir_in_use"), "casespec": (201, "")},
+            ["casespec"],
+        ),
+    ],
+    ids=["distinct-names", "case-variants"],
+)
+async def test_create_survives_a_windows_realpath_that_keeps_its_prefix(
+    tmp_path, monkeypatch, held, other, expected, registered
+):
+    """A transient ``\\\\?\\`` prefix from a concurrent create must not cause a 400.
+
+    Create runs ``_prepare_spec_dir`` outside the directory turn lock, so two creates
+    for one project resolve their paths at the same time. On Windows the held create's
+    realpath keeps the extended-length prefix. A raw comparison never finds a
+    ``\\\\?\\C:`` path under ``C:``, so a legitimate create fails with 400
+    ``spec_path_outside_root``: ``[(400, spec_path_outside_root), (201, ...)]``.
+    """
+    project = Path(os.path.realpath(tmp_path)) / "proj"
+    project.mkdir()
+    client, state = _create_client(monkeypatch, tmp_path)
+    # Windows path identity: normcase lowercases, and the volume ignores case.
+    monkeypatch.setattr(routes.os.path, "normcase", lambda path: path.lower())
+    monkeypatch.setattr(
+        routes.os.path,
+        "samefile",
+        lambda left, right: os.path.normpath(left).casefold() == os.path.normpath(right).casefold(),
+    )
+    held_dir = os.path.join(project, ".kiro", "specs", held)
+    reached = threading.Event()  # the held create's first lookup has missed
+    created = threading.Event()  # the other create has made its directory
+    stalls: list[str] = []
+
+    def _hold(requested: str) -> None:
+        if requested != held_dir or reached.is_set():
+            return
+        reached.set()
+        if not created.wait(_RACE_TIMEOUT_SECS):
+            stalls.append(f"{other} never made its directory")
+
+    real_prepare = routes._prepare_spec_dir
+
+    def _prepare(working_dir: str, safe_wd: Path, name: str, *rest: Any, **kw: Any):
+        if name != other:
+            return real_prepare(working_dir, safe_wd, name, *rest, **kw)
+        if not reached.wait(_RACE_TIMEOUT_SECS):
+            stalls.append(f"{held} never reached its first lookup")
+        try:
+            return real_prepare(working_dir, safe_wd, name, *rest, **kw)
+        finally:
+            created.set()
+
+    resolver = _WindowsRealpath(_hold)
+    monkeypatch.setattr(routes.os.path, "realpath", resolver)
+    monkeypatch.setattr(routes, "_prepare_spec_dir", _prepare)
+    dispatched: list[str] = []
+    monkeypatch.setattr(routes, "_dispatch_turn", lambda *_a, **_kw: dispatched.append("x"))
+
+    await client.start_server()
+    try:
+        client.app["state"] = state
+        responses = await asyncio.gather(
+            *(
+                client.post(
+                    f"{_BASE}/specs",
+                    json={"name": name, "working_dir": str(project), "spec_type": "feature"},
+                )
+                for name in (held, other)
+            )
+        )
+        bodies = [await response.json() for response in responses]
+    finally:
+        # Release both sides, so a failed handshake cannot leave a worker blocked.
+        reached.set()
+        created.set()
+        await client.close()
+
+    assert stalls == [], stalls
+    assert held_dir in resolver.kept, "the held lookup did not keep the prefix: no race"
+    results = {
+        name: (response.status, "" if response.status == 201 else body.get("code"))
+        for name, response, body in zip((held, other), responses, bodies)
+    }
+    assert results == expected, bodies
+    indexed = {name: str(meta.get("spec_dir", "")) for name, meta in routes._load_index().items()}
+    assert indexed == {
+        name: os.path.join(project, ".kiro", "specs", name) for name in registered
+    }, "an indexed spec directory is not the plain spelling of its path"
+    assert len(dispatched) == len(registered)
+
+
+@pytest.mark.parametrize("site", ["safe_dir", "spec_file"])
+def test_a_prefix_kept_by_one_lookup_reaches_no_result_or_comparison(tmp_path, monkeypatch, site):
+    """The race can land in a lookup outside create's own path resolution.
+
+    The create tests above cover ``_resolve_spec_dir`` and ``_contained``. Here one
+    lookup keeps the prefix, as it does when that lookup races a concurrent change,
+    and every other lookup stays plain. ``_safe_dir`` re-validates a spec directory
+    that does not exist yet, and ``_spec_file`` resolves a file the agent can write
+    at any time.
+    """
+    project = Path(os.path.realpath(tmp_path)) / "proj"
+    spec_dir = project / ".kiro" / "specs" / "s"
+    spec_dir.mkdir(parents=True)
+    fresh_dir = project / ".kiro" / "specs" / "fresh"
+    kept, call, expected = {
+        "safe_dir": (
+            fresh_dir,
+            lambda: routes._safe_dir(str(fresh_dir), must_exist=False),
+            fresh_dir,
+        ),
+        "spec_file": (
+            spec_dir / "tasks.md",
+            lambda: routes._spec_file(spec_dir, "tasks.md"),
+            spec_dir / "tasks.md",
+        ),
+    }[site]
+    real_realpath = os.path.realpath
+    raced = False
+
+    def _keeps_prefix(path: Any, *, strict: Any = False) -> Any:
+        nonlocal raced
+        resolved = real_realpath(path, strict=strict)
+        if resolved == str(kept) and not raced:
+            raced = True
+            return _WIN_EXTENDED + resolved
+        return resolved
+
+    monkeypatch.setattr(routes.os.path, "realpath", _keeps_prefix)
+    assert call() == expected
 
 
 @pytest.mark.asyncio

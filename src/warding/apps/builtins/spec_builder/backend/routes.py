@@ -1376,7 +1376,7 @@ def _safe_dir(raw: str, *, must_exist: bool = True) -> Path | None:
     # were then pointed at it.
     if not os.path.isabs(expanded):
         return None
-    resolved = Path(os.path.realpath(expanded))
+    resolved = Path(_realpath(expanded))
     if is_sensitive_path(str(resolved)):
         return None
     if must_exist:
@@ -1398,40 +1398,38 @@ def _safe_dir_optional(raw: str) -> Path | None:
     return _safe_dir(raw, must_exist=False)
 
 
-#: The Win32 extended-length prefixes ``os.path.realpath`` can leave on a result.
+#: Win32's extended-length path prefix, including its UNC form.
 _EXTENDED_PATH_PREFIX = "\\\\?\\"
-_EXTENDED_UNC_PREFIX = "\\\\?\\UNC\\"
-
-
-def _without_extended_prefix(path: str) -> str:
-    """``path`` without an extended-length prefix, when the rest is itself absolute.
-
-    The prefix only switches off normalization, so the prefixed and plain spellings
-    of a drive or UNC path name one location. A volume-GUID path keeps it: without
-    the prefix it is not a path at all.
-    """
-    if path.startswith(_EXTENDED_UNC_PREFIX):
-        return "\\\\" + path[len(_EXTENDED_UNC_PREFIX) :]
-    if path.startswith(_EXTENDED_PATH_PREFIX):
-        rest = path[len(_EXTENDED_PATH_PREFIX) :]
-        if os.path.isabs(rest):
-            return rest
-    return path
 
 
 def _realpath(path: str | os.PathLike[str]) -> str:
-    """``os.path.realpath``, keeping an extended-length prefix only if ``path`` had one.
+    """``os.path.realpath``, retried once when Windows adds a transient prefix.
 
     On Windows, realpath resolves a missing path in two lookups and drops the prefix
     the first one adds only when the second agrees. A directory created in between,
     as when two creates race in one project, makes them disagree, and the result keeps
     a prefix its caller never wrote. Compared with an unprefixed root, that path lies
     outside it, which would refuse the losing create as an escape, not a conflict.
+    One retry from the original input lets realpath check the now-settled path itself.
+
+    The prefix is never stripped here. Realpath also keeps it when the plain spelling
+    names something else: a link target whose name ends in a dot or a space, or a
+    volume with no drive letter. Stripping would hand the caller that other path. A
+    caller-supplied prefix stays too. Continued mutation can still fail containment,
+    but it cannot redirect an operation to another path.
+
+    Every path this module resolves before a containment test, a sensitive-path test
+    or an index write goes through here. ``_verified_spec_dir`` is the one deliberate
+    exception; its docstring says why.
     """
-    resolved = os.path.realpath(path)
-    if os.path.normpath(os.fspath(path)).startswith(_EXTENDED_PATH_PREFIX):
-        return resolved
-    return _without_extended_prefix(resolved)
+    raw = os.fspath(path)
+    resolved = os.path.realpath(raw)
+    # Windows tests for a caller-supplied prefix after it normalizes separators.
+    if resolved.startswith(_EXTENDED_PATH_PREFIX) and not os.path.normpath(raw).startswith(
+        _EXTENDED_PATH_PREFIX
+    ):
+        return os.path.realpath(raw)
+    return resolved
 
 
 def _contained(child: Path, root: Path) -> bool:
@@ -1498,7 +1496,7 @@ def _scan_subdirs(base: str) -> list[dict[str, str]]:
             try:
                 if not entry.is_dir(follow_symlinks=True):
                     continue
-                if is_sensitive_path(os.path.realpath(entry.path)):
+                if is_sensitive_path(_realpath(entry.path)):
                     continue
             except OSError:
                 continue
@@ -1784,10 +1782,12 @@ def _spec_file(spec_dir: Path, fname: str) -> Path | None:
     try:
         if p.is_symlink():
             return None
-        real = Path(os.path.realpath(p))
-        # Containment is checked against the REAL spec dir so a symlinked
-        # ancestor can't widen the allowed set.
-        if not _contained(real, Path(os.path.realpath(spec_dir))):
+        # _realpath, because the agent can create this file during the lookup, and
+        # on Windows that keeps the extended-length prefix on the result.
+        real = Path(_realpath(p))
+        # _contained resolves the spec dir too, so containment is checked against the
+        # REAL spec dir and a symlinked ancestor can't widen the allowed set.
+        if not _contained(real, spec_dir):
             return None
         if is_sensitive_path(str(real)):
             return None
@@ -1888,6 +1888,12 @@ def _verified_spec_dir(spec_dir: Path) -> Path | None:
     symlink to a PAUSED spec's directory could make the handoff endpoint delete
     that other spec's STOP file and resume a run the user had stopped. Following
     the link was the bug; refusing it is the fix.
+
+    This is the one comparison that uses ``os.path.realpath`` directly, not
+    ``_realpath``. The directory already exists, so Windows keeps the
+    extended-length prefix only when the plain spelling did not reach this directory
+    for the whole lookup: it was created, removed or replaced meanwhile, or Win32
+    rewrites that spelling. Refusing is the correct answer to either.
     """
     try:
         if not spec_dir.is_absolute():
