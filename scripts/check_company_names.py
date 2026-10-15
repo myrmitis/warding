@@ -6,7 +6,9 @@ the company that sells it. Some spellings still contain the name because an
 external system defined them and this code must write them exactly to work: an
 AWS service hostname, a PyPI package, a Bedrock model id, the predecessor CLI's
 auth-store directory. Those are the **functional identifiers**, and they are
-listed in ``scripts/company-name-allowlist.txt``. Everything else is residue.
+listed in ``scripts/company-name-allowlist.txt``. The original work's two exact
+company-attribution lines are also allowed only in the root ``NOTICE``, under
+Apache-2.0 section 4(d). Other prose mentions are residue.
 
 How a line is judged:
 

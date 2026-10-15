@@ -14,6 +14,15 @@ takes each unit of work handed to a spawned subagent. It **chooses a harness**; 
 forwards provider traffic, stores a key, or reads a harness's credentials. The
 chosen harness runs with its own login, exactly as `agent.acp_backend` would.
 
+**Chat selection is independent of routing eligibility.**
+`agent.acp_backend` defaults to `auto`: the runtime registry selects the first
+installed runtime, with optional kiro-cli last. A lane's `enabled: false`
+excludes that lane from routed work; it does not change the chat backend or
+the registry's auto preference. Installation detection does not verify a
+subscription or successful login. An operator whose Kiro subscription is
+disabled should keep its routing lane disabled and explicitly select an
+installed, authenticated alternative for chat when Kiro must not be selected.
+
 Related: [harness-parity](harness-parity.md) (what an added harness may and may
 not change), [model-router](model-router.md) (the model plane, which this does
 not touch), [subagent](subagent.md) (where routed work runs), [mcp](../../architecture/mcp.md).

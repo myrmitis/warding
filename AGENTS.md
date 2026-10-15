@@ -105,13 +105,14 @@ This repo is a public OSS tree. Never re-add:
   `_is_claude` seam in `acp/client.py` so a companion package can re-register
   Claude Code; do NOT re-add the public registration glue. A harness added at
   `agent.acp_backend` is a different question and is governed by
-  [Harness parity](#harness-parity-kiro-is-first-class-the-rest-are-adapted) —
+  [Harness parity](#harness-parity-runtime-selection-and-capability-boundaries) —
   adapted, never a second `agent.provider` value.
 - **OSS-flipped defaults:** always-on in-process embeddings, Piper TTS by default,
   a default-open Slack enterprise gate, lazy STT extras.
 - **Removed surfaces:** the Channels app is hidden from the App Store and the
   Board app is removed. Do not restore them.
-- **The retired identity.** None of the retired product's name, data homes,
+- **The retired identity.** Apart from the exact original-work attribution in root `NOTICE`, none of
+  the retired product's name, data homes,
   env prefix, CLI aliases, bundle ids, download or update hosts, repository
   slug, or ghost mascot ship in Warding. Warding's own identity (the Ward
   Seal mark, the paper-and-night palette, Fraunces and IBM Plex Sans) is
@@ -122,7 +123,9 @@ This repo is a public OSS tree. Never re-add:
   `scripts/check_company_names.py` fails any tracked line that names it, except
   the functional identifiers an external system defines and the code must spell
   exactly (AWS hostnames, package and model ids, kiro-cli's own file names),
-  which are listed in `scripts/company-name-allowlist.txt`. Run it before
+  which are listed in `scripts/company-name-allowlist.txt`. The two exact
+  original-work company-attribution lines in root `NOTICE` are also allowed
+  under Apache-2.0 section 4(d); this does not permit branding elsewhere. Run it before
   pushing; add an allowlist entry only with a reason in the PR.
 
 `scripts/scrub-lint.sh` gates `src/`, `website/src/`, `scripts/`, `config/`,
@@ -189,11 +192,13 @@ Never hardcode a model id (`claude-*`, `opus*`, `sonnet*`, `haiku*`, `gpt-*`,
 `code-review.yml` fails on a newly added hardcoded model literal outside
 `model_registry*`, the config schema, and tests.
 
-## Harness parity: Kiro is first-class, the rest are adapted
+## Harness parity: runtime selection and capability boundaries
 
-Never express "this is the Kiro harness" as the ABSENCE of another harness. Warding
-drives one first-class harness — `kiro-cli` (`ACP_BACKEND_KIRO`, spelled
-`""`) — and adapts the others (the dormant `ACP_BACKEND_CLAUDE` seam, KAS, and
+Never express "this is the Kiro harness" as the ABSENCE of another harness.
+Warding defaults to `auto` through the runtime registry; kiro-cli is optional
+and last in installed-runtime selection. Its established transport and capability
+boundaries remain explicit (`ACP_BACKEND_KIRO`, spelled `""`), as do those of
+the other adapted harnesses (the dormant `ACP_BACKEND_CLAUDE` seam, KAS, and
 any bring-your-own harness). A negative test like `not is_claude_backend` reads
 correctly with two harnesses and then silently hands the third a capability, a
 sandbox waiver, or a session label nobody granted it — and it fails toward the
@@ -216,11 +221,13 @@ that harness pays for it.
   `sandbox.wrap_argv` SKIP Warding's own seatbelt in favour of the harness's
   internal sandbox, so granting it to a harness without one leaves the agent
   process unconfined.
-- **Kiro is the floor.** `agent.acp_backend` defaults to `ACP_BACKEND_KIRO` and
-  it is in `ACP_BACKENDS_SELECTABLE` unconditionally; an unusable persisted value
-  degrades there with a logged reason (`_normalize_acp_backend`) instead of
-  raising. A harness is selected at `acp_backend` — `agent.provider` stays
-  `enum=["acp"]`.
+- **Warding defaults to auto.** `agent.acp_backend` defaults to `ACP_BACKEND_AUTO`;
+  an unusable persisted value normalizes to `auto` with a logged reason. The
+  runtime registry chooses the first installed runtime, with optional kiro-cli
+  last. `ACP_BACKEND_KIRO` remains selectable; its capability and sandbox rules
+  stay intact. A disabled `kiro` lane in `routing.json` excludes routed work,
+  not chat selection. Pin `agent.acp_backend` to an installed, authenticated
+  harness when chat must exclude Kiro. `agent.provider` stays `enum=["acp"]`.
 - **Registration is additive at the seam** — `platform/interfaces.py`'s
   `ProviderRegistry`, a v1 addition with no `CONTRACT_VERSION` bump. A new
   provider capability lands on the `LLMProvider` ABC with a safe default, never
@@ -446,7 +453,7 @@ Two traps are worth naming here because neither is visible when reading the test
 | Constants | No hardcoded strings or values in business logic; every limit has an owning module. Index: [code-style](docs/system-specs/common/code-style.md) |
 | Comments | Explain **behavior and rationale (the why)**: invariants, edge cases, units, non-obvious constraints. NOT a task log: no PR/issue numbers, review-round markers, incident dates, milestone tags, or commit SHAs. No "previously/used to/we now" narration, state current behavior in present tense. Don't restate what the code plainly does. `_vendor/` and pragmas are exempt. |
 | Icons | **Never use emojis in the UI.** Use `lucide-react` with `className="lucide-inline"`. |
-| Product name | The product is **Warding**, and the identifiers carry it too (`warding`, `WARDING_*`, Electron `productName`, slug `myrmitis/warding`). The old identity is retired: CI fails an added line carrying the retired product name glued or joined by one separator (whitespace, `_ - . + / \`, a Unicode dash, `%20`, or a regex spelling of one: an escape, a short character class or a short group), in prose and identifiers alike, env-var prefix included; its data home as a path literal (or a regex of one) or built from split string literals; its hosts and its bundle id, dots plain or regex-escaped; its GitHub org; or its mascot. No file is exempt and there is no inline marker, so a test or gate that names the old identity builds it from fragments. kiro-cli's `~/.kiro` and its own directories, `kiro-cli`, the word "crew", and the two words split by clause punctuation are not flagged. Run `BRAND_BASE_REF=origin/main python3 scripts/check_brand_name.py` before pushing. |
+| Product name | The product is **Warding**, and the identifiers carry it too (`warding`, `WARDING_*`, Electron `productName`, slug `myrmitis/warding`). The old identity is retired: CI fails an added line carrying the retired product name glued or joined by one separator (whitespace, `_ - . + / \`, a Unicode dash, `%20`, or a regex spelling of one: an escape, a short character class or a short group), in prose and identifiers alike, env-var prefix included; its data home as a path literal (or a regex of one) or built from split string literals; its hosts and its bundle id, dots plain or regex-escaped; its GitHub org; or its mascot. Only the exact original-work product line in root `NOTICE` is allowed for Apache-2.0 attribution; no file is exempt and there is no inline marker, so a test or gate that names the old identity builds it from fragments. kiro-cli's `~/.kiro` and its own directories, `kiro-cli`, the word "crew", and the two words split by clause punctuation are not flagged. Run `BRAND_BASE_REF=origin/main python3 scripts/check_brand_name.py` before pushing. |
 | User-facing strings | The dashboard is translated into 12 languages. **Never hardcode a user-facing English string, and never format a date, number, or sort order without naming a locale.** Both are CI-gated. Backend-owned strings have no catalog path yet, so a new non-2xx JSON body MUST carry a machine-readable `code` field. |
 
 ## Cross-platform: route POSIX calls through `platform_compat`

@@ -40,11 +40,12 @@ home ``~/.kiro`` and kiro-cli's own directories in it (``~/.kiro/settings``,
 retired identity either, and neither are the two words when clause
 punctuation (``. ``, ``, ``, ``? ``) separates them.
 
-## No exemptions
+## Attribution exception
 
-Every tracked text file is scanned, ``NOTICE`` included. There is no inline
-suppression marker, because the retired identity has no legitimate home and a
-marker would let residue opt itself back in.
+Every tracked text file is scanned, ``NOTICE`` included. Only the original
+work's exact product-name line in the root ``NOTICE`` is allowed, to preserve
+Apache-2.0 attribution. No other line or file is exempt. There is no inline
+suppression marker that could let branding opt itself back in.
 
 ## Why diff-scoped and not whole-tree
 
@@ -117,6 +118,9 @@ _CREW = "crew"
 _AMZ = "ama" + "zon"
 _GHOST = "ghost"
 _DEV = "dev"
+
+# Apache-2.0 attribution is provenance, not a reusable branding allowance.
+_NOTICE_PRODUCT_LINE = _KIRO.capitalize() + _CREW.capitalize()
 
 # What may join the two words of a retired name: nothing, or ONE joiner, which is
 # one of
@@ -313,11 +317,15 @@ def in_scope(path: str) -> bool:
 def scan_line(path: str, line_no: int, line: str) -> Iterator[Violation]:
     """Every retired spelling on one line, in order.
 
-    No context narrows a finding: code fences, inline code, URLs and identifiers
-    are all scanned, because the identity is retired in every one of them. Each
+    Except for the exact root-NOTICE attribution line, code fences, inline code,
+    URLs and identifiers are all scanned. Each
     violation keeps a reference to the line rather than a slice of it, so a line
     carrying many findings costs time linear in its length.
     """
+    # Git's Windows checkout may use CRLF; read_lines preserves the CR so diff
+    # line numbers stay aligned. Tolerate that terminator, never extra prose.
+    if repo_relative(path) == "NOTICE" and line.removesuffix("\r") == _NOTICE_PRODUCT_LINE:
+        return
     for m in RETIRED.finditer(line):
         kind = m.lastgroup or "brand"
         yield Violation(path, line_no, m.group(), line, kind)
@@ -729,7 +737,8 @@ def report(violations: Iterable[Violation], *, enforcing: bool, base: str | None
         print(f"... and {len(violations) - shown} more")
     if enforcing:
         print(
-            "\nThere is no inline suppression and no exempt file. kiro-cli's own "
+            "\nOnly the exact original-work product line in the root NOTICE is allowed "
+            "for attribution. There is no inline suppression or exempt file. kiro-cli's own "
             "spellings (~/.kiro and its settings/ and agents/ directories, kiro-cli, "
             "Kiro CLI, kiro.dev) and the word "
             "'crew' on its own are not the retired identity and are not flagged. To name "

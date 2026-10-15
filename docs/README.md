@@ -19,7 +19,7 @@ New here? Start with [guides/install.md](guides/install.md), then
 | [app-kit/](app-kit/README.md) | Building apps that run inside Warding (third-party developer docs). |
 | [design/](design/README.md) | Proposals for changes agreed before they are built. |
 | [plans/](plans/README.md) | Dated design plans (`2026-08-25-multi-harness-design.md`). |
-| [adr/](adr/README.md) | Warding architecture decision records (identity and the rename, the catalog beside the gateway, security, preview, agent OS). |
+| [adr/](adr/README.md) | Warding architecture decision records (identity, attribution boundaries, the catalog beside the gateway, security, preview, agent OS). |
 | [provenance/](provenance/README.md) | Provenance of third-party material this checkout observes (Codex Router). |
 | [TASK_MAP.md](TASK_MAP.md) | Dated local handoff for work in flight. |
 | [system-specs/](system-specs/README.md) | Change-control contracts. The doc a code change MUST update in the same commit. |

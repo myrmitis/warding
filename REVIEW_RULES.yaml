@@ -318,9 +318,10 @@ custom-rules:
       - "src/warding/subagent.py"
       - "src/warding/sandbox.py"
     rule: |
-      Warding drives ONE first-class agent harness — kiro-cli
-      (ACP_BACKEND_KIRO, spelled "") — and ADAPTS the others (the dormant
-      ACP_BACKEND_CLAUDE seam, KAS, and any bring-your-own harness). An added
+      Warding defaults to ACP_BACKEND_AUTO, selecting an installed runtime
+      with optional kiro-cli last. The established kiro-cli path
+      (ACP_BACKEND_KIRO, spelled "") keeps its own capability and sandbox
+      rules; the other harnesses adapt to those boundaries. An added
       harness may only adapt itself to the seams the Kiro harness already runs
       through. It may not move, widen, generalize, or add a branch to them. The
       invariant ids below are defined in
@@ -350,10 +351,14 @@ custom-rules:
         capabilities, the pre-spawn agent materialization, the --model pin) into
         one form every harness accepts. Downgrading the kiro session to make an
         adapter fit is the defect, even when every existing test still passes.
-      - H1/H3 — Kiro is the floor. FLAG a change that makes the kiro harness
-        conditional on an edition, a feature flag, an env var, or a registry
-        lookup, or that makes an unusable persisted acp_backend raise instead of
-        degrading to kiro with a logged reason.
+      - H1/H3 — auto is the configured default. FLAG a change that makes an
+        unusable persisted acp_backend raise instead of normalizing to auto
+        with a logged reason, or changes the configured default to a concrete
+        harness. Kiro remains selectable without an edition or feature flag;
+        its established lower-level defaults and capabilities stay intact.
+        A routing.json lane's enabled flag controls routed work, not chat's
+        agent.acp_backend; do not claim that disabling a lane disables that
+        harness for chat.
       - H6/H7 — capability grants. A new capability predicate must be membership
         in a named ACP_BACKENDS_* set in acp/types.py, and every existing
         harness's membership must be an explicit decision in the diff. FLAG a

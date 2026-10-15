@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""check_harness_parity.py — keep the Kiro harness first-class on lines a change adds.
+"""check_harness_parity.py — preserve harness boundaries on lines a change adds.
 
-Warding drives one first-class agent harness, ``kiro-cli``
-(``ACP_BACKEND_KIRO``, spelled ``""``), plus adapted ones: the dormant
-``ACP_BACKEND_CLAUDE`` seam, KAS, and whatever a bring-your-own adapter
-registers next. An added harness may only adapt itself to the seams the Kiro
-harness already runs through; it may not move, widen, or generalize them.
+Warding defaults to ``ACP_BACKEND_AUTO`` and selects an installed runtime,
+with optional ``kiro-cli`` last. The established Kiro path
+(``ACP_BACKEND_KIRO``, spelled ``""``) retains its own capability and sandbox
+rules. An added harness may only adapt itself to those seams; it may not
+move, widen, or generalize them.
 
 The defect class this gate catches is *silent capture*: a call site that spells
 "this is Kiro" as the ABSENCE of another harness. It reads correctly with two
@@ -156,10 +156,14 @@ RULES: tuple[Rule, ...] = (
     Rule(
         rule_id="non-kiro-default",
         invariant="H1",
-        pattern=re.compile(r"(?:default\s*=\s*|:\s*str\s*=\s*)ACP_BACKEND_(?!KIRO\b)[A-Z_]+"),
-        message="a harness other than Kiro used as a default",
-        fix="default to ACP_BACKEND_KIRO — an operator who configures nothing, "
-        "and one whose configuration is unusable, both get the Kiro harness",
+        # Keep the existing rule id; Warding's configured default is AUTO,
+        # while lower-level Kiro-specific APIs retain their KIRO defaults.
+        pattern=re.compile(
+            r"(?:default\s*=\s*|:\s*str\s*=\s*)ACP_BACKEND_(?!(?:KIRO|AUTO)\b)[A-Z_]+"
+        ),
+        message="an adapted harness used as an implicit default",
+        fix="use ACP_BACKEND_AUTO for the configured default; preserve "
+        "ACP_BACKEND_KIRO only on the established Kiro-specific paths",
     ),
 )
 
@@ -474,6 +478,18 @@ PROBES: tuple[tuple[str, str, str, str | None], ...] = (
         None,
     ),
     (
+        "auto-runtime-default",
+        "src/warding/acp/runtimes.py",
+        "        requested: str = ACP_BACKEND_AUTO,",
+        None,
+    ),
+    (
+        "auto-field-default",
+        "src/warding/config/loader.py",
+        "        default=ACP_BACKEND_AUTO,",
+        None,
+    ),
+    (
         "unrelated-backend-word",
         "src/warding/sandbox.py",
         '    if backend == "namespace":',
@@ -553,9 +569,9 @@ def report(violations: Iterable[Violation], *, enforcing: bool, base: str | None
     if enforcing:
         print(
             f"::error::harness gate: {len(violations)} line(s) added by this change "
-            f"let a harness other than Kiro inherit something by default. The Kiro "
-            f"harness is first-class: an added harness adapts to these seams, it "
-            f"does not widen them. See docs/system-specs/modules/harness-parity.md."
+            f"violate explicit harness boundaries. Auto remains the configured "
+            f"default; an added harness adapts to the established seams without "
+            f"widening them. See docs/system-specs/modules/harness-parity.md."
         )
     else:
         print(

@@ -1,7 +1,8 @@
 # Allowlist for scripts/check_company_names.py.
 #
 # The gate fails on the retired company name anywhere in a tracked
-# file, EXCEPT for the functional identifiers below: names that an external
+# file, EXCEPT for exact root-NOTICE attribution and the functional identifiers
+# below: names that an external
 # system defined and that this code must spell exactly to work. Prose, comments,
 # docs and UI text name the service or the distro instead (S3, Polly, AL2023).
 #
@@ -41,6 +42,11 @@ token: amazonlinux:\d+
 token: Amazon Linux release 2(?:023)?
 
 # --- allow: exact lines ------------------------------------------------------
+
+# Apache-2.0 section 4(d): original-work attribution, root NOTICE only.
+# Anchors prevent extra prose on either side from inheriting the exception.
+allow: ^NOTICE$ :: ^Copyright Amazon\.com, Inc\. or its affiliates\. All Rights Reserved\.$
+allow: ^NOTICE$ :: ^Amazon\.com, Inc\. \(https://www\.amazon\.com/\)\.$
 
 # Scrub tooling that detects internal markers. Owned by the repository owner.
 allow: ^scripts/scrub-(?:lint\.sh|allowlist\.txt)$ :: .
