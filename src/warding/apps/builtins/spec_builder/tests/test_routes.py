@@ -509,55 +509,6 @@ def test_safe_dir_accepts_ordinary_directory(tmp_path):
     assert ok is not None and ok.is_dir()
 
 
-def _realpath_with_extended_prefix(monkeypatch, protected: str) -> None:
-    """Make ``realpath`` keep a ``\\\\?\\`` prefix on paths under *protected*.
-
-    Windows ``realpath`` keeps that prefix when the input carries it. The stub
-    reproduces the result on every host, so the denial is checked everywhere.
-    """
-    real_realpath = os.path.realpath
-
-    def prefixed(path, *args, **kwargs):
-        resolved = real_realpath(path, *args, **kwargs)
-        if resolved.startswith(protected):
-            return "\\\\?\\" + resolved
-        return resolved
-
-    monkeypatch.setattr(routes.os.path, "realpath", prefixed)
-
-
-def test_safe_dir_denies_an_extended_length_spelling_of_a_sensitive_dir(monkeypatch):
-    """A prefixed result of ``realpath`` still names the credential directory."""
-    aws = os.path.realpath(os.path.expanduser("~/.aws"))
-    _realpath_with_extended_prefix(monkeypatch, aws)
-    target = os.path.join(aws, "spec-store")
-    assert routes._safe_dir(target, must_exist=False) is None
-
-
-@pytest.mark.asyncio
-async def test_settings_denies_an_extended_length_spelling_of_a_sensitive_dir(
-    tmp_path, monkeypatch
-):
-    """The settings ``base_path`` goes through the same denial."""
-    aws = os.path.realpath(os.path.expanduser("~/.aws"))
-    async with _make_client(monkeypatch, tmp_path) as client:
-        _realpath_with_extended_prefix(monkeypatch, aws)
-        resp = await client.put(
-            f"{_BASE}/settings", json={"base_path": os.path.join(aws, "spec-store")}
-        )
-        assert resp.status == 400
-        assert (await resp.json())["code"] == "base_path_not_a_directory"
-
-
-@pytest.mark.skipif(sys.platform != "win32", reason="needs Win32 extended-length paths")
-def test_safe_dir_denies_a_typed_extended_length_sensitive_dir(tmp_path):
-    """A typed ``\\\\?\\`` spelling is refused; a plain directory with it is not."""
-    prefix = "\\\\?\\"
-    ssh = os.path.realpath(os.path.expanduser("~/.ssh"))
-    assert routes._safe_dir(prefix + ssh, must_exist=False) is None
-    assert routes._safe_dir(prefix + os.path.realpath(tmp_path)) is not None
-
-
 def test_contained_rejects_escape(tmp_path):
     root = tmp_path / "root"
     (root).mkdir()

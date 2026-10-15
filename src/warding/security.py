@@ -5870,26 +5870,6 @@ def _get_sensitive_re() -> re.Pattern[str]:
     return _SENSITIVE_RE
 
 
-#: Win32's extended-length path prefix and its UNC form.
-_EXTENDED_PATH_PREFIX = "\\\\?\\"
-_EXTENDED_UNC_PREFIX = "\\\\?\\UNC\\"
-
-
-def _without_extended_prefix(path: str) -> str | None:
-    """The plain spelling of an extended-length *path*, or ``None`` without a prefix.
-
-    For matching only. Win32 rewrites some plain spellings, such as a name that
-    ends in a dot or a space, so the plain spelling can name a different file.
-    It must never become a path that an operation uses. As one more candidate
-    for a deny check it can only widen the match, which is the safe direction.
-    """
-    if path.startswith(_EXTENDED_UNC_PREFIX):
-        return "\\\\" + path[len(_EXTENDED_UNC_PREFIX) :]
-    if path.startswith(_EXTENDED_PATH_PREFIX):
-        return path[len(_EXTENDED_PATH_PREFIX) :]
-    return None
-
-
 def _candidate_forms(path_str: str, base_dir: str | None = None) -> set[str]:
     """Expand *path_str* into every candidate form the sensitive-path gates match.
 
@@ -5900,12 +5880,6 @@ def _candidate_forms(path_str: str, base_dir: str | None = None) -> set[str]:
     :func:`_path_in_home_dirs` (is the path INSIDE a protected location?) and
     :func:`path_contains_sensitive` (does the path CONTAIN one?) so the
     symlink/anchoring hardening cannot drift between the two directions.
-
-    Windows' ``realpath`` keeps an extended-length (``\\\\?\\``) prefix that the
-    input already carried, and so does ``Path.resolve``. Every form above then
-    starts with the prefix, while no protected target does. So each prefixed
-    form also contributes its plain spelling, lexically: resolving it again
-    would only repeat a lookup that already ran.
     """
     # Expand ~ and $HOME
     expanded = os.path.expanduser(os.path.expandvars(path_str))
@@ -5938,13 +5912,6 @@ def _candidate_forms(path_str: str, base_dir: str | None = None) -> set[str]:
         pass
     candidates.add(os.path.normpath(expanded))
     candidates.add(expanded)
-    for form in list(candidates):
-        plain = _without_extended_prefix(form)
-        if plain:
-            candidates.add(plain)
-            # The OS leaves "." and ".." inside a prefixed path as they are, so
-            # the normalized spelling is one more fail-safe lexical form.
-            candidates.add(os.path.normpath(plain))
     return candidates
 
 

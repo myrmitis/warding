@@ -1531,8 +1531,8 @@ def list_apps() -> list[dict[str, Any]]:
                 # persisted read-modify-write of installed.json from a
                 # listing would race real mutators (install/enable/
                 # register) and silently overwrite their fields. The
-                # durable repair happens on the single-app paths
-                # (get_app / update_app).
+                # durable version update comes from the app's own
+                # registration and from update_app.
                 if (
                     meta.lifecycle == "app"
                     and manifest.version
@@ -1566,11 +1566,14 @@ def get_app(name: str) -> dict[str, Any] | None:
         try:
             manifest = AppManifest.from_json_file(manifest_path)
             manifest_data = manifest.to_dict()
-            # Sync version for self-managed apps (same as list_apps)
+            # A self-managed app can update its own app.json. Reflect that
+            # version in the RETURNED metadata only, as list_apps does. A
+            # write-back here would race the registry install's off-loop
+            # registration and provenance writes: this read and its write are
+            # not one step, so a stale snapshot could erase the new provenance.
+            # The app's next self-registration persists its version.
             if meta.lifecycle == "app" and manifest.version and manifest.version != meta.version:
                 meta.version = manifest.version
-                meta.updatedAt = _now_iso()
-                _write_installed(name, meta)
         except Exception:
             pass
     return {**meta.to_dict(), "manifest": manifest_data}
@@ -1590,9 +1593,8 @@ def get_app_manifest(name: str) -> AppManifest | None:
 def is_app_enabled(name: str) -> bool:
     """Read-only enablement check: True only for an installed, enabled app.
 
-    Unlike ``get_app`` this never writes (no version-sync side effect), so it
-    is safe to call from worker threads (e.g. ``asyncio.to_thread``) without
-    racing loop-side writers of ``installed.json``.
+    It never writes, so it is safe to call from worker threads (e.g.
+    ``asyncio.to_thread``) without racing other writers of ``installed.json``.
     """
     meta = _read_installed(name)
     return bool(meta and meta.enabled)

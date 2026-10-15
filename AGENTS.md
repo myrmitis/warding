@@ -261,9 +261,6 @@ judgment half is the `harness-parity` rule in `REVIEW_RULES.yaml`.
   is NOT permission to push.
 - `main` is the default branch; changes land through a GitHub PR. Full flow:
   [CONTRIBUTING.md](CONTRIBUTING.md).
-- **Merges (owner decision, 2026-10-14):** agents may squash-merge a PR once
-  `PR Readiness` passes and no check fails. The owner does not review each PR.
-  Do not approve your own PR, and never push to `main` directly.
 
 ```
 <type>: <summary — max 72 chars, imperative, lowercase, no period>

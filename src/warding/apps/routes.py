@@ -93,6 +93,7 @@ from warding.apps.registry import (
     _owner_designated_repo_target,
     _pinned_registries,
     _registry_identity_key,
+    _run_in_executor_settled,
     _same_git_target,
     _sel_credential_grant,
     _strip_git_target_userinfo,
@@ -590,6 +591,11 @@ async def _deregister_app_off_loop(name: str) -> RegistrationResult:
     )
 
 
+def _resolve_install_source(source: str) -> Path:
+    """Resolve the install source path; ``handle_install_app`` runs it off the loop."""
+    return Path(source).expanduser().resolve()
+
+
 async def handle_install_app(request: web.Request) -> web.Response:
     """POST /api/apps/install — install an app from a local path."""
     try:
@@ -601,9 +607,11 @@ async def handle_install_app(request: web.Request) -> web.Response:
     if not source:
         return web.json_response({"error": "source path required"}, status=400)
 
-    # Check minWardingVersion before installing
-    source_path = Path(source).expanduser().resolve()
-    if not source_path.is_dir():
+    # Check minWardingVersion before installing. The resolve, the directory and
+    # file checks, and the manifest read touch the filesystem, so each one runs
+    # off the loop.
+    source_path = await asyncio.to_thread(_resolve_install_source, source)
+    if not await asyncio.to_thread(source_path.is_dir):
         detail = f"source is not a directory: {source_path}"
         sel().log_api_access(
             caller="dashboard",
@@ -624,9 +632,11 @@ async def handle_install_app(request: web.Request) -> web.Response:
 
     manifest_path = source_path / "app.json"
     lock_name: str | None = None
-    if manifest_path.is_file():
+    if await asyncio.to_thread(manifest_path.is_file):
         try:
-            manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_data = json.loads(
+                await asyncio.to_thread(manifest_path.read_text, encoding="utf-8")
+            )
             ver_err = _check_min_version(manifest_data)
             if ver_err:
                 return web.json_response({"error": ver_err}, status=400)
@@ -673,9 +683,10 @@ async def handle_install_app(request: web.Request) -> web.Response:
         # Off-loop: the copy in install_app is blocking filesystem I/O that can
         # take minutes on large source trees — running it on the loop would trip
         # the loop-stall watchdog and kill the gateway.
-        result = await asyncio.get_running_loop().run_in_executor(
-            subprocess_executor(),
-            partial(install_app, source, expected_name=lock_name),
+        # Settled: a cancelled request waits for the copy before it releases
+        # the lifecycle lock, so an uninstall cannot remove the app mid-copy.
+        result = await _run_in_executor_settled(
+            subprocess_executor(), install_app, source, expected_name=lock_name
         )
         if not result.ok:
             sel().log_api_access(
@@ -738,7 +749,8 @@ async def _refuse_while_startup_hook_runs(
 async def handle_update_app(request: web.Request) -> web.Response:
     """POST /api/apps/{name}/update — update an installed app from its source path."""
     name = request.match_info["name"]
-    info = get_app(name)
+    # Off-loop: get_app reads installed.json and app.json.
+    info = await asyncio.to_thread(get_app, name)
     if not info:
         return web.json_response({"error": f"app {name!r} not installed"}, status=404)
 
@@ -815,11 +827,11 @@ async def handle_update_app(request: web.Request) -> web.Response:
             subprocess_executor(), stop_app_backend, name
         )
 
-        # Off-loop: blocking filesystem copy (see handle_install_app).
+        # Off-loop and settled: blocking filesystem copy (see handle_install_app).
         # expected_name makes update_app itself reject a source whose
         # manifest names a different app than the one this lock guards.
-        up_result = await asyncio.get_running_loop().run_in_executor(
-            subprocess_executor(), lambda: update_app(source, expected_name=name)
+        up_result = await _run_in_executor_settled(
+            subprocess_executor(), update_app, source, expected_name=name
         )
         if not up_result.ok:
             # Re-register old resources on failure
