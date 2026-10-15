@@ -9,9 +9,13 @@ Everything here is pure (no I/O) so it is cheap to call on any error path.
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from datetime import datetime, timedelta
+from http import HTTPStatus
+
+from warding.acp.types import ACP_BACKEND_CODEX
 
 # ── Failure classes ──
 FAILURE_USAGE_LIMIT = "usage_limit"  # plan quota spent until a reset
@@ -117,7 +121,7 @@ def classify_exception(exc: BaseException) -> str:
     in practice is a rate limit it never reported.
     """
     failure = getattr(exc, "failure", "")
-    if isinstance(failure, str) and failure in LANE_FAILURES:
+    if isinstance(failure, str) and (failure in LANE_FAILURES or failure == FAILURE_OTHER):
         return failure
     if type(exc).__name__ == "AcpAuthRequired":
         return FAILURE_AUTH
@@ -221,10 +225,65 @@ _AUTH_NOTICE_RE = re.compile(
     + r"|please run /login(?: first)?[.!]?\Z)",
     re.IGNORECASE,
 )
+_CODEX_RETRY_EXHAUSTION_RE = re.compile(
+    r"exceeded retry limit, last status: ([45]\d{2}) ([^\r\n]+)", re.IGNORECASE
+)
+
+
+def _codex_status_failure(status: int, error_type: str = "") -> str:
+    # A 429 names backoff, not a spent subscription. Only an explicit quota
+    # error supplies that stronger evidence. Other request errors fail without
+    # turning incidental words in their messages into lane cooldowns.
+    if status == HTTPStatus.TOO_MANY_REQUESTS:
+        return FAILURE_USAGE_LIMIT if error_type == "insufficient_quota" else FAILURE_RATE_LIMIT
+    if status == HTTPStatus.UNAUTHORIZED:
+        return FAILURE_AUTH
+    return FAILURE_OTHER
+
+
+def _codex_notice_failure(text: str) -> str:
+    match = _CODEX_RETRY_EXHAUSTION_RE.fullmatch(text)
+    if match:
+        status = int(match.group(1))
+        try:
+            reason = HTTPStatus(status).phrase
+        except ValueError:
+            return ""
+        # An explanation appended to the notice remains an answer.
+        if match.group(2).casefold() == reason.casefold():
+            return _codex_status_failure(status)
+        return ""
+    try:
+        payload = json.loads(text)
+    except (ValueError, TypeError):
+        return ""
+    if not isinstance(payload, dict) or payload.get("type") != "error":
+        return ""
+    error_status = payload.get("status")
+    error = payload.get("error")
+    if (
+        type(error_status) is not int
+        or not 400 <= error_status < 600
+        or not isinstance(error, dict)
+    ):
+        return ""
+    error_type, message = error.get("type"), error.get("message")
+    if (
+        not isinstance(error_type, str)
+        or not error_type
+        or not isinstance(message, str)
+        or not message
+    ):
+        return ""
+    return _codex_status_failure(error_status, error_type)
 
 
 class HarnessLaneFailure(RuntimeError):
-    """A turn ended normally but its reply was the harness's own limit notice."""
+    """A normally ended turn whose whole reply is a recognized harness failure.
+
+    ``failure`` may be ``other``: a provider request error fails the operation
+    without declaring the lane throttled or permitting automatic failover.
+    """
 
     def __init__(self, failure: str, notice: str) -> None:
         super().__init__(f"{failure}: {notice.strip()}")
@@ -232,13 +291,15 @@ class HarnessLaneFailure(RuntimeError):
         self.notice = notice
 
 
-def limit_notice_failure(reply: str) -> str:
-    """Failure class when *reply* is a plan-limit or login notice, else ``""``.
+def limit_notice_failure(reply: str, *, harness: str = "") -> str:
+    """Failure class for a whole harness failure notice, else ``""``.
 
     Some harnesses end a turn with ``end_turn`` and put "You've hit your usage
     limit" in the message instead of returning a JSON-RPC error. Callers apply
     this only to a turn that ran no tools. A short answer about login or quota
-    is not itself evidence that the harness failed.
+    is not itself evidence that the harness failed. Codex additionally reports
+    retry exhaustion and structured provider errors as normally ended turns;
+    those signatures are recognized only on its own harness.
     """
     text = (reply or "").strip()
     if not text or len(text) > LIMIT_NOTICE_MAX_CHARS:
@@ -247,4 +308,6 @@ def limit_notice_failure(reply: str) -> str:
         return FAILURE_USAGE_LIMIT
     if _AUTH_NOTICE_RE.match(text):
         return FAILURE_AUTH
+    if harness == ACP_BACKEND_CODEX:
+        return _codex_notice_failure(text)
     return ""

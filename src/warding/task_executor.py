@@ -676,7 +676,7 @@ async def execute_task(
             # tool, that reply is a lane failure, not a result, exactly as for a
             # routed subagent: the lane rests and the step moves for free.
             if lane is not None and not _tool_ran:
-                notice = limit_notice_failure(result_text)
+                notice = limit_notice_failure(result_text, harness=lane.harness)
                 if notice:
                     raise HarnessLaneFailure(
                         notice, redact_credentials(redact_exfiltration_urls(result_text)[0])[0]
@@ -1114,7 +1114,11 @@ async def self_review(
                 # diff fetch / prompt build.
                 _review_t0 = _time.monotonic()
                 result = await _collect_review(
-                    client, prompt, routed=lane is not None, on_tool_gate=track_review_tool
+                    client,
+                    prompt,
+                    routed=lane is not None,
+                    harness=lane.harness if lane is not None else "",
+                    on_tool_gate=track_review_tool,
                 )
             except asyncio.CancelledError:
                 raise
@@ -1185,6 +1189,7 @@ async def _collect_review(
     prompt: str,
     *,
     routed: bool,
+    harness: str = "",
     on_tool_gate: Callable[[str, bool, bool], None] | None = None,
 ) -> dict | None:
     """The review turn's JSON verdict.
@@ -1201,7 +1206,7 @@ async def _collect_review(
     text = await stream_and_collect(
         client, prompt, on_tool_gate=on_tool_gate, retry_transient=False
     )
-    notice = limit_notice_failure(text)
+    notice = limit_notice_failure(text, harness=harness)
     if notice:
         raise HarnessLaneFailure(notice, redact_credentials(redact_exfiltration_urls(text)[0])[0])
     return parse_llm_json(text)

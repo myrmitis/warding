@@ -2100,3 +2100,72 @@ class TestChildEscalationLimit:
         answered = {c.args[0] for c in provider.reject_tool.await_args_list}
         assert 1000 + 60 in answered, "triggering request was not answered"
         assert len(answered) == 61
+
+
+class TestRoutedCodexProviderErrors:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("reply", "failure"),
+        [
+            ("exceeded retry limit, last status: 429 Too Many Requests", "rate_limit"),
+            (
+                '{"type":"error","status":429,"error":{"type":"rate_limit_error",'
+                '"message":"Too many requests"}}',
+                "rate_limit",
+            ),
+            (
+                '{"type":"error","status":400,"error":{"type":"invalid_request_error",'
+                '"message":"The \'gpt-6.1-sol\' model is not supported when using Codex with a ChatGPT account."}}',
+                "other",
+            ),
+            ("I fixed HTTP 429 and unsupported model errors.", ""),
+        ],
+    )
+    async def test_real_subagent_notice_path_accounts_and_routes(
+        self, tmp_path, monkeypatch, reply: str, failure: str
+    ) -> None:
+        import json
+
+        from warding.harness_router import service
+        from warding.harness_router.limits import HarnessLaneFailure
+        from warding.providers.base import EVENT_COMPLETE, EVENT_TEXT_CHUNK, LLMEvent
+        from warding.subagent import SubagentInfo
+
+        (tmp_path / "routing.json").write_text(
+            json.dumps({"lanes": [{"id": h, "harness": h} for h in ("codex", "claude")]}),
+            encoding="utf-8",
+        )
+        bins = {"codex": "/b/codex", "claude": "/b/claude", "npx": "/b/npx"}
+        router = service.HarnessRouter(home=tmp_path, which=bins.get, env={})
+        monkeypatch.setattr(service, "get_router", lambda: router)
+        sessions = _mock_sessions()
+        opened: list[str] = []
+
+        async def open_session(_key, **kwargs):
+            opened.append(kwargs["acp_backend_override"])
+            text = reply if len(opened) == 1 else "pong"
+
+            async def stream(_prompt):
+                yield LLMEvent(kind=EVENT_TEXT_CHUNK, text=text)
+                yield LLMEvent(kind=EVENT_COMPLETE)
+
+            provider = AsyncMock()
+            provider.context_usage_pct = lambda: 0.0
+            provider.stream = stream
+            return provider, True, False
+
+        sessions.get_or_create = open_session
+        manager = SubagentManager(sessions=sessions, ctx_builder=_mock_ctx_builder_auto_spawn())
+        info = SubagentInfo(
+            id="codex-error", task="Reply pong", harness="codex", lane="codex", routed=True
+        )
+        with patch("warding.subagent.Stats"), patch("warding.subagent.sel"):
+            if failure == "other":
+                with pytest.raises(HarnessLaneFailure):
+                    await manager._run_accounted(info, "subagent:codex-error")
+            else:
+                await manager._run_accounted(info, "subagent:codex-error")
+        assert opened == (["codex", "claude"] if failure == "rate_limit" else ["codex"])
+        usage = router.ledger.snapshot()["codex"]
+        assert (usage.ok, usage.failed) == ((0, 1) if failure else (1, 0))
+        assert usage.cooldown_reason == ("rate_limit" if failure == "rate_limit" else "")
