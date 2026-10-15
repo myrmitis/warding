@@ -2,8 +2,17 @@
   <img src="assets/banner.svg" alt="Warding. The lamp stays on. The rules stay shut." width="100%">
 </p>
 
-**Warding runs your installed coding agents on your own machine, under your
-own CLI logins, with a dashboard, task delegation and opt-in tool approvals.**
+**Product goal (in development):**
+
+> Warding runs the coding agent you already pay for, all night, on your own
+> box, and can ask you in chat before it acts when you enable approvals —
+> under a policy it cannot read or rewrite.
+
+Today the local beta runs installed agents under their own CLI logins, with a
+dashboard, task delegation and opt-in tool approvals. Overnight work is
+unverified. The policy ceiling uses Warding's permission gate and OS sandbox,
+unaudited by a third party; native Claude/Codex operations still have a
+[policy-protection gap](https://github.com/myrmitis/warding/issues/18).
 
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-656d76?style=flat-square" alt="Apache 2.0 license"></a>
@@ -92,8 +101,7 @@ warding setup
 warding config set agent.acp_backend claude
 warding config set agent.approval_mode interactive
 warding route init
-warding doctor --quick
-warding sandbox status
+warding doctor
 ```
 
 The installer builds the dashboard and installs Warding into `./.venv`; it also
@@ -101,6 +109,10 @@ links `warding` into `~/.local/bin`. Activating the venv makes the command
 available in this shell. Configuration lives under `~/.warding`, or the
 `WARDING_HOME` directory you explicitly selected. Keep that choice consistent
 between terminals and any later service.
+
+Other installation paths are covered in the
+[install guide](docs/guides/install.md), including the
+[bootstrap installer](scripts/get-warding.sh).
 
 Here Claude is the primary chat agent. Use `codex` instead of `claude` in the
 config command to reverse that choice. The default remains `auto`; selecting an
@@ -122,13 +134,20 @@ zero/unknown limits are not proof of unlimited provider quota. Model fields can
 stay at their inherited defaults; choose explicit models only from the active
 harness's advertised options.
 
-`doctor --quick` shows the composed inventory. If the sandbox reports no usable
-backend, run `warding doctor` and follow the
-[sandbox troubleshooting guide](docs/guides/install.md#linux-the-agent-sandbox-and-unprivileged-user-namespaces)
-and [security model](docs/architecture/security-deep-dive.md#layer-0-os-level-sandbox-sandboxpy)
-for your OS before starting agent work. Sandbox availability depends on the
-macOS version and host configuration. The guide does not require enabling
-unconfined execution.
+In the full `warding doctor` output, check the **Sandbox** section. On macOS,
+require `backend: ✅ sandbox-exec` before starting agent work. A skipped/no-backend
+message or a probe warning is not success, even if the command exits with zero.
+This probes backend availability for the diagnostic process; it does not prove
+that every harness operation respects the policy ceiling. `doctor --quick`
+only shows the composed inventory, and `sandbox status` checks Linux AppArmor
+launcher coverage rather than the Mac backend.
+
+Sandbox availability depends on the macOS version and host configuration.
+If the backend is unavailable or cannot be verified, inspect the diagnostic
+guidance and [security model](docs/architecture/security-deep-dive.md#layer-0-os-level-sandbox-sandboxpy)
+before starting agent work. The
+[Linux troubleshooting section](docs/guides/install.md#linux-the-agent-sandbox-and-unprivileged-user-namespaces)
+applies only to Linux. The guide does not require enabling unconfined execution.
 
 ### 3. Start the dashboard
 
@@ -309,7 +328,7 @@ Setup guides: [Slack](docs/guides/slack-setup.md),
 
 ## The rules it can't open
 
-**Article 1. Policy paths are protected at Warding's mediated tool gate.**
+**Article 1. Policy paths are protected at Warding's PreToolUse gate.**
 The policy file, profiles, admission policy and computer-use switch are sensitive
 paths alongside `~/.ssh`, `~/.aws` and `~/.gnupg`; read, write and extract attempts
 that reach this gate are refused. Native harness operations do not all reach
