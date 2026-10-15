@@ -903,10 +903,9 @@ async def add_source(request: web.Request) -> web.Response:
     # BEFORE anything filesystem-adjacent runs — connector.validate_config()
     # can do Path.exists() on the value, and resolving a UNC path on Windows
     # fires an outbound SMB/DNS lookup to `host` before any sensitive-path
-    # check would reject it. This gate also has to precede the Path.resolve()
-    # below, because resolve() leaves "\\?\" un-normalized so is_sensitive_path
-    # misses a `\\?\C:\Users\me\.ssh\id_rsa` bypass of the credential floor.
-    # Windows accepts either slash flavour AND their mixture as a device-path
+    # check would reject it. resolve() keeps a "\\?\" prefix, and
+    # is_sensitive_path also matches the plain spelling of such a path. This
+    # gate still runs first, so a prefixed value never reaches resolve(). Windows accepts either slash flavour AND their mixture as a device-path
     # prefix — Path("\\/?\\C:\\...") normalizes to the same extended path as
     # \\?\ — so match on "first two chars are any slash", not literal "\\" /
     # "//" alone.
