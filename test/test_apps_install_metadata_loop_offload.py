@@ -22,8 +22,10 @@ The guards use the two tiers of ``test_apps_instances_loop_offload.py``:
   and update handler frames.
 
 ``install_from_registry`` runs under its caller's ``app_lifecycle_lock``. The
-last tests cancel an install during a metadata write. The install must not
-unwind, and so release that lock, until the write is done.
+cancellation tests cancel an install during a metadata write. The install must
+not unwind, and so release that lock, until the write is done. The same holds
+for the tree copy (``install_app`` or ``update_app``) in a registry install and
+in the install and update handlers.
 """
 
 from __future__ import annotations
@@ -76,9 +78,11 @@ def _write_source(root: Path) -> Path:
     return root
 
 
-def _json_post(path: str, body: dict[str, Any]) -> web.Request:
+def _json_post(
+    path: str, body: dict[str, Any], match_info: dict[str, str] | None = None
+) -> web.Request:
     """A mocked POST whose ``await request.json()`` returns *body*."""
-    request = make_mocked_request("POST", path)
+    request = make_mocked_request("POST", path, match_info=match_info or {})
     request.json = AsyncMock(return_value=body)  # type: ignore[method-assign]
     return request
 
@@ -386,6 +390,115 @@ async def test_a_write_that_fails_after_the_cancellation_is_logged(
         and record.exc_info[1] is failure
     ]
     assert logged, "the write failure after the cancellation was not logged"
+
+
+# ---------------------------------------------------------------------------
+# Cancellation: the tree copy finishes before the lifecycle lock is released
+# ---------------------------------------------------------------------------
+
+
+async def _assert_cancel_waits_for(
+    task: asyncio.Task[Any], gate: _BlockingCall, lock: asyncio.Lock, copy: str
+) -> None:
+    """Cancel *task* while *gate* blocks its copy, and check that it waits.
+
+    The task must not unwind, and so release *lock*, until the copy is done.
+    It must then end with the cancellation.
+    """
+    try:
+        assert await asyncio.to_thread(gate.started.wait, 10), f"{copy} was never called"
+        task.cancel()
+        await _let_cancellation_land()
+        assert not task.done(), f"the task unwound while {copy} was still copying"
+        assert lock.locked(), f"the lifecycle lock was released while {copy} was copying"
+    finally:
+        gate.release.set()
+        (outcome,) = await asyncio.gather(task, return_exceptions=True)
+
+    assert isinstance(outcome, asyncio.CancelledError), outcome
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "installed,copy",
+    [(False, "install_app"), (True, "update_app")],
+    ids=["new-install", "update"],
+)
+async def test_cancelled_registry_install_holds_the_lock_until_its_copy_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, installed: bool, copy: str
+) -> None:
+    """A cancelled registry install must not unwind while its tree copy runs.
+
+    If it did, it would release the app's lifecycle lock, and a concurrent
+    uninstall could remove the app during the copy. Its ``finally`` could also
+    restore a moved-aside checkout while the copy still reads the checkout path.
+    """
+    _stub_registry_install(monkeypatch, _write_source(tmp_path / "source"), self_managed=False)
+    existing = {"name": _APP} if installed else None
+    monkeypatch.setattr(registry_mod, "get_app", lambda name: existing)
+    _patch_registry_writes(
+        monkeypatch,
+        register=lambda *a, **k: AppResult(ok=True, name=_APP),
+        provenance=lambda *a, **k: True,
+    )
+    gate = _BlockingCall(lambda *a, **k: AppResult(ok=True, name=_APP, message="copied"))
+    monkeypatch.setattr(registry_mod, copy, gate)
+    monkeypatch.setattr(manager_mod, "_LIFECYCLE_LOCKS", {})
+    lock = manager_mod.app_lifecycle_lock(_APP)
+
+    task = asyncio.create_task(_install_under_lock(lock))
+    await _assert_cancel_waits_for(task, gate, lock, copy)
+
+
+def _patch_route_lifecycle(monkeypatch: pytest.MonkeyPatch) -> asyncio.Lock:
+    """Stub the route steps around the copy, and return the handler's lock.
+
+    The startup-hook check, the resource registration, and the backend start
+    and stop are not under test.
+    """
+    lock = asyncio.Lock()
+    monkeypatch.setattr(routes_mod, "app_lifecycle_lock", lambda name: lock)
+    monkeypatch.setattr(routes_mod, "stop_retained_startup_hooks", _no_retained_startup_hook)
+    monkeypatch.setattr(routes_mod, "register_app", lambda name: RegistrationResult())
+    monkeypatch.setattr(routes_mod, "deregister_app", lambda name: RegistrationResult())
+    monkeypatch.setattr(routes_mod, "start_app_backend", lambda name: None)
+    monkeypatch.setattr(routes_mod, "stop_app_backend", lambda name: None)
+    return lock
+
+
+@pytest.mark.asyncio
+async def test_cancelled_install_request_holds_the_lock_until_its_copy_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /api/apps/install must not release the app's lifecycle lock while
+    its copy runs, when the request is cancelled."""
+    source = _write_source(tmp_path / "source")
+    lock = _patch_route_lifecycle(monkeypatch)
+    gate = _BlockingCall(lambda *a, **k: AppResult(ok=True, name=_APP))
+    monkeypatch.setattr(routes_mod, "install_app", gate)
+
+    task = asyncio.create_task(
+        routes_mod.handle_install_app(_json_post("/api/apps/install", {"source": str(source)}))
+    )
+    await _assert_cancel_waits_for(task, gate, lock, "install_app")
+
+
+@pytest.mark.asyncio
+async def test_cancelled_update_request_holds_the_lock_until_its_copy_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /api/apps/{name}/update must not release the app's lifecycle lock
+    while its copy runs, when the request is cancelled."""
+    source = _write_source(tmp_path / "source")
+    lock = _patch_route_lifecycle(monkeypatch)
+    info = {"name": _APP, "lifecycle": "gateway", "enabled": True, "source": str(source)}
+    monkeypatch.setattr(routes_mod, "get_app", lambda name: info)
+    gate = _BlockingCall(lambda *a, **k: AppResult(ok=True, name=_APP))
+    monkeypatch.setattr(routes_mod, "update_app", gate)
+
+    request = _json_post(f"/api/apps/{_APP}/update", {"source": str(source)}, {"name": _APP})
+    task = asyncio.create_task(routes_mod.handle_update_app(request))
+    await _assert_cancel_waits_for(task, gate, lock, "update_app")
 
 
 # ---------------------------------------------------------------------------

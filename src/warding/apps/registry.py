@@ -27,6 +27,7 @@ minimal environment that excludes process secrets.
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import logging
 import os
@@ -38,6 +39,7 @@ import time
 import unicodedata
 import uuid
 from collections.abc import Callable
+from concurrent.futures import Executor
 from datetime import datetime, timezone
 from hashlib import sha256
 from ipaddress import IPv6Address
@@ -1837,12 +1839,37 @@ async def _to_thread_settled(func: Callable[_P, _R], /, *args: _P.args, **kwargs
     ``install_from_registry`` runs under its caller's ``app_lifecycle_lock``.
     Cancelling ``asyncio.to_thread`` stops only the await; the worker keeps
     running. If the caller unwound at once, it would release the lock while an
-    ``installed.json`` write is still in flight. A concurrent uninstall could
-    then remove the app, and the late write would re-create its metadata. So on
-    cancellation this waits for the worker, then propagates the cancellation.
-    The caller receives the cancellation, so a worker failure after it is logged.
+    ``installed.json`` write or a tree copy is still in flight. A concurrent
+    uninstall could then remove the app, and the late worker would re-create
+    its files. So on cancellation this waits for the worker, then propagates
+    the cancellation. The worker inherits the caller's context variables, as
+    with a plain ``asyncio.to_thread``.
     """
     worker = asyncio.create_task(asyncio.to_thread(func, *args, **kwargs))
+    return await _await_settled(worker, func)
+
+
+async def _run_in_executor_settled(
+    executor: Executor, func: Callable[_P, _R], /, *args: _P.args, **kwargs: _P.kwargs
+) -> _R:
+    """Run *func* on *executor*, and unwind only after the worker is done.
+
+    The executor form of ``_to_thread_settled``, for a caller that holds an
+    ``app_lifecycle_lock`` and runs its blocking work on a dedicated pool. Like
+    ``loop.run_in_executor``, it does not copy context variables to the worker.
+    """
+    loop = asyncio.get_running_loop()
+    worker = loop.run_in_executor(executor, functools.partial(func, *args, **kwargs))
+    return await _await_settled(worker, func)
+
+
+async def _await_settled(worker: asyncio.Future[_R], func: Callable[..., Any]) -> _R:
+    """Await *worker*; on cancellation, wait until it is done, then re-raise.
+
+    A repeated cancellation during the wait is absorbed, because the thread
+    finishes either way. The caller receives the cancellation, so a worker
+    failure after it is logged with the name of *func*.
+    """
     try:
         return await asyncio.shield(worker)
     except asyncio.CancelledError:
@@ -7199,16 +7226,18 @@ async def install_from_registry(
         existing = await asyncio.to_thread(get_app, name)
         # Off-loop: install_app/update_app do a blocking filesystem copy
         # that can take minutes on large source trees — on the loop it
-        # would trip the loop-stall watchdog and kill the gateway.
+        # would trip the loop-stall watchdog and kill the gateway. Settled:
+        # a cancelled install waits for the copy, so the caller's lock and the
+        # `finally` restore below never run while the copy reads the checkout.
         # Preserve the long-standing one-positional-argument manager contract.
         # The scoped coordinate is copied into asyncio.to_thread's context, so
         # the manager still performs its final repository-binding check and
         # writes safe provisional provenance without trusting app.json.
         with registry_source_repository(persisted_git_url):
             if existing:
-                result = await asyncio.to_thread(update_app, str(app_source))
+                result = await _to_thread_settled(update_app, str(app_source))
             else:
-                result = await asyncio.to_thread(install_app, str(app_source))
+                result = await _to_thread_settled(install_app, str(app_source))
         log_lines.append(result.message or result.error or "done")
 
         # Record the source marker plus structured provenance, so a later update
