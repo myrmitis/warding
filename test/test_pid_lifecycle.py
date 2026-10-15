@@ -960,15 +960,34 @@ class TestLinuxPidAge:
 
 
 class TestIsManagedAgentProcess:
-    def test_self_pid_not_managed(self) -> None:
-        """Our own test PID's cmdline lacks kiro-cli/claude → not managed.
+    def test_a_process_without_an_agent_marker_is_not_managed(self) -> None:
+        """A live process whose command line has no agent marker is not managed.
 
-        Exercises the platform_compat.process_matches call (the real
-        /proc/<pid>/cmdline read on Linux) without killing anything.
+        The probe matches markers anywhere in the whole command line, path
+        included. The test runner is the wrong subject: an xdist worker starts
+        from an absolute interpreter path, and a checkout below a ``.claude``
+        directory puts the ``claude`` marker in it. The child below has a command
+        line the test controls, and a second child proves the probe can answer
+        True, so the False answer is not a probe that always fails.
         """
-        from warding.session_pid import _is_managed_agent_process
+        from warding.session_pid import _MANAGED_AGENT_MARKERS, _is_managed_agent_process
 
-        assert _is_managed_agent_process(os.getpid()) is False
+        if platform_compat.IS_WINDOWS:
+            # The Windows probe matches the image name, which never holds a path.
+            assert _is_managed_agent_process(os.getpid()) is False
+            return
+        marked_code = f"import time; time.sleep(30)  # {_MANAGED_AGENT_MARKERS[0]}"
+        children: list[subprocess.Popen[bytes]] = []
+        try:
+            children.append(subprocess.Popen(["sleep", "30"]))
+            children.append(subprocess.Popen([sys.executable, "-c", marked_code]))
+            plain, marked = children
+            assert _is_managed_agent_process(marked.pid) is True
+            assert _is_managed_agent_process(plain.pid) is False
+        finally:
+            for child in children:
+                child.kill()
+                child.wait(timeout=5)
 
 
 class TestSyncKillProvider:

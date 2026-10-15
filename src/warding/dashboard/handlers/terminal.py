@@ -54,6 +54,10 @@ logger = logging.getLogger(__name__)
 _MAX_SESSIONS = 12
 _ORPHAN_TIMEOUT_S = 900  # 15 min with no WS → reap PTY (grace window for reload/network drops; in-app nav keeps the WS alive)
 _SCROLLBACK_MAX = 50 * 1024  # 50KB ring buffer per session for reconnect replay
+# How long teardown waits for the PTY controller fd to close before it escalates to the kill.
+# The close can stay blocked while a process outside the shell's group still holds the
+# terminal device.
+_PTY_CLOSE_GRACE_S = 2.0
 
 
 def _sel():
@@ -449,7 +453,18 @@ async def _kill_session(sess: _TerminalSession) -> None:
         except (OSError, RuntimeError):
             pass
         return
-    # Close master_fd first — unblocks reader_task's os.read() in executor.
+    # Hang the shell up BEFORE releasing the controller fd. Closing it makes the
+    # kernel send the same SIGHUP, but on macOS close(2) on a PTY controller blocks
+    # while another thread sits in read(2) on it, and the reader thread returns
+    # only when the shell exits. Closing first therefore never returns and never
+    # signals the shell, so the teardown hangs and the shell leaks.
+    if sess.proc is not None and sess.proc.returncode is None:
+        try:
+            await platform_compat.kill_process_tree_async(sess.proc.pid, platform_compat.SIGHUP)
+        except (ProcessLookupError, PermissionError):
+            # Already gone, or not signalable: the kill sequence below decides.
+            pass
+    # Close the controller fd — it releases the fd that reader_task's os.read() uses.
     #
     # os.close() on a PTY master fd can BLOCK in the kernel: when the far-end
     # shell is wedged (uninterruptible sleep), the tty teardown waits on it.
@@ -463,9 +478,16 @@ async def _kill_session(sess: _TerminalSession) -> None:
         # client disconnect), the fd must not be left referenced on the session.
         sess.master_fd = -1
         try:
-            await asyncio.get_running_loop().run_in_executor(
-                subprocess_executor(), os.close, fd,
+            await asyncio.wait_for(
+                asyncio.get_running_loop().run_in_executor(subprocess_executor(), os.close, fd),
+                timeout=_PTY_CLOSE_GRACE_S,
             )
+        except asyncio.TimeoutError:
+            # A process outside the shell's group still holds the terminal device, so the
+            # close stays parked on its pool thread. Do not wait on it: the kill
+            # below ends the shell, and the thread returns once the last holder
+            # of the terminal device exits.
+            logger.debug("terminal: PTY close still pending; escalating to kill")
         except (OSError, RuntimeError):
             # OSError: close failed. RuntimeError: the subprocess pool was
             # already torn down (shutdown races interpreter exit) — submit

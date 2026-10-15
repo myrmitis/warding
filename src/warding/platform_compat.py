@@ -132,8 +132,9 @@ def is_windows_on_arm() -> bool:
     return IS_WINDOWS and platform.machine().casefold() in _WINDOWS_ARM_MACHINES
 
 
-# Portable signal constants — signal.SIGKILL is undefined on Windows.
+# Portable signal constants — signal.SIGKILL and signal.SIGHUP are undefined on Windows.
 SIGKILL: int = getattr(signal, "SIGKILL", 9)
+SIGHUP: int = getattr(signal, "SIGHUP", 1)
 
 # Our own process group, captured at import time (POSIX; 0 on Windows where
 # os.getpgid doesn't exist). Used by kill_process_tree's broadcast guard so

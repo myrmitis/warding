@@ -34,7 +34,11 @@ NOW = 1_800_000_000.0
 
 
 def _router(tmp_path: Path, binaries: dict[str, str]) -> HarnessRouter:
-    return HarnessRouter(home=tmp_path, which=binaries.get, env={})
+    # The DSH harness is found by a launcher file under the real home, not by
+    # ``which``. Point its override at a file that never exists, so the injected
+    # ``binaries`` are the only installed harnesses whatever the host has.
+    env = {"DSH_ACP_LAUNCHER": str(tmp_path / "no-dsh-launcher")}
+    return HarnessRouter(home=tmp_path, which=binaries.get, env=env)
 
 
 _CLAUDE_AND_CODEX = {"claude": "/b/claude", "codex": "/b/codex", "npx": "/b/npx"}

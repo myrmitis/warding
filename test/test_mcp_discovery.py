@@ -3672,7 +3672,20 @@ class TestProbeGroupReap:
         )
         script.chmod(0o755)
 
-        monkeypatch.setattr("warding.mcp_discovery._get_probe_timeout", lambda: 1)
+        def _timeout_once_the_grandchild_exists() -> int:
+            # `probe_server` reads the timeout when it starts waiting for a handshake
+            # that this launcher never answers. Hold here until the launcher has
+            # forked its grandchild, so a slow shell start cannot let the timeout
+            # expire before there is anything to reap. Blocking is safe: the
+            # launcher is a separate process.
+            give_up_at = _time.monotonic() + 30
+            while not grandchild_pid_file.exists() and _time.monotonic() < give_up_at:
+                _time.sleep(0.05)
+            return 1
+
+        monkeypatch.setattr(
+            "warding.mcp_discovery._get_probe_timeout", _timeout_once_the_grandchild_exists
+        )
         # The child deliberately never exits, so `probe_server`'s teardown pays its
         # graceful-exit budget AND its post-SIGKILL budget in full (2 x 5s) before
         # reaching the process-group reap this test is about. Shrink both: the reap

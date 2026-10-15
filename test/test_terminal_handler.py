@@ -384,6 +384,98 @@ class TestKillSession:
         assert sess.master_fd == -1
         mock_kill.assert_any_call(12345, platform_compat.SIGTERM)
 
+    @pytest.mark.skipif(
+        terminal.platform_compat.IS_WINDOWS,
+        reason="POSIX master_fd/proc teardown; Windows sessions use the ConPTY backend",  # wokeignore:rule=master
+    )
+    @pytest.mark.asyncio
+    async def test_hangs_the_shell_up_before_releasing_the_controller(self):
+        """The shell is signalled before the PTY controller fd closes.
+
+        macOS blocks close(2) on a PTY controller while a reader sits in read(2) on
+        it, and that read ends only when the shell exits. Closing first never
+        returns, and it never signals the shell either.
+        """
+        events: list[str] = []
+        sess = _make_session(alive=True)
+        sess.master_fd = 42  # wokeignore:rule=master
+        with patch("os.close", side_effect=lambda fd: events.append("close")), patch(
+            "warding.dashboard.handlers.terminal.platform_compat.kill_process_tree",
+            side_effect=lambda pid, sig: events.append(f"signal {sig}"),
+        ):
+            await terminal._kill_session(sess)
+        assert events[:2] == [f"signal {platform_compat.SIGHUP}", "close"]
+
+    @pytest.mark.skipif(
+        terminal.platform_compat.IS_WINDOWS,
+        reason="POSIX master_fd/proc teardown; Windows sessions use the ConPTY backend",  # wokeignore:rule=master
+    )
+    @pytest.mark.asyncio
+    async def test_a_parked_controller_close_does_not_block_the_kill(self, monkeypatch):
+        """A process outside the shell's group can hold the terminal device open, which
+        keeps the controller close parked on its pool thread. Teardown escalates to the kill
+        after the grace period instead of waiting on that close."""
+        release = threading.Event()
+        monkeypatch.setattr(terminal, "_PTY_CLOSE_GRACE_S", 0.05)
+        sess = _make_session(alive=True)
+        sess.master_fd = 42  # wokeignore:rule=master
+        try:
+            with patch("os.close", side_effect=lambda fd: release.wait(30)), patch(
+                "warding.dashboard.handlers.terminal.platform_compat.kill_process_tree"
+            ) as mock_kill:
+                await asyncio.wait_for(terminal._kill_session(sess), timeout=10)
+        finally:
+            release.set()
+        mock_kill.assert_any_call(12345, platform_compat.SIGTERM)
+
+    @pytest.mark.skipif(
+        terminal.platform_compat.IS_WINDOWS,
+        reason="POSIX PTY teardown; Windows sessions use the ConPTY backend",
+    )
+    @pytest.mark.asyncio
+    async def test_teardown_returns_while_a_reader_is_parked_on_the_controller(self, tmp_path):
+        """A real PTY, a live child and a reader thread parked in read(2), which is
+        the state of a session whose shell sits idle at its prompt. On macOS the
+        controller close cannot return in this state until the child exits."""
+        import pty
+
+        loop = asyncio.get_running_loop()
+        controller_fd, worker_fd = pty.openpty()
+        proc = await asyncio.create_subprocess_exec(
+            "sleep",
+            "60",
+            stdin=worker_fd,
+            stdout=worker_fd,
+            stderr=worker_fd,
+            start_new_session=platform_compat.IS_POSIX,
+            cwd=str(tmp_path),
+        )
+        os.close(worker_fd)
+        sess = terminal._TerminalSession(
+            session_id="parked",
+            master_fd=controller_fd,  # wokeignore:rule=master
+            proc=proc,
+            ws=None,
+        )
+        entered_read = threading.Event()
+
+        def _read() -> bytes:
+            entered_read.set()
+            return os.read(controller_fd, 4096)
+
+        sess.reader_task = asyncio.ensure_future(loop.run_in_executor(None, _read))
+        try:
+            assert await loop.run_in_executor(None, entered_read.wait, 10)
+            # The thread signals just before it enters read(2); let it get there.
+            await asyncio.sleep(0.1)
+            await asyncio.wait_for(terminal._kill_session(sess), timeout=30)
+            assert proc.returncode is not None
+        finally:
+            if proc.returncode is None:
+                # Ending the child releases a parked reader and close.
+                proc.kill()
+                await proc.wait()
+
 
 # ── api_terminal_create ──
 
@@ -2194,6 +2286,35 @@ async def _recv_pty_output(ws, **kw) -> bytes:
     return msg.data
 
 
+async def _recv_pty_until(ws, done, *, budget_s: float = 60.0) -> bytes:
+    """All BINARY frames received until ``done(bytes_so_far)`` holds, as one buffer.
+
+    The budget is one deadline for the whole read, not a timeout per frame. A login
+    shell echoes the typed line at once but prints its own output only after its
+    profile finishes, which takes seconds and varies with host load. A per-frame
+    limit turned that variance into a failure. The read also ends when the socket
+    closes, because a closed socket answers at once and waiting longer cannot help.
+    A miss returns what arrived, so the caller's assertion reports it.
+    """
+    seen = b""
+    give_up_at = time.monotonic() + budget_s
+    while time.monotonic() < give_up_at and not done(seen):
+        try:
+            msg = await ws.receive(timeout=1)
+        except asyncio.TimeoutError:
+            continue
+        if msg.type in (
+            web.WSMsgType.CLOSE,
+            web.WSMsgType.CLOSING,
+            web.WSMsgType.CLOSED,
+            web.WSMsgType.ERROR,
+        ):
+            break
+        if msg.type is web.WSMsgType.BINARY:
+            seen += msg.data
+    return seen
+
+
 @pytest.mark.xdist_group("pty_integration")
 class TestTerminalWsIntegration:
     """Integration tests that exercise the full WebSocket PTY lifecycle.
@@ -2331,21 +2452,11 @@ class TestTerminalWsIntegration:
 
         from aiohttp.test_utils import TestClient, TestServer
 
-        async def _drain(ws, needle, budget=60):
-            # The shell echoes the typed line before its output, so read until a
-            # marker resolves rather than trusting a frame count. Stops on
-            # REDACTED too: if a regression starts scanning this path the needle
-            # never arrives, and without that stop the test would burn the whole
-            # budget in receive timeouts instead of failing on its assertion.
-            seen = b""
-            for _ in range(budget):
-                msg = await ws.receive(timeout=5)
-                if msg.type != web.WSMsgType.BINARY:
-                    continue
-                seen += msg.data
-                if needle in seen or b"REDACTED" in seen:
-                    break
-            return seen
+        def _resolved(seen: bytes) -> bool:
+            # Stops on REDACTED too: if a regression starts scanning this path the
+            # needle never arrives, and without that stop the test would burn the
+            # whole budget instead of failing on its assertion.
+            return key.encode() in seen or b"REDACTED" in seen
 
         async with TestClient(TestServer(app)) as client:
             async with client.ws_connect("/api/ws/terminal/verbatim") as ws:
@@ -2354,14 +2465,14 @@ class TestTerminalWsIntegration:
                 # the halves. Asserting on the echo would prove far less: it
                 # never reaches the redactors' notion of a credential either way.
                 await ws.send_bytes(f"printf '{key[:13]}''{key[13:]}\\n'\n".encode())
-                live = await _drain(ws, key.encode())
+                live = await _recv_pty_until(ws, _resolved)
                 await ws.close()
             assert key.encode() in live
             assert b"REDACTED" not in live
 
             # Reconnect: the ring buffer is replayed as the same raw bytes.
             async with client.ws_connect("/api/ws/terminal/verbatim") as ws:
-                replay = await _drain(ws, key.encode())
+                replay = await _recv_pty_until(ws, _resolved)
                 await ws.close()
             assert key.encode() in replay
             assert b"REDACTED" not in replay
@@ -2401,14 +2512,7 @@ class TestTerminalWsIntegration:
                 await ws.send_bytes(
                     f"printf '{char}%.0s' $(seq 1 {count}); printf 'DO''NE\\n'\n".encode()
                 )
-                seen = b""
-                for _ in range(400):
-                    msg = await ws.receive(timeout=10)
-                    if msg.type != web.WSMsgType.BINARY:
-                        continue
-                    seen += msg.data
-                    if b"DONE" in seen:
-                        break
+                seen = await _recv_pty_until(ws, lambda seen: b"DONE" in seen)
                 await ws.close()
             await terminal._kill_session(registry["multibyte"])
 
