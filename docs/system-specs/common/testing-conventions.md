@@ -946,9 +946,10 @@ git diff --stat "$f"                     # should show only what you had before
 
 `ci.yml` splits the backend suite into 4 `pytest-split` groups. Splitting is balanced by
 recorded runtime **only when a `.test_durations` file is committed**; without one
-pytest-split falls back to an even split by test *count*. No such file is committed here:
-`test-durations.yml` would generate one weekly but has failed on a transient `git push`
-502 both times it ran, so it has never landed.
+pytest-split falls back to an even split by test *count*. No such file is committed here.
+`test-durations.yml` can generate one, but it runs on manual dispatch only. The workflow pushes a branch and finishes successfully. A maintainer must open or update
+its pull request. Earlier scheduled runs failed because this repository does not let
+GitHub Actions create pull requests, so the file has never landed.
 
 **Measure a shard by running it, not by summing durations.** Each shard runs its own
 tests at `-n 4`, so per-test times from a `--store-durations` run include worker
