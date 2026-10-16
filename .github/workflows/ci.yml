@@ -1614,15 +1614,19 @@ jobs:
           MERGE_RESULT: ${{ steps.merge.outcome }}
         run: node "$GITHUB_WORKSPACE/.github/scripts/frontend-blob-reconcile.mjs" .vitest-reports
 
+      - name: Require frontend coverage report
+        run: test -s website/build/coverage/cobertura-coverage.xml
+
       - name: Upload merged coverage
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-frontend
           retention-days: 1
-          # vitest's reportsDirectory is website/build/coverage (see
-          # vite.config.ts). Fail loudly if the cobertura report is missing so a
-          # broken merge can never hand the Coverage Gate an empty artifact.
-          path: website/build/coverage/
+          # Keep the reports used by Coverage Gate and LCOV consumers;
+          # generated HTML duplicates remain on the runner.
+          path: |
+            website/build/coverage/cobertura-coverage.xml
+            website/build/coverage/lcov.info
           if-no-files-found: error
 
   bundle-size:

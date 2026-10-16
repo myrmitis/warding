@@ -101,8 +101,10 @@ PR Readiness still updates from workflow and PR events, with an hourly recovery
 sweep for missed events. Fork and merge-conflict labels keep their event-driven
 updates and run a daily backstop sweep instead of polling throughout the day.
 
-PR/main build artifacts and CI coverage reports expire after one day. A later
-retry that needs an expired artifact must rerun its producer. Release build
+PR/main build artifacts and CI coverage reports expire after one day. The frontend
+coverage handoff retains the Cobertura XML and LCOV data; generated HTML browsing
+reports stay on the runner. The Cobertura report must be nonempty before upload.
+A later retry that needs an expired artifact must rerun its producer. Release build
 handoffs retain their existing retention, including the 90-day stable-promotion
 record; shortening that record would prevent promotion of tested RC bytes.
 Existing artifacts keep their original expiry dates.
