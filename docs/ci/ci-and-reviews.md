@@ -56,8 +56,10 @@ Out-of-band lanes that never gate a PR:
   `cleanup-temp-screenshots.yml` (prunes the ephemeral `temp-screenshots/` dir,
   see [its README](../../temp-screenshots/README.md); safe because PR bodies
   embed commit-SHA-pinned raw URLs that keep resolving),
-  `test-durations.yml` (re-measures `.test_durations` so pytest-split's shards stay
-  balanced by recorded runtime, and opens a PR with the update), `issue-triage.yml`
+  `test-durations.yml` (manual dispatch only: re-measures `.test_durations` so
+  pytest-split's shards stay balanced by recorded runtime, and pushes a branch with
+  the update; the workflow finishes successfully without creating a PR because
+  this repository does not let Actions open one; a maintainer opens or updates it), `issue-triage.yml`
   (a model picks `type:` / `area:` / `platform:` labels from the repository's own
   live label set, because keyword rules mislabel often enough to be worse than no
   label), `issue-summary.yml` (a second, deliberately separate lane posts ONE
