@@ -250,6 +250,16 @@ jobs:
           python3 scripts/check_company_names.py --test
           python3 scripts/check_company_names.py
 
+      - name: Check that no tracked line carries the retired predecessor identity
+        # Whole-tree, like the company-name gate: the tree is clean, so any match
+        # is a regression. It matches identity spellings only (domain, slug,
+        # env prefix, data home, package, bundle id), never the Windows
+        # directory-junction term. Dated history in docs/adr/ and CHANGELOG.md
+        # is not scanned.
+        run: |
+          python3 scripts/check_predecessor_name.py --test
+          python3 scripts/check_predecessor_name.py
+
   focus-cue-lint:
     name: Focus Cue Gate
     runs-on: ubuntu-latest
