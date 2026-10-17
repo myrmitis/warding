@@ -372,6 +372,23 @@ Format:
   its own because that copy is what ships inside the wheel and what the
   dashboard's Releases page reads, where no such block exists.
 
+## Testing policy: E2E over unit
+
+Owner policy (2026-10-16, shared in `~/.agents/AGENTS.md`): do not add unit or
+integration tests on your own initiative, and no TDD unless asked. Prove a
+change by driving the product the way a user does.
+
+- New coverage goes to the E2E layer: `python setup.py test_e2e` (the
+  [e2e-gate](docs/ci/e2e-gate.md): real gateway, fake backend, Playwright
+  dashboard suite). A user-visible change to the CLI, gateway or dashboard
+  extends that suite, not `test/test_*.py`.
+- Existing pytest coverage stays and must pass (`python -m pytest`, below).
+  Never delete, skip, weaken or `xfail` a test to go green; if one is wrong,
+  say so and stop. Tests that pin security invariants (above) are a contract.
+- Exception, ask first: pure logic with a clear spec (policy intersection,
+  parsers, model-registry resolution). When the owner asks for a test at any
+  level, write exactly that; the `writing-tests` skill then governs how.
+
 ## The gate before you commit
 
 ```bash
