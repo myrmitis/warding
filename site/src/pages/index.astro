@@ -466,19 +466,16 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   @media (min-width: 721px) { .h1-line { display: block; } }
   /* Hero opening, "lamp on": once per load the late-desk lamp in the eyebrow
      window catches (two stepped flickers, then steady) and the headline is set
-     line by line in pixel steps, the same stepped register as the redaction
+     in pixel steps, the same stepped register as the redaction
      bars. CSS only, ends on the static page, nothing loops; reduced motion
      never runs it, and the global reduced-motion rule would end it at once. */
   @keyframes lamp-on { 0%, 12% { fill-opacity: 0; } 18% { fill-opacity: 1; } 24% { fill-opacity: 0.12; } 34% { fill-opacity: 1; } 40% { fill-opacity: 0.4; } 52%, 100% { fill-opacity: 1; } }
   @keyframes line-set { from { clip-path: inset(-10% 100% -20% 0); } to { clip-path: inset(-10% 0 -20% 0); } }
   @media (prefers-reduced-motion: no-preference) {
     .eyebrow-lamp { animation: lamp-on 900ms steps(1, end) 120ms backwards; }
-    .hero-head h1 { animation: line-set 760ms steps(16, end) 520ms backwards; }
-    @media (min-width: 721px) {
-      .hero-head h1 { animation: none; }
-      .h1-line { animation: line-set 640ms steps(16, end) 520ms backwards; }
-      .h1-line + .h1-line { animation-delay: 1060ms; }
-    }
+    /* One target at every width, so crossing the breakpoint (rotation,
+       resize) never restarts the opening or hides the headline again. */
+    .hero-head h1 { animation: line-set 900ms steps(20, end) 520ms backwards; }
   }
   .eyebrow { display: flex; align-items: center; gap: 14px; }
   .eyebrow svg { flex: none; color: var(--fg-2); }
