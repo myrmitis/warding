@@ -42,8 +42,8 @@ follows [security](../system-specs/modules/security.md).
 
 ## Consequences
 
-The `git grep -i amazon` count on `main` does not reach zero. The intended
-matches are the ones listed on #27: root `NOTICE`, AWS and Bedrock
+The company-name grep count on `main` (the #27 table) does not reach zero.
+The intended matches are the ones listed on #27: root `NOTICE`, AWS and Bedrock
 identifiers, the scrub and leak-detection patterns, and the paths above.
 The pass/fail measure for the identity cleanup is the three identity gates,
 not the raw count.
