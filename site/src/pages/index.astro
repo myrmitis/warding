@@ -106,7 +106,7 @@ const bento = [
             <rect x="2" y="2" width="28" height="28" fill="none" stroke="var(--fg-2)" stroke-width="2" />
             <line x1="16" y1="2" x2="16" y2="30" stroke="var(--fg-2)" stroke-width="2" />
             <line x1="2" y1="16" x2="30" y2="16" stroke="var(--fg-2)" stroke-width="2" />
-            <rect x="17" y="17" width="12" height="12" fill="var(--lamp)" />
+            <rect class="eyebrow-lamp" x="17" y="17" width="12" height="12" fill="var(--lamp)" />
           </svg>
           <span><span class="clock" data-local-time>--:--</span> your time</span>
         </p>
@@ -464,6 +464,22 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   .hero-head h1 { font-size: clamp(2.75rem, 1.5rem + 4.6vw, 4.5rem); line-height: 1; letter-spacing: -0.02em; }
   .h1-line { display: inline; }
   @media (min-width: 721px) { .h1-line { display: block; } }
+  /* Hero opening, "lamp on": once per load the late-desk lamp in the eyebrow
+     window catches (two stepped flickers, then steady) and the headline is set
+     line by line in pixel steps, the same stepped register as the redaction
+     bars. CSS only, ends on the static page, nothing loops; reduced motion
+     never runs it, and the global reduced-motion rule would end it at once. */
+  @keyframes lamp-on { 0%, 12% { fill-opacity: 0; } 18% { fill-opacity: 1; } 24% { fill-opacity: 0.12; } 34% { fill-opacity: 1; } 40% { fill-opacity: 0.4; } 52%, 100% { fill-opacity: 1; } }
+  @keyframes line-set { from { clip-path: inset(-10% 100% -20% 0); } to { clip-path: inset(-10% 0 -20% 0); } }
+  @media (prefers-reduced-motion: no-preference) {
+    .eyebrow-lamp { animation: lamp-on 900ms steps(1, end) 120ms backwards; }
+    .hero-head h1 { animation: line-set 760ms steps(16, end) 520ms backwards; }
+    @media (min-width: 721px) {
+      .hero-head h1 { animation: none; }
+      .h1-line { animation: line-set 640ms steps(16, end) 520ms backwards; }
+      .h1-line + .h1-line { animation-delay: 1060ms; }
+    }
+  }
   .eyebrow { display: flex; align-items: center; gap: 14px; }
   .eyebrow svg { flex: none; color: var(--fg-2); }
   .eyebrow .clock { min-width: 5ch; display: inline-block; }
