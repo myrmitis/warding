@@ -16,6 +16,7 @@ under debate. For design proposals see
 | [0007 — Built-in model catalog](0007-builtin-model-catalog.md) | `warding up` serves loopback health and a names-only catalog. No provider forwarding, no vendored tree. |
 | [0008 — Product name](0008-product-rename-warding.md) | The product is Warding, the CLI is `warding`, the mark is the Ward Seal, the site is warding.dev. |
 | [0009 — Attribution and identity boundaries](0009-attribution-and-identity-boundaries.md) | Proposed: preserve original NOTICE attribution, retire inactive scrub exceptions, keep security targets and reconcile the auto harness default. |
+| [0010 — Keep the kiro-cli credential paths and guide](0010-kiro-cli-paths-retained.md) | The `amazon-q`/`kiro-cli` auth-store paths are security targets and stay; the kiro-cli guide stays with the retained optional harness. |
 
 Identity and envelope: [`../../WORKING_BRIEF.md`](../../WORKING_BRIEF.md).
 Architecture thesis: [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md).
