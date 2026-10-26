@@ -42,14 +42,14 @@ const current = (href: string) => (href.startsWith("/") && href !== "/" && path.
   </div>
 </header>
 <style>
-  .site-header { position: relative; z-index: 20; background: transparent; }
-  .nav-row { display: flex; align-items: center; gap: 24px; min-height: 72px; }
+  .site-header { position: relative; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .nav-row { display: flex; align-items: center; gap: 20px; min-height: 76px; }
   .brand-group { display: flex; flex-direction: column; align-items: flex-start; flex-shrink: 0; }
   .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--fg); text-decoration: none; }
   .publisher { display: inline-flex; align-items: center; min-height: 24px; margin-left: 34px; color: var(--fg-2); font-size: 0.75rem; text-decoration: none; }
   .publisher:hover { color: var(--fg); text-decoration: underline; }
   .wordmark {
-    font-family: var(--font-display); font-weight: 600; font-size: 1.375rem; letter-spacing: -0.015em; line-height: 1;
+    font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; letter-spacing: -0.015em; line-height: 1;
     font-variation-settings: "SOFT" 0, "WONK" 0, "opsz" 144;
   }
   .primary-nav { flex: 1; display: flex; justify-content: center; }
@@ -58,7 +58,8 @@ const current = (href: string) => (href.startsWith("/") && href !== "/" && path.
     display: inline-block; padding: 8px 12px; border-radius: 4px; color: var(--fg-2); text-decoration: none;
     font-size: 0.9375rem; font-weight: 500;
   }
-  .primary-nav a:hover, .primary-nav a[aria-current="page"] { color: var(--fg); background: color-mix(in srgb, var(--fg) 6%, transparent); }
+  .primary-nav a:hover { color: var(--fg); }
+  .primary-nav a[aria-current="page"] { color: var(--fg); background: transparent; box-shadow: inset 0 -2px 0 var(--seal); border-radius: 0; }
   .nav-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
   .icon-btn {
     display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 4px; border: 1px solid var(--line);

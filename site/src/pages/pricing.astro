@@ -61,17 +61,17 @@ const supporterAnnual = site.links.supporterCheckout;
               <button type="button" class="plan-btn" data-plan="monthly" aria-pressed="false">Monthly</button>
             </div>
             <p class="price" data-plan-view="annual">
-              <span class="clock clock-33">$96</span><span class="per">/yr</span>
+              <span class="clock clock-44">$96</span><span class="per">/yr</span>
               <span class="caption">price locked while active</span>
             </p>
             <p class="price" data-plan-view="monthly" hidden>
-              <span class="clock clock-33">$8</span><span class="per">/mo</span>
+              <span class="clock clock-44">$8</span><span class="per">/mo</span>
               <span class="caption">cancel any month</span>
             </p>
           </>
         ) : (
           <p class="price">
-            <span class="clock clock-33">{splitPrice(o.price)[0]}</span>{splitPrice(o.price)[1] && <span class="per">{splitPrice(o.price)[1]}</span>}
+            <span class={o.id === "free" ? "clock" : "clock clock-44"}>{splitPrice(o.price)[0]}</span>{splitPrice(o.price)[1] && <span class="per">{splitPrice(o.price)[1]}</span>}
             {o.priceNote && <span class="caption">{o.priceNote}</span>}
           </p>
         )}
@@ -178,15 +178,37 @@ const supporterAnnual = site.links.supporterCheckout;
 </PageLayout>
 
 <style>
-  /* Flex, not a 3-column grid: five cards would leave an empty cell, so the
-     last row's cards grow to share its width instead. */
-  .offers { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; }
-  .offer { flex: 1 1 320px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .offers { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 28px; }
+  .offer { flex: 1 1 300px; display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 28px 24px 22px; max-width: 460px; }
+  #free { max-width: none; }
+  .offer:not(#free) {
+    background-image: linear-gradient(var(--seal), var(--seal)), linear-gradient(var(--seal), var(--seal)), linear-gradient(var(--seal), var(--seal));
+    background-size: 14px 2.5px; background-repeat: no-repeat;
+    background-position: 24px 14px, 42.5px 14px, 61px 14px;
+  }
   .offer-cta { margin-top: auto; }
   .offer-rec { border-color: var(--seal); }
+  #free {
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+    column-gap: 40px;
+    row-gap: 12px;
+    align-items: start;
+    padding: 32px 36px 28px;
+  }
+  #free .offer-head,
+  #free > :global(.status),
+  #free .price,
+  #free .offer-blurb,
+  #free .offer-cta { grid-column: 1; }
+  #free .quickstart { grid-column: 2; grid-row: 1 / span 6; align-self: center; margin: 0; }
+  #free .rail { grid-column: 1 / -1; }
   .offer-head { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
-  .offer h2 { font-size: 1.375rem; line-height: 1.2; }
+  .offer h2 { font-size: 1.5rem; line-height: 1.15; letter-spacing: -0.02em; }
+  #free h2 { font-size: clamp(2rem, 1.4rem + 1vw, 2.5rem); }
   .price { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--fg); }
+  #free .clock { font-size: 72px; line-height: 1; }
   .price .per { font-family: var(--font-clock); font-size: 18px; color: var(--fg-2); margin-left: -4px; }
   .offer-blurb { color: var(--fg-2); font-size: 0.9375rem; }
   .quickstart { font-size: 0.75rem; padding: 12px 14px; }
@@ -201,13 +223,21 @@ const supporterAnnual = site.links.supporterCheckout;
   .compare-wrap, .faq-wrap, .installer { margin-top: 72px; display: grid; gap: 16px; }
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .compare th, .compare td { white-space: normal; }
-  .compare thead th { vertical-align: bottom; }
+  .compare thead th { vertical-align: bottom; border-bottom: 2px solid var(--fg); }
+  .compare tbody tr:nth-child(even) { background: color-mix(in srgb, var(--fg) 4%, transparent); }
+  .compare tbody th { position: sticky; left: 0; background: var(--bg); z-index: 1; }
+  .compare tbody tr:nth-child(even) th { background: color-mix(in srgb, var(--fg) 4%, var(--bg)); }
   .compare thead th .caption { text-transform: none; letter-spacing: 0; font-weight: 400; }
   .compare tbody th { white-space: normal; min-width: 14ch; }
   .compare td { min-width: 9ch; }
   .compare .none { color: var(--fg-3); }
   .faq-list { max-width: 72ch; }
-  .installer .h3 { font-size: 1.5rem; }
+  .installer .h3 { font-size: clamp(1.75rem, 1.2rem + 1vw, 2.25rem); letter-spacing: -0.02em; }
+  @media (max-width: 800px) {
+    #free { grid-template-columns: minmax(0, 1fr); padding: 24px 20px; }
+    #free .quickstart { grid-column: 1; grid-row: auto; }
+    #free .clock { font-size: 56px; }
+  }
   .installer :global(.waitlist) { max-width: 560px; }
   :global(.lucide-inline) { width: 16px; height: 16px; vertical-align: -3px; display: inline-block; }
 </style>

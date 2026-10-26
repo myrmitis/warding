@@ -453,15 +453,27 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
 
 <style>
   .night { position: relative; }
+  .night::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 720px;
+    pointer-events: none;
+    background: radial-gradient(560px 320px at 8% 0%, var(--lamp-glow), transparent 70%);
+  }
 
   /* The stage: the hero head spans both columns; below it the text column (hero
      body, then the clock-time steps) scrolls beside the pinned world. */
   .stage {
-    display: grid; grid-template-columns: minmax(480px, 5fr) minmax(0, 7fr); column-gap: 48px;
-    align-items: start; padding-top: 24px; padding-bottom: 96px;
+    display: grid; grid-template-columns: minmax(480px, 5fr) minmax(0, 7fr); column-gap: 56px;
+    align-items: start; padding-top: 36px; padding-bottom: 96px;
+    position: relative; z-index: 1;
   }
-  .hero-head { grid-column: 1 / -1; display: grid; gap: 20px; padding-bottom: 28px; }
-  .hero-head h1 { font-size: clamp(2.75rem, 1.5rem + 4.6vw, 4.5rem); line-height: 1; letter-spacing: -0.02em; }
+  .hero-head { grid-column: 1 / -1; display: grid; gap: 22px; padding-bottom: 32px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+  .hero-head h1 { font-size: clamp(2.7rem, 1.05rem + 5.6vw, 6.25rem); line-height: 0.94; letter-spacing: -0.034em; }
   .h1-line { display: inline; }
   @media (min-width: 721px) { .h1-line { display: block; } }
   /* Hero opening, "lamp on": once per load the late-desk lamp in the eyebrow
@@ -485,15 +497,15 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   .steps { display: contents; }
   .step { grid-column: 1; }
   .stage-world { grid-column: 2; grid-row: 2 / span 6; align-self: start; position: sticky; top: 24px; display: grid; gap: 10px; min-width: 0; }
-  .step { display: grid; gap: 20px; padding-block: 80px; border-top: 1px solid var(--line); }
+  .step { display: grid; gap: 20px; padding-block: 80px; border-top: 1px solid var(--line); box-shadow: inset 2px 0 0 transparent; }
   .step > * { min-width: 0; max-width: 100%; }
   .refusal > * { min-width: 0; max-width: 100%; }
   .step-hero { border-top: 0; padding-top: 0; gap: 24px; }
   .hero-lead { display: grid; gap: 16px; }
-  .hero-lead .lead { max-width: 52ch; color: var(--fg-2); }
+  .hero-lead .lead { max-width: 36ch; color: var(--fg); font-size: 1.35rem; line-height: 1.45; }
   .qualifier { max-width: 60ch; }
   .hero-install { display: grid; gap: 14px; }
-  .strip { border: 1px solid var(--line); background: var(--raised); border-radius: 4px; min-width: 0; }
+  .strip { border: 1px solid var(--line); border-left: 3px solid var(--lamp); background: var(--raised); border-radius: 4px; min-width: 0; }
   .strip-pre { padding: 12px 14px; font-size: 0.875rem; white-space: pre; overflow-x: auto; }
   .strip-pre .prompt { color: var(--fg-3); user-select: none; }
   .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
@@ -519,14 +531,20 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   @media (max-width: 720px) {
     .stage { padding-top: 8px; padding-bottom: 64px; }
     .hero-head { gap: 16px; padding-bottom: 20px; }
+    .hero-head h1 { font-size: clamp(2.2rem, 1rem + 6.4vw, 3.15rem); }
     .eyebrow { gap: 10px; }
     .eyebrow-dial { width: 36px; height: 36px; }
     .eyebrow-window { width: 26px; height: 26px; }
   }
 
-  /* The world frame */
   :global(.world) { display: grid; gap: 12px; justify-items: start; max-width: 100%; min-width: 0; }
-  :global(.world-frame) { position: relative; overflow: hidden; border: 1px solid var(--line); background: #0b0e14; box-shadow: var(--shadow); max-width: 100%; }
+  :global(.world-frame) {
+    position: relative; overflow: hidden; border: 1px solid var(--line); background: #0b0e14; max-width: 100%;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lamp) 45%, transparent);
+  }
+  .vault :global(.world-frame) {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 0 0 1px color-mix(in srgb, var(--lamp) 45%, transparent);
+  }
   :global(.world-canvas) { image-rendering: pixelated; display: block; max-width: none; }
   :global(.world-chip) { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; pointer-events: none; }
   :global(.world-chip > *) { pointer-events: auto; }
@@ -539,18 +557,29 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   :global(.world-btn) {
     width: 44px; height: 44px; display: grid; place-items: center; border-radius: 4px; cursor: pointer;
     background-color: rgba(11, 14, 20, 0.86); color: #ffb547; border: 0; box-shadow: inset 0 0 0 1px #2a3244;
-    /* The ward bars as the control's frame: three short rules along the top edge. */
     background-image: linear-gradient(#ff7a5c, #ff7a5c), linear-gradient(#ff7a5c, #ff7a5c), linear-gradient(#ff7a5c, #ff7a5c);
     background-size: 11px 2.5px; background-repeat: no-repeat; background-position: 4px 4px, 16.5px 4px, 29px 4px;
   }
   :global(.world-btn .lucide) { width: 20px; height: 20px; stroke-width: 2; margin-top: 4px; }
   :global(.drollery) { display: block; }
 
-  /* Phone, gallery, refusal, channels */
   .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
   .gallery-card { display: grid; gap: 6px; padding: 16px; align-content: start; }
   .gallery-card h3 { font-family: var(--font-sans); font-size: 1rem; font-weight: 600; }
-  .gallery-card.is-running { border-color: var(--granted); }
+  .gallery-card.is-running { border-color: var(--line); box-shadow: inset 3px 0 0 var(--lamp); }
+  .stage[data-step="0"] .step[data-step="0"],
+  .stage[data-step="1"] .step[data-step="1"],
+  .stage[data-step="2"] .step[data-step="2"],
+  .stage[data-step="3"] .step[data-step="3"],
+  .stage[data-step="4"] .step[data-step="4"],
+  .stage[data-step="5"] .step[data-step="5"] { box-shadow: inset 2px 0 0 var(--lamp); }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html[data-office-live]) .gallery-card.is-running { animation: lamp-hold 2.8s steps(2, end) infinite; }
+    @keyframes lamp-hold {
+      0%, 100% { box-shadow: inset 3px 0 0 var(--lamp); }
+      50% { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--lamp) 35%, transparent); }
+    }
+  }
   .gallery-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
   :global(.tile-icon) { width: 20px; height: 20px; color: var(--lamp); stroke-width: 1.75; }
   .dial-wrap { display: flex; align-items: center; gap: 20px; }
@@ -568,6 +597,7 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
 
   /* Paper sections */
   .paper { position: relative; }
+  .paper h2 { font-size: clamp(2.35rem, 1.5rem + 2.2vw, 3.5rem); letter-spacing: -0.03em; line-height: 1.02; }
   .two-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: start; margin-top: 24px; }
   .two-col h2 { margin-bottom: 20px; }
   .center { text-align: center; }
@@ -601,10 +631,21 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   .paper :global(.posture-plate .plate-frame) { background: #0b0e14; border-color: #2a3244; padding: 12px; }
   @media (max-width: 900px) { .spread { grid-template-columns: 1fr; padding: 28px 20px; } .margin-drollery { margin-right: 0; } .charter-foot { padding: 20px; } }
 
-  .bento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 40px; }
-  .bento-tile { display: grid; gap: 10px; text-decoration: none; color: var(--fg); align-content: start; min-height: 240px; }
-  .bento-tile h3 { font-size: 1.25rem; }
+  .bento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 40px; counter-reset: desk; }
+  .bento-tile { display: grid; gap: 10px; text-decoration: none; color: var(--fg); align-content: start; min-height: 260px; padding: 22px; }
+  .bento-tile::before {
+    content: counter(desk, decimal-leading-zero);
+    counter-increment: desk;
+    font-family: var(--font-clock);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--seal);
+  }
+  .bento-tile h3 { font-size: 1.35rem; letter-spacing: -0.02em; }
   .bento-tile:hover { border-color: var(--fg-2); }
+  @media (prefers-reduced-motion: no-preference) {
+    .bento-tile:hover { transform: translateY(-3px); }
+  }
   .tile-link { display: inline-flex; align-items: center; gap: 4px; color: var(--link); }
   .tile-link :global(.lucide) { width: 14px; height: 14px; }
   .demo { height: 96px; overflow: hidden; display: grid; align-content: center; font-family: var(--font-mono); font-size: 0.8125rem; color: var(--fg-2); }
@@ -632,7 +673,7 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   .signature { font-family: var(--font-display); font-style: italic; font-weight: 500; margin-top: 20px; color: var(--fg-2); }
   .signed .caption { margin-top: 16px; }
 
-  .metrics { display: grid; gap: 16px; margin: 0; padding: 24px; border: 1px solid var(--line); background: var(--surface); }
+  .metrics { display: grid; gap: 20px; margin: 0; padding: 28px 28px 24px; border: 1px solid var(--line); background: var(--surface); box-shadow: inset 0 3px 0 var(--seal); }
   .metrics div { display: grid; gap: 4px; }
   .metrics dt { font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); }
   .metrics dd { margin: 0; color: var(--fg); }
@@ -641,7 +682,8 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   .offer-free { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 32px; align-items: end; margin: 40px 0 20px; border-color: var(--seal); }
   .offer-main { display: grid; gap: 10px; }
   .offer-head { display: flex; justify-content: flex-start; align-items: center; gap: 12px; }
-  .offer-free h3 { font-size: 1.5rem; }
+  .offer-free h3 { font-size: 1.75rem; letter-spacing: -0.02em; }
+  .offer-free .clock { font-size: 44px; }
   .chip-ok { color: var(--granted); border-color: var(--granted); }
   .price { color: var(--fg); }
   .offer-blurb { max-width: 90ch; }
@@ -649,7 +691,7 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   @media (max-width: 720px) { .offer-free { grid-template-columns: minmax(0, 1fr); } .offer-cta { justify-self: start; } }
 
   .final { display: grid; justify-items: center; text-align: center; gap: 20px; }
-  .final h2 { font-size: clamp(2.5rem, 2rem + 3vw, 4rem); }
+  .final h2 { font-size: clamp(3rem, 1.6rem + 4vw, 5.25rem); letter-spacing: -0.034em; line-height: 0.96; }
   .final-icon { width: 40px; height: 40px; color: var(--lamp); stroke-width: 1.5; }
   .final-install { width: 100%; max-width: 640px; text-align: left; }
   .release-note { text-align: inherit; }
