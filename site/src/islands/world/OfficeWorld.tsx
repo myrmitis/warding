@@ -4,22 +4,6 @@ import { applySources, createOffice, deskCentre, draw, seatedCount, update, DESK
 import { BEATS, REDUCED_MOTION_STEP, resolvedBeat } from "./timeline";
 import { track } from "../../lib/analytics";
 
-/**
- * The live hero world: the shipping Office renderer fed a scripted timeline.
- *
- * - integer scaling only: always 2x, cropped to the column. The crop keeps the
- *   wall (its lit window, clock and whiteboard are the most legible part of the
- *   scene) unless `showWall` is false, and pans to the acting sprite's desk on
- *   each step (400 ms; instant under reduced motion)
- * - time-based tick at 30/s; paused off-screen, on hidden tabs, and by the
- *   visible 44 px Pause/Play control (state kept in localStorage, try/catch)
- * - prefers-reduced-motion draws once at 02:30 with the refused state; the
- *   control then reads "Play" and is the visitor's opt-in
- * - follows the page's `warding:step` events; auto-cycles the night on step 0
- * - "Save tonight as a wallpaper": a 44 px icon button beside Pause; a PNG of this
- *   simulated frame at 2x with the local time and the lit-window glyph stamped
- *   bottom-right
- */
 interface Props { label?: string; showWall?: boolean }
 
 const PAUSE_KEY = "warding.world.paused";
@@ -119,7 +103,6 @@ export default function OfficeWorld({ label = "Pixel-art night office: agent spr
     render();
   }, [layout, render]);
 
-  // Initial state, pause memory, reduced motion.
   useEffect(() => {
     let p = false;
     try { p = localStorage.getItem(PAUSE_KEY) === "1"; } catch { /* no storage */ }
@@ -135,15 +118,19 @@ export default function OfficeWorld({ label = "Pixel-art night office: agent spr
     return () => window.clearInterval(id);
   }, [applyBeat, render]);
 
-  // The loop: 30 ticks per second on a time base, only while something can be seen.
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
     let acc = 0;
     const dt = 1000 / TICKS_PER_SECOND;
+    let officeLive = false;
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
       const live = !pausedRef.current && !reducedRef.current && visibleRef.current && !document.hidden;
+      if (live !== officeLive) {
+        officeLive = live;
+        document.documentElement.toggleAttribute("data-office-live", live);
+      }
       if (!live) { last = now; acc = 0; return; }
       acc += now - last; last = now;
       let steps = 0;
@@ -154,10 +141,13 @@ export default function OfficeWorld({ label = "Pixel-art night office: agent spr
     raf = requestAnimationFrame(frame);
     const onVis = () => { if (!document.hidden) render(); };
     document.addEventListener("visibilitychange", onVis);
-    return () => { cancelAnimationFrame(raf); document.removeEventListener("visibilitychange", onVis); };
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener("visibilitychange", onVis);
+      document.documentElement.removeAttribute("data-office-live");
+    };
   }, [render]);
 
-  // Off-screen pause.
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap || !("IntersectionObserver" in window)) return;

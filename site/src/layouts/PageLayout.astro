@@ -48,21 +48,28 @@ const ld = [...jsonLd, ...(breadcrumbs.length ? [breadcrumbList(crumbs)] : [])];
     <div class="wrap page-body">
       <slot />
     </div>
-    {endBand && (
+  </div>
+  {endBand && (
+    <div class="vault page-end-band">
       <section class="wrap page-end" aria-labelledby="page-end-h">
         <WardBars align="left" />
         <h2 id="page-end-h">Try it on your own box.</h2>
         <p class="lead measure">Free and Apache-2.0: a clone, a script, and the agent you already use.</p>
         <div class="page-end-install"><InstallTabs client:visible star anchor="" /></div>
       </section>
-    )}
-  </div>
+    </div>
+  )}
 </BaseLayout>
 <style>
-  .page-head { padding-block: 48px 24px; display: grid; gap: 16px; }
-  .page-body { padding-block: 24px 96px; }
-  .page-end { display: grid; gap: 16px; padding-block: 64px 96px; border-top: 1px solid var(--line); }
+  .page-head { padding-block: 72px 8px; display: grid; gap: 18px; }
+  .page-head h1 { font-size: clamp(2.85rem, 1.5rem + 3.4vw, 4.5rem); line-height: 0.98; letter-spacing: -0.032em; }
+  .page-head .lead { font-size: 1.3125rem; line-height: 1.45; }
+  .page-body { padding-block: 28px 96px; }
+  .page-end-band { border-top: 1px solid var(--line); }
+  .page-end { display: grid; gap: 18px; padding-block: 88px 104px; }
+  .page-end h2 { font-size: clamp(2.25rem, 1.4rem + 2vw, 3.25rem); letter-spacing: -0.028em; }
   .page-end-install { max-width: 720px; }
+  .crumbs { letter-spacing: 0.04em; }
   .crumbs ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
   .crumbs li + li::before { content: "/"; margin-right: 6px; color: var(--fg-3); }
   .crumbs a { color: var(--fg-2); display: inline-block; padding-block: 13px; margin-block: -13px; }
