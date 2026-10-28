@@ -551,3 +551,7 @@ formats: [injected-messages](docs/system-specs/common/injected-messages.md).
 unless `WARDING_HOME` is explicitly set to a non-default path. Never point it at
 `~/.warding`.
 All harness flags: [cli](docs/system-specs/modules/cli.md).
+
+## Documentation hub
+
+Read [docs/HUB.md](docs/HUB.md) before material changes. Update the affected canonical documentation in the same PR/commit and link the issue, exact revision, tests and deployment boundary. Automatic `docs/updates/` receipts prove only source pushes. Follow the [shared standard](https://github.com/laqaer/agent-config/blob/main/docs/documentation-hub.md); never copy secrets or customer data into documentation.
