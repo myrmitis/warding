@@ -355,8 +355,14 @@ button { font: inherit; color: inherit; }
 .status-info { color: var(--fg-2); }
 
 .ward-bars { display: flex; justify-content: center; gap: 4.5px; padding: 8px 0; }
-.ward-bars i { display: block; width: 14px; height: 2.5px; background: var(--seal); }
+.ward-bars i { display: block; width: 14px; height: 2.5px; background: var(--seal); transform-origin: left center; }
 .ward-bars-left { justify-content: flex-start; }
+@media (prefers-reduced-motion: no-preference) {
+  .ward-bars i { animation: bar-set 360ms steps(3, end) backwards; }
+  .ward-bars i:nth-child(2) { animation-delay: 80ms; }
+  .ward-bars i:nth-child(3) { animation-delay: 160ms; }
+}
+@keyframes bar-set { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 .sheet {
   background: var(--surface);
@@ -472,8 +478,11 @@ details.faq .faq-body { padding: 0 0 18px; color: var(--fg-2); max-width: 68ch; 
   background: radial-gradient(55% 45% at 30% 28%, rgba(255, 181, 71, 0.12), transparent 70%);
   mix-blend-mode: screen;
 }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-office-live] .world-frame::after { animation: lamp-wash 5.2s steps(3, end) infinite; }
+}
+@keyframes lamp-wash { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
-/* Islands (install tabs, approve demo, waitlist) — shared by every page that renders one. */
 .install { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); background: var(--surface); border-radius: 4px; }
 .install-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .tabs { display: flex; gap: 4px; }

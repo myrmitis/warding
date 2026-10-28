@@ -169,7 +169,7 @@ const bento = [
             <svg class="dial" viewBox="0 0 160 160" width="160" height="160" aria-hidden="true">
               <circle cx="80" cy="80" r="70" fill="none" stroke="var(--line)" stroke-width="1" />
               {Array.from({ length: 24 }, (_, h) => { const p = polar(80, 62, h); return <circle cx={p.x} cy={p.y} r={h % 6 === 0 ? 2 : 1.1} fill="var(--fg-3)" />; })}
-              {jobHours.map((h) => { const o = polar(80, 70, h); const i = polar(80, 52, h); return <line x1={o.x} y1={o.y} x2={i.x} y2={i.y} stroke="var(--lamp)" stroke-width="3" stroke-linecap="round" />; })}
+              {jobHours.map((h, n) => { const o = polar(80, 70, h); const i = polar(80, 52, h); return <line class="dial-tick" style={`--tick: ${n}`} x1={o.x} y1={o.y} x2={i.x} y2={i.y} stroke="var(--lamp)" stroke-width="3" stroke-linecap="round" />; })}
               <line class="dial-hand" data-dial-hand x1="80" y1="80" x2="80" y2="26" stroke="var(--fg)" stroke-width="2.5" stroke-linecap="round" />
               <circle cx="80" cy="80" r="4" fill="var(--fg)" />
             </svg>
@@ -464,9 +464,11 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
     pointer-events: none;
     background: radial-gradient(560px 320px at 8% 0%, var(--lamp-glow), transparent 70%);
   }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html[data-office-live]) .night::before { animation: night-wash 6.4s steps(3, end) infinite; }
+  }
+  @keyframes night-wash { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 
-  /* The stage: the hero head spans both columns; below it the text column (hero
-     body, then the clock-time steps) scrolls beside the pinned world. */
   .stage {
     display: grid; grid-template-columns: minmax(480px, 5fr) minmax(0, 7fr); column-gap: 56px;
     align-items: start; padding-top: 36px; padding-bottom: 96px;
@@ -497,7 +499,14 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   .steps { display: contents; }
   .step { grid-column: 1; }
   .stage-world { grid-column: 2; grid-row: 2 / span 6; align-self: start; position: sticky; top: 24px; display: grid; gap: 10px; min-width: 0; }
-  .step { display: grid; gap: 20px; padding-block: 80px; border-top: 1px solid var(--line); box-shadow: inset 2px 0 0 transparent; }
+  .step { isolation: isolate; position: relative; display: grid; gap: 20px; padding-block: 80px; border-top: 1px solid var(--line); }
+  .step::before {
+    content: ""; position: absolute; z-index: -1; left: 0; top: 0; bottom: 0; width: 2px;
+    background: var(--lamp); transform: scaleY(0); transform-origin: top center; pointer-events: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .step::before { transition: transform 560ms cubic-bezier(.22, 1, .36, 1); }
+  }
   .step > * { min-width: 0; max-width: 100%; }
   .refusal > * { min-width: 0; max-width: 100%; }
   .step-hero { border-top: 0; padding-top: 0; gap: 24px; }
@@ -506,6 +515,10 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   .qualifier { max-width: 60ch; }
   .hero-install { display: grid; gap: 14px; }
   .strip { border: 1px solid var(--line); border-left: 3px solid var(--lamp); background: var(--raised); border-radius: 4px; min-width: 0; }
+  @media (prefers-reduced-motion: no-preference) {
+    .strip { animation: strip-lamp 420ms steps(6, end) 160ms both; }
+  }
+  @keyframes strip-lamp { from { border-left-color: transparent; } to { border-left-color: var(--lamp); } }
   .strip-pre { padding: 12px 14px; font-size: 0.875rem; white-space: pre; overflow-x: auto; }
   .strip-pre .prompt { color: var(--fg-3); user-select: none; }
   .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
@@ -567,18 +580,39 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   .gallery-card { display: grid; gap: 6px; padding: 16px; align-content: start; }
   .gallery-card h3 { font-family: var(--font-sans); font-size: 1rem; font-weight: 600; }
   .gallery-card.is-running { border-color: var(--line); box-shadow: inset 3px 0 0 var(--lamp); }
-  .stage[data-step="0"] .step[data-step="0"],
-  .stage[data-step="1"] .step[data-step="1"],
-  .stage[data-step="2"] .step[data-step="2"],
-  .stage[data-step="3"] .step[data-step="3"],
-  .stage[data-step="4"] .step[data-step="4"],
-  .stage[data-step="5"] .step[data-step="5"] { box-shadow: inset 2px 0 0 var(--lamp); }
+  .stage[data-step="0"] .step[data-step="0"]::before,
+  .stage[data-step="1"] .step[data-step="1"]::before,
+  .stage[data-step="2"] .step[data-step="2"]::before,
+  .stage[data-step="3"] .step[data-step="3"]::before,
+  .stage[data-step="4"] .step[data-step="4"]::before,
+  .stage[data-step="5"] .step[data-step="5"]::before { transform: scaleY(1); }
   @media (prefers-reduced-motion: no-preference) {
-    :global(html[data-office-live]) .gallery-card.is-running { animation: lamp-hold 2.8s steps(2, end) infinite; }
+    :global(html[data-office-live]) .gallery-card.is-running { animation: lamp-hold 3.2s steps(4, end) infinite; }
+    :global(html[data-office-live]) .gallery-card.is-running :global(.tile-icon),
+    :global(html[data-office-live]) .gallery-card.is-running :global(.status-running .lucide) {
+      animation: icon-tick 1.6s steps(2, end) infinite;
+    }
+    .stage[data-step="1"] .step[data-step="1"] :global(.clock-time),
+    .stage[data-step="2"] .step[data-step="2"] :global(.clock-time),
+    .stage[data-step="3"] .step[data-step="3"] :global(.clock-time),
+    .stage[data-step="4"] .step[data-step="4"] :global(.clock-time),
+    .stage[data-step="5"] .step[data-step="5"] :global(.clock-time) {
+      animation: time-set 480ms steps(10, end) both;
+    }
+    .stage[data-step="2"] .dial-tick {
+      stroke-dasharray: 20;
+      animation: tick-set 520ms steps(5, end) both;
+      animation-delay: calc(var(--tick) * 70ms);
+    }
     @keyframes lamp-hold {
       0%, 100% { box-shadow: inset 3px 0 0 var(--lamp); }
-      50% { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--lamp) 35%, transparent); }
+      45% { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--lamp) 72%, transparent); }
+      55% { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--lamp) 28%, transparent); }
+      70% { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--lamp) 72%, transparent); }
     }
+    @keyframes icon-tick { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    @keyframes time-set { from { clip-path: inset(0 100% -20% 0); } to { clip-path: inset(0 -8% -20% 0); } }
+    @keyframes tick-set { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
   }
   .gallery-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
   :global(.tile-icon) { width: 20px; height: 20px; color: var(--lamp); stroke-width: 1.75; }
@@ -644,7 +678,13 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   .bento-tile h3 { font-size: 1.35rem; letter-spacing: -0.02em; }
   .bento-tile:hover { border-color: var(--fg-2); }
   @media (prefers-reduced-motion: no-preference) {
+    .bento-tile { transition: border-color 240ms cubic-bezier(.22, 1, .36, 1), transform 240ms cubic-bezier(.22, 1, .36, 1); }
     .bento-tile:hover { transform: translateY(-3px); }
+    .js-ready .bento-tile.in .demo-fanout i::before {
+      transform-origin: right center;
+      animation: fan-draw 480ms cubic-bezier(.22, 1, .36, 1) backwards;
+    }
+    @keyframes fan-draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
   }
   .tile-link { display: inline-flex; align-items: center; gap: 4px; color: var(--link); }
   .tile-link :global(.lucide) { width: 14px; height: 14px; }
