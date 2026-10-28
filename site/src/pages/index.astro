@@ -499,9 +499,9 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   .steps { display: contents; }
   .step { grid-column: 1; }
   .stage-world { grid-column: 2; grid-row: 2 / span 6; align-self: start; position: sticky; top: 24px; display: grid; gap: 10px; min-width: 0; }
-  .step { position: relative; display: grid; gap: 20px; padding-block: 80px; border-top: 1px solid var(--line); }
+  .step { isolation: isolate; position: relative; display: grid; gap: 20px; padding-block: 80px; border-top: 1px solid var(--line); }
   .step::before {
-    content: ""; position: absolute; z-index: 1; left: 0; top: 0; bottom: 0; width: 2px;
+    content: ""; position: absolute; z-index: -1; left: 0; top: 0; bottom: 0; width: 2px;
     background: var(--lamp); transform: scaleY(0); transform-origin: top center; pointer-events: none;
   }
   @media (prefers-reduced-motion: no-preference) {

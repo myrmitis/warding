@@ -26,6 +26,7 @@ New here? Start with [guides/install.md](guides/install.md), then
 | [request-for-change/](request-for-change/README.md) | Design proposals for large or contested changes. |
 | [task-specs/](task-specs/README.md) | Archived per-task specs. Not current context. |
 | [business/](business/README.md) | The company plan, offers, launch kit, owner checklist, weekly status and metrics ledger for the Warding relaunch, maintained by the business roles in `.agents/business/`. Not shipped. |
+| [updates/](updates/README.md) | Dated source receipts after a push to the default branch. Each receipt names the revision and the changed paths. |
 
 ## The rule for changing docs
 
