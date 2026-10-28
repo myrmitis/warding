@@ -188,6 +188,23 @@ const supporterAnnual = site.links.supporterCheckout;
   }
   .offer-cta { margin-top: auto; }
   .offer-rec { border-color: var(--seal); }
+  @media (prefers-reduced-motion: no-preference) {
+    .offer { transition: transform 240ms cubic-bezier(.22, 1, .36, 1), border-color 240ms cubic-bezier(.22, 1, .36, 1); }
+    .offer:hover { transform: translateY(-3px); }
+    .offer-rec { animation: rec-ink 720ms steps(8, end) both; }
+    .offer:not(#free) { animation: bars-set 420ms steps(3, end) both; }
+    .offers .offer:not(#free):nth-child(2) { animation-delay: 80ms; }
+    .offers .offer:not(#free):nth-child(3) { animation-delay: 160ms; }
+    .offers .offer:not(#free):nth-child(4) { animation-delay: 240ms; }
+    .offers .offer:not(#free):nth-child(5) { animation-delay: 320ms; }
+  }
+  @keyframes rec-ink { from { border-color: var(--line); } to { border-color: var(--seal); } }
+  @keyframes bars-set {
+    0% { background-size: 0 2.5px, 0 2.5px, 0 2.5px; }
+    34% { background-size: 14px 2.5px, 0 2.5px, 0 2.5px; }
+    67% { background-size: 14px 2.5px, 14px 2.5px, 0 2.5px; }
+    100% { background-size: 14px 2.5px, 14px 2.5px, 14px 2.5px; }
+  }
   #free {
     flex: 1 1 100%;
     display: grid;
@@ -216,9 +233,16 @@ const supporterAnnual = site.links.supporterCheckout;
   .offer-cta :global(.waitlist) { width: 100%; }
   .quiet-link { font-size: 0.9375rem; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
   .rail { border-top: 1px solid var(--line); padding-top: 10px; }
-  .plan-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-  .plan-btn { min-height: 44px; padding: 6px 14px; border: 0; background: transparent; color: var(--fg-2); font-size: 0.875rem; font-weight: 500; cursor: pointer; }
-  .plan-btn[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+  .plan-toggle { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .plan-toggle::before {
+    content: ""; position: absolute; z-index: 0; top: 0; bottom: 0; left: 0; width: 50%; background: var(--fg);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .plan-toggle::before { transition: transform 280ms cubic-bezier(.22, 1, .36, 1); }
+  }
+  .plan-toggle:has(button[data-plan="monthly"][aria-pressed="true"])::before { transform: translateX(100%); }
+  .plan-btn { position: relative; z-index: 1; min-height: 44px; padding: 6px 14px; border: 0; background: transparent; color: var(--fg-2); font-size: 0.875rem; font-weight: 500; cursor: pointer; }
+  .plan-btn[aria-pressed="true"] { background: transparent; color: var(--bg); }
   .offers-note { margin-top: 20px; }
   .compare-wrap, .faq-wrap, .installer { margin-top: 72px; display: grid; gap: 16px; }
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }

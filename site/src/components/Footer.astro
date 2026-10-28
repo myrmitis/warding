@@ -54,8 +54,21 @@ const year = 2026;
   .tagline { margin-top: 14px; font-family: var(--font-display); font-weight: 500; font-size: 1.5rem; line-height: 1.2; color: var(--fg); max-width: 14ch; }
   .foot-title { font-family: var(--font-sans); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--fg-2); margin-bottom: 8px; }
   .site-footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
-  .site-footer nav a { color: var(--fg-2); text-decoration: none; font-size: 0.9375rem; display: inline-flex; align-items: center; min-height: 44px; }
-  .site-footer nav a:hover { color: var(--fg); text-decoration: underline; }
+  .site-footer nav a {
+    position: relative; color: var(--fg-2); text-decoration: none; font-size: 0.9375rem;
+    display: inline-flex; align-items: center; min-height: 44px;
+  }
+  .site-footer nav a::after {
+    content: ""; position: absolute; left: 0; bottom: 8px; width: 18px; height: 2px;
+    background: var(--seal); transform: scaleX(0); transform-origin: left center; pointer-events: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .site-footer nav a::after { transition: transform 280ms cubic-bezier(.22, 1, .36, 1); }
+  }
+  .site-footer nav a:hover,
+  .site-footer nav a:focus-visible { color: var(--fg); }
+  .site-footer nav a:hover::after,
+  .site-footer nav a:focus-visible::after { transform: scaleX(1); }
   .foot-bottom { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; align-items: center; }
   .foot-links { display: flex !important; gap: 16px !important; }
   .foot-links a { display: inline-flex; align-items: center; gap: 4px; color: var(--fg-2); font-size: 0.875rem; min-height: 44px; }

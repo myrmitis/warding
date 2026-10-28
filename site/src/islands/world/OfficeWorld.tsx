@@ -238,7 +238,7 @@ export default function OfficeWorld({ label = "Pixel-art night office: agent spr
     width: W * SCALE,
     height: H * SCALE,
     transform: `translate(${-off.x}px, ${-off.y}px)`,
-    transition: reduced ? "none" : "transform 400ms cubic-bezier(.22,1,.36,1)",
+    transition: reduced ? "none" : "transform 720ms cubic-bezier(.22,1,.36,1)",
   };
 
   return (
