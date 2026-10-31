@@ -162,6 +162,19 @@ bundled dashboard rather than a 404, installs Chromium, runs the i18n render-tim
 gate (which reuses that Chromium install), and finally runs `python setup.py
 test_e2e`.
 
+### The checkout is detached, so the gateway sees no upstream
+
+The job checks out `github.sha` itself instead of the event's branch. The harness
+gateway serves this editable checkout, and its update check
+(`dashboard/handlers/updates.py`) runs a live `git fetch` and compares `HEAD` with
+`@{u}`. The default checkout on a push or a schedule is a local branch tracking
+`origin/<branch>`, so when that branch moves while the job runs (a second merge,
+or a bot commit seconds after the push) the gateway reports an update, the
+dashboard opens its update-found dialog over every page, and the specs fail every
+retry until the pytest timeout. A detached `HEAD` has no upstream: the check
+records that it could not compare and the dashboard shows nothing, which is the
+state a `pull_request` checkout already has.
+
 ### The browser install is budgeted, and installs no apt packages
 
 The job's ceiling is `timeout-minutes: 15`, and the browser install is the step
