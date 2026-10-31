@@ -141,6 +141,9 @@ jobs:
   desktop-matrix:
     name: Resolve desktop matrix
     runs-on: ubuntu-latest
+    # A checkout and a paths filter, under 20 seconds when it succeeds; this caps
+    # a hung job well short of the 360-minute default.
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read

@@ -35,6 +35,9 @@ jobs:
   label:
     name: Label fork pull requests
     runs-on: ubuntu-latest
+    # A few label API calls, under 10 seconds when it succeeds; this caps a hung
+    # job well short of the 360-minute default.
+    timeout-minutes: 10
     steps:
       - name: Add "fork" label to fork pull requests
         env:

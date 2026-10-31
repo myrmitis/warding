@@ -781,6 +781,9 @@ jobs:
   backend-test-macos:
     name: Gateway Tests (macOS)
     runs-on: macos-14
+    # Successful runs take at most about 1.6 minutes; this caps a hung job well
+    # short of the 360-minute default.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -1672,7 +1675,18 @@ jobs:
     # and longer on 2-vCPU private-repository runners.
     timeout-minutes: 40
     steps:
+      # Check out the commit itself, detached, on every event. The default on a
+      # push or a schedule is a local branch tracking origin/<branch>, and the e2e
+      # gateway serves this editable checkout, so its update check
+      # (dashboard/handlers/updates.py) runs a live `git fetch` and compares HEAD
+      # with @{u}. When the branch moves while this job runs (another merge, or a
+      # bot commit seconds after the push), the gateway reports an update, the
+      # dashboard opens UpdateFoundModal over every page, and the Playwright specs
+      # fail every retry until the pytest timeout. A detached HEAD has no upstream,
+      # which is what a pull_request checkout already gets.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
