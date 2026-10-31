@@ -640,6 +640,23 @@ class TestArmTimerDuringOnTimer:
                     await svc._timer_task
 
 
+@pytest.fixture(
+    params=["2026-03-06T23:00", "2026-03-09T00:00", "2026-10-30T23:00", "2026-11-02T00:00"]
+)
+def fixed_timezone_now(request, monkeypatch):
+    def freeze(tz_name):
+        instant = datetime.fromisoformat(request.param).replace(tzinfo=ZoneInfo(tz_name))
+
+        class FixedDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return instant.astimezone(tz)
+
+        monkeypatch.setattr("warding.cron.datetime", FixedDatetime)
+
+    return freeze
+
+
 class TestFormatSchedule:
     @pytest.fixture(autouse=False)
     def _utc_tz(self):
@@ -673,10 +690,11 @@ class TestFormatSchedule:
         assert "Monday through Friday" in result
         assert "10:00 PM" in result
 
-    def test_cron_expr_with_timezone(self) -> None:
+    def test_cron_expr_with_timezone(self, fixed_timezone_now) -> None:
         from warding.cron import CronSchedule, format_schedule
 
         s = CronSchedule(kind="cron", cron_expr="0 22 * * 1-5")
+        fixed_timezone_now("America/Los_Angeles")
         result = format_schedule(s, tz_name="America/Los_Angeles")
         # Expression is evaluated in job timezone (LA), so 22:00 = 10 PM local
         assert "10:00 PM" in result
@@ -773,7 +791,7 @@ class TestFormatSchedule:
         # Should still return a description, just without tz conversion
         assert "Monday through Friday" in result
 
-    def test_config_timezone_fallback(self, monkeypatch) -> None:
+    def test_config_timezone_fallback(self, monkeypatch, fixed_timezone_now) -> None:
         from warding.cron import CronSchedule, format_schedule
 
         monkeypatch.setattr(
@@ -781,6 +799,7 @@ class TestFormatSchedule:
             staticmethod(lambda: type("C", (), {"timezone": "America/New_York"})()),
         )
         s = CronSchedule(kind="cron", cron_expr="0 22 * * 1-5")
+        fixed_timezone_now("America/New_York")
         result = format_schedule(s)
         # Expression is evaluated in job timezone (ET fallback), so 22:00 = 10 PM local
         assert "10:00 PM" in result
@@ -913,6 +932,35 @@ class TestComputeNextRunTs:
 
 class TestTimezoneScheduling:
     """Tests for timezone-aware cron scheduling."""
+
+    @pytest.mark.parametrize(
+        "tz_name,standard_offset", [("America/Los_Angeles", 8), ("America/New_York", 5)]
+    )
+    @pytest.mark.parametrize(
+        "start,day,daylight",
+        [
+            ("2026-03-06T23:00", "2026-03-09", True),
+            ("2026-03-09T00:00", "2026-03-09", True),
+            ("2026-10-30T23:00", "2026-11-02", False),
+            ("2026-11-02T00:00", "2026-11-02", False),
+        ],
+    )
+    def test_weekday_next_run_across_dst(self, tz_name, standard_offset, start, day, daylight):
+        zone = ZoneInfo(tz_name)
+        now = datetime.fromisoformat(start).replace(tzinfo=zone).timestamp()
+        local_run = datetime.fromisoformat(day).replace(hour=22, tzinfo=timezone.utc)
+        expected = local_run.timestamp() + (standard_offset - int(daylight)) * 3600
+        job = CronJob(
+            id="dst",
+            name="dst",
+            message="check",
+            timezone=tz_name,
+            schedule=CronSchedule(kind="cron", cron_expr="0 22 * * 1-5"),
+        )
+        assert compute_next_run_ts(job, now=now) == expected
+        assert CronService._is_due(job, expected)
+        assert not CronService._is_due(job, expected - 3600)
+        assert not CronService._is_due(job, expected + 3600)
 
     def test_job_tz_returns_zoneinfo(self) -> None:
         job = CronJob(id="j1", name="t", message="m", timezone="America/Toronto")
