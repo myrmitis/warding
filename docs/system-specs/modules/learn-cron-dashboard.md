@@ -152,7 +152,7 @@ state the alert exists to prevent.
 
 Each job stores an optional `timezone` field (IANA name, e.g. `America/Los_Angeles`). Schedule evaluation, next-run computation, and display all use the job's timezone rather than the server timezone. The `/api/crons` response includes both the per-job `timezone` and a top-level `server_tz` field so frontends can render correctly.
 
-All three stay on the job's local wall time across a daylight-saving change: a `0 22 * * 1-5` job fires, and shows its next run, at 22:00 local on both sides of the change. The scheduler fires by matching the current local minute (`cron_expr_matches`). The next run (`compute_next_run_ts`) and the schedule text (`format_schedule`) come from croniter's `get_next`, which keeps local wall time only from croniter 6.1, hence the floor in `setup.cfg`.
+All three stay on the job's local wall time across a daylight-saving change: a `0 22 * * 1-5` job fires, and shows its next run, at 22:00 local on both sides of the change. The scheduler fires by matching the current local minute (`cron_expr_matches`). The next run (`compute_next_run_ts`) and the schedule text (`format_schedule`) come from croniter's `get_next`, which keeps local wall time only from croniter 6.1, hence the floor in `setup.cfg`. Inside the hour that a change skips or repeats, firing follows the minute match. A job set in the hour skipped in spring fires once, at the first minute after the jump (03:00 in US zones). A job set in the hour repeated in autumn fires twice, once in each pass.
 
 ### Skip Dates
 
