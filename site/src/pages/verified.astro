@@ -1,4 +1,5 @@
 ---
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import PageLayout from "../layouts/PageLayout.astro";
 import StatusChip from "../components/StatusChip.astro";
 import WardBars from "../components/WardBars.astro";
@@ -21,7 +22,7 @@ const chip = (r: (typeof verifiedRowsSorted)[number]) =>
     <dl class="tally" aria-label="Row counts">
       <div><dt>Verified</dt><dd class="clock clock-44">{verifiedCount}</dd></div>
       <div><dt>Registered, unverified</dt><dd class="clock clock-44">{unverifiedCount}</dd></div>
-      <div><dt>Not run here (kiro-cli)</dt><dd class="clock clock-44">{notRunHereCount}</dd></div>
+      <div><dt>Not run here (Legacy ACP adapter)</dt><dd class="clock clock-44">{notRunHereCount}</dd></div>
     </dl>
 
     <section class="block" aria-labelledby="rows-h">
@@ -45,7 +46,7 @@ const chip = (r: (typeof verifiedRowsSorted)[number]) =>
               const c = chip(r);
               return (
                 <tr id={r.id} class={r.status === "verified" ? "row-verified" : ""}>
-                  <th scope="row" data-label="Harness"><span class="mono">{r.harness}</span>{r.harnessName.toLowerCase() !== r.harness && <span class="caption"> {r.harnessName}</span>}</th>
+                  <th scope="row" data-label="Harness"><span class="mono">{r.harness === "legacy-adapter" ? r.harnessName : r.harness}</span>{r.harness !== "legacy-adapter" && r.harnessName.toLowerCase() !== r.harness && <span class="caption"> {r.harnessName}</span>}</th>
                   <td data-label="Feature">{r.featureLabel}</td>
                   <td data-label="Machine">{r.machine || <span class="dash" aria-label="none">—</span>}</td>
                   <td data-label="Date">{r.date ? <time datetime={r.date} class="mono">{r.date}</time> : <span class="dash" aria-label="none">—</span>}</td>
@@ -83,22 +84,20 @@ const chip = (r: (typeof verifiedRowsSorted)[number]) =>
       <WardBars align="left" />
       <h2 id="how-h">How a row gets added</h2>
       <div class="prose measure">
-        <p>Rows come from one dated log in the repository, <code>{rowSource.path}</code>, written by the person who runs the product: the harness, the feature, the machine, the date, the command and what came back. This page is rendered from that data at the next build; nothing here is written from memory.</p>
+        <p>Rows come from one dated log in the repository, <code>{rowSource.path}</code>, written by the person who runs the product: the harness, the feature, the machine, the date, the command and what came back. This page updates from that data after a reviewed export and manifest update; nothing here is written from memory.</p>
         {!rowSource.exists && <p class="caption">That file does not exist yet. The one verified row above is recorded in the research notes behind this site and is the first entry the log will carry.</p>}
-        <p>The rule that makes the page useful: a checkmark elsewhere on the site links to a row here, and a capability with no row is written as unverified even when we expect it to work. Found a row that overstates? <a href={site.githubRepo} rel="noopener">Open an issue</a>.</p>
+        <p>The rule that makes the page useful: a checkmark elsewhere on the site links to a row here, and a capability with no row is written as unverified even when we expect it to work. Public issue reporting is pending with <a href={site.sourceStatus}>source publication</a>.</p>
       </div>
     </section>
   </div>
 </PageLayout>
 
 <style>
+  #claude-chat > th > .caption, #claude-chat > .evidence > .note.caption { color: var(--fg-2); }
   .vlog { display: grid; gap: 56px; }
   .block { display: grid; gap: 16px; }
   .tally { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  .tally div {
-    background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 22px 22px 18px; display: grid; gap: 8px;
-    box-shadow: inset 0 3px 0 var(--seal);
-  }
+  .tally div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; display: grid; gap: 6px; }
   .tally dt { font-size: 0.8125rem; color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
   .tally dd { margin: 0; color: var(--fg); }
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }

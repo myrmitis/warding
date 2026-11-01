@@ -1,0 +1,9 @@
+---
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
+import PageLayout from "../layouts/PageLayout.astro";
+---
+<PageLayout title="Warding source availability and beta limits" description="Warding source is public. Installation qualification and release downloads remain pending. Read the local beta limits and required attribution." h1="Source is publicly available." lead="Local beta. Clean-machine installation remains unqualified." breadcrumbs={[{ label: "Source status", href: "/source/" }]} endBand={false}>
+  <section aria-labelledby="publication"><h2 id="publication">What you can access today</h2><p>Warding source, setup documentation and issue reporting are public on <a href="https://github.com/myrmitis/warding">GitHub</a>. Release downloads and clean-machine installation qualification remain pending.</p><p>Read the <a href="/verified/">beta notes</a>, <a href="/quickstart/">setup prerequisites</a> and <a href="/security/#report">security reporting status</a>. No release date or working public installer is promised.</p></section>
+  <section aria-labelledby="attribution"><h2 id="attribution">License and attribution</h2><p>Warding by Myrmitis is an Apache-2.0 derivative of an open-source agent workspace. Required attribution is preserved, verbatim, in <a href="/notice.txt">NOTICE</a>. Read the <a href="/license.txt">license</a> and <a href="/lineage/">project lineage</a>.</p></section>
+</PageLayout>
+<style>section { max-width: 760px; margin-bottom: 40px; } h2 { margin-bottom: 18px; } p { color: var(--fg-2); line-height: 1.75; margin-bottom: 16px; }</style>

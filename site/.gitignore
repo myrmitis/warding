@@ -1,4 +1,3 @@
-node_modules
-dist
-.astro
-*.local
+node_modules/
+dist/
+.vercel/

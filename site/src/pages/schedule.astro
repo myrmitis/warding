@@ -1,4 +1,6 @@
 ---
+// Accessibility revised by Myrmitis; original LICENSE and NOTICE retained.
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import PageLayout from "../layouts/PageLayout.astro";
 import StatusChip from "../components/StatusChip.astro";
 import WardBars from "../components/WardBars.astro";
@@ -17,8 +19,6 @@ import ShieldCheck from "@lucide/astro/icons/shield-check";
 import Tag from "@lucide/astro/icons/tag";
 import BookOpenCheck from "@lucide/astro/icons/book-open-check";
 import GitPullRequest from "@lucide/astro/icons/git-pull-request";
-import templatesShot from "../assets/shots/default-schedule-templates.png";
-import calendarShot from "../assets/shots/default-schedule-calendar.png";
 
 /**
  * /schedule/ (site-spec §1): cron jobs and the dashboard's template gallery.
@@ -26,7 +26,7 @@ import calendarShot from "../assets/shots/default-schedule-calendar.png";
  * descriptions and cadences (website/src/utils/schedulePresets.tsx and the
  * English catalog). "Writes" marks the presets that push branches or file
  * issues. Creating a job from chat needs the agent's own cron tool, which is
- * passed to kiro-cli only, and the page says so.
+ * conditional on harness integration, permission mode and session identity.
  */
 const title = "Schedule Claude Code and Codex with cron, on your box";
 const description = "Cron jobs and a template gallery for recurring agent work, run on your own hardware. No run cap from us; your model plan's limits still apply.";
@@ -108,25 +108,25 @@ const cliLines = [
         <p>No night has been recorded for this page yet: the plates show the dashboard with seeded jobs and no agent connected, and they say so. A recorded night will carry its harness and date in the caption.</p>
       </div>
       <div class="plates">
-        <Plate num="I" title="The template gallery" caption="Dashboard · Schedule templates · 2026-09-26 · no agent connected" src={templatesShot} alt="The dashboard's Schedule templates dialog: Nightly Build Watch, CI Failure Triage, Review Follow-Through, Bug Intake & Repro, Merged-PR Checklist, Coverage Backfill and Lint & Type-Check Sweep, several marked Writes to your repos." crop={0.2} cropRight={0.2} cropTop={0.045} cropBottom={0.17} sizes="(min-width: 1200px) 560px, 92vw" />
-        <Plate num="II" title="The week's schedule" caption="Dashboard · Schedule calendar · 2026-09-26 · no agent connected" note="Seeded jobs, not runs." src={calendarShot} alt="The dashboard's schedule calendar: a week grid with jobs marked at 02:00, 03:00, 08:00, 09:00, 15:00 and 21:00 each day." crop={0.125} cropTop={0.16} sizes="(min-width: 1200px) 560px, 92vw" />
+        <Plate num="I" title="The template gallery" caption="Dashboard · capture pending · 2026-10-07 · no agent connected" alt="The dashboard's Schedule templates dialog: Nightly Build Watch, CI Failure Triage, Review Follow-Through, Bug Intake & Repro, Merged-PR Checklist, Coverage Backfill and Lint & Type-Check Sweep, several marked Writes to your repos." crop={0.2} cropRight={0.2} cropTop={0.045} cropBottom={0.17} sizes="(min-width: 1200px) 560px, 92vw" />
+        <Plate num="II" title="The week's schedule" caption="Dashboard · capture pending · 2026-10-07 · no agent connected" note="Seeded jobs, not runs." alt="The dashboard's schedule calendar: a week grid with jobs marked at 02:00, 03:00, 08:00, 09:00, 15:00 and 21:00 each day." crop={0.125} cropTop={0.16} sizes="(min-width: 1200px) 560px, 92vw" />
       </div>
     </section>
 
     <section class="block" aria-labelledby="where-h">
       <WardBars align="left" />
       <h2 id="where-h">Where you can create a job, on which harness</h2>
-      <p class="measure">A job is created by one of three surfaces. Two of them work with any harness you dock. The third, asking in chat, needs the agent to call its own scheduling tool, and those tools reach kiro-cli only today.</p>
+      <p class="measure">A job is created by one of three surfaces. The dashboard and CLI manage schedules independently of the docked harness. Asking in chat needs a registered tool integration, permission mode and session identity; that workflow remains unverified.</p>
       <ChTable
         head={["Surface", "Works with", "How"]}
         rows={[
           ["Dashboard", "every docked harness", "Schedule page: a template, or the form (name, prompt, interval or cron expression, optional agent)"],
           ["CLI", "every docked harness", `<code>${cli} cron add</code>, <code>${cli} cron list</code>, <code>${cli} cron remove</code>`],
-          ["Chat: create a job", "kiro-cli only, today", "\"check the build every night at two\"; the agent calls its scheduling tool"],
+          ["Chat: create a job", "integration-dependent; unverified", "\"check the build every night at two\"; the agent calls its scheduling tool"],
           ["Chat: manage jobs", "every docked harness", "<code>/cron list | pause | resume | remove</code> on Telegram; <code>cron list</code> and friends on Slack"],
         ]}
       />
-      <pre class="terminal"><code>{cliLines.map((l) => <span><span class="prompt" aria-hidden="true">$ </span>{l}{"\n"}</span>)}</code></pre>
+      <pre class="terminal" tabindex="0" role="region" aria-label="Schedule CLI examples"><code>{cliLines.map((l) => <span><span class="prompt" aria-hidden="true">$ </span>{l}{"\n"}</span>)}</code></pre>
     </section>
 
     <section class="block" aria-labelledby="how-h">

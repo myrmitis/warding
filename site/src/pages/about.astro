@@ -1,18 +1,21 @@
 ---
+// Accessibility revised by Myrmitis; original LICENSE and NOTICE retained.
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import PageLayout from "../layouts/PageLayout.astro";
 import WardSeal from "../components/WardSeal.astro";
 import WardBars from "../components/WardBars.astro";
-import { site, siteHost } from "../data/site";
+import { site } from "../data/site";
 import { organization } from "../lib/seo";
 
 /**
- * /about/: the name explained once (brand-book §1), one person, one rule. No founder photo, no bio beyond the GitHub handle.
+ * /about/: the name explained once (brand-book §1), one person, one fork,
+ * one rule. No founder photo, no bio beyond the GitHub handle.
  */
-const title = "About Warding Labs";
-const description = "One person, one rule: say what is true. The name explained once, and how to reach us.";
-const contact = `hello@${siteHost}`;
+const title = "About Warding by Myrmitis";
+const description = "The publisher, the lineage, and one rule: say what is true. The name explained once, the lineage stated plainly, and how to reach us.";
+const lineage = "An Apache-2.0 derivative of an open-source agent workspace. Most of the code is inherited; required attribution is preserved in NOTICE.";
 ---
-<PageLayout title={title} description={description} h1="About" lead="One person, one rule: say what is true." breadcrumbs={[{ label: "About", href: "/about/" }]} jsonLd={[organization()]}>
+<PageLayout title={title} description={description} h1="About" lead="The publisher, the lineage, and one rule: say what is true." breadcrumbs={[{ label: "About", href: "/about/" }]} jsonLd={[organization()]}>
   <div class="about">
     <section class="block" aria-labelledby="name-h">
       <div class="block-head">
@@ -33,11 +36,20 @@ const contact = `hello@${siteHost}`;
     <WardBars align="left" />
 
     <section class="block" aria-labelledby="person-h">
-      <p class="eyebrow">One person</p>
-      <h2 id="person-h">Warding Labs is one person.</h2>
+      <p class="eyebrow">Publisher</p>
+      <h2 id="person-h">Warding, by Myrmitis.</h2>
       <div class="prose">
-        <p>The founder is <a href="https://github.com/laqaer" rel="noopener">laqaer</a> on GitHub. There is no team page because there is no team, no office and no investors to name. The commits, the issues and the release notes are the record.</p>
+        <p>Warding is published by <a href={site.publisher.url} rel="noopener">Myrmitis</a>. Public source, issues and release notes are pending. Read the <a href={site.sourceStatus}>source availability and beta limits</a>.</p>
         <p>Warding has no token or coin, and never will.</p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="fork-h">
+      <p class="eyebrow">One fork</p>
+      <h2 id="fork-h">Where the code comes from.</h2>
+      <div class="prose">
+        <p>{lineage}</p>
+        <p>What is ours is thin and named: the harness registry with the legacy adapter optional and last, a harness router for spawned subagents, the removal of upstream-owned endpoints from the default build, the brand, and the proof pages on this site. The rest is upstream's, and we do not pretend otherwise. The full account, including what upstream has that we lack, is on <a href="/lineage/">the lineage page</a>; the attribution notice is <a href={site.links.notice} rel="noopener">NOTICE</a>, served verbatim on this site.</p>
       </div>
     </section>
 
@@ -47,7 +59,7 @@ const contact = `hello@${siteHost}`;
       <div class="prose">
         <p>Every claim on this site is either true today or labelled: "in development", "planned", "unverified", or a status word next to an icon. A checkmark links to a dated row on <a href="/verified/">the verification log</a>, and a capability with no row is written as unverified even when we expect it to work.</p>
         <p>The build enforces the rule. A test reads every rendered page and fails on the phrases we have decided never to use: the numbers we have not measured, the features that are not built, and the words other companies own. The list is in the repository, next to the pages.</p>
-        <p>What we do not claim is written down too, and signed: <a href="/#dont-claim">on the home page</a>.</p>
+        <p>What we do not claim is written down too, and signed: <a href="/security/#dont-claim">on the security page</a>.</p>
       </div>
     </section>
 
@@ -57,16 +69,17 @@ const contact = `hello@${siteHost}`;
       <p class="eyebrow">Contact</p>
       <h2 id="contact-h">Reach us.</h2>
       <ul class="contact">
-        <li><span class="ui">Email</span> <a href={`mailto:${contact}`}>{contact}</a></li>
-        <li><span class="ui">Code, issues, discussions</span> <a href={site.githubRepo} rel="noopener">{site.githubRepo.replace("https://", "")}</a></li>
+        <li><span class="ui">Contact</span> Public contact setup is pending.</li>
+        <li><span class="ui">Code, issues, discussions</span> <a href={site.sourceStatus}>Publication pending</a></li>
         <li><span class="ui">Report a bypass</span> <a href={site.links.securityMd} rel="noopener">SECURITY.md</a></li>
       </ul>
-      <p class="caption">Replies come from one person, so they arrive when the lamp is on.</p>
+      <p class="caption">Product and security reporting channels must be established before the public source launch.</p>
     </section>
   </div>
 </PageLayout>
 
 <style>
+  .about .eyebrow { color: var(--fg-2); }
   .about { display: grid; gap: 48px; max-width: 76ch; }
   .block { display: grid; gap: 16px; }
   .block-head { display: flex; gap: 20px; align-items: center; }

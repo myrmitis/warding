@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 
 /**
- * Open metrics for the home page's open-source section, computed at build from the parent
+ * Open metrics for the lineage section, computed at build from the parent
  * repository's git history so the page never renders a "0" placeholder. When
  * git is unavailable (a checkout without history) the last measured values
  * are used and dated as such.
@@ -27,7 +27,7 @@ export function collectMetrics(): Metrics {
   try {
     const commits = git(["rev-list", "--count", "--since=30.days", "HEAD"]);
     const tests = git([
-      "ls-files", "test/test_*.py", "src/warding/**/test_*.py", "website/src/**/*.test.ts", "website/src/**/*.test.tsx",
+      "ls-files", "test/test_*.py", "src/junction/**/test_*.py", "website/src/**/*.test.ts", "website/src/**/*.test.tsx",
     ]).split("\n").filter(Boolean).length;
     let latestTag = "";
     try { latestTag = git(["describe", "--tags", "--abbrev=0"]); } catch { latestTag = ""; }

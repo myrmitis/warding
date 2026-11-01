@@ -22,7 +22,7 @@ export function softwareApplication(releaseTag = "") {
     ...(releaseTag ? { softwareVersion: releaseTag.replace(/^v/, "") } : {}),
     license: "https://www.apache.org/licenses/LICENSE-2.0",
     url: site.domain + "/",
-    downloadUrl: site.githubRepo,
+    ...(site.sourceAvailable ? { downloadUrl: site.githubRepo } : {}),
     publisher,
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   };
@@ -35,7 +35,7 @@ export function organization() {
     name: site.company,
     url: site.domain + "/",
     logo: `${site.domain}/favicon.svg`,
-    sameAs: [site.githubRepo],
+    ...(site.sourceAvailable ? { sameAs: [site.githubRepo] } : {}),
   };
 }
 

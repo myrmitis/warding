@@ -3,19 +3,28 @@ import { resolve } from "node:path";
 
 /**
  * The repository's CHANGELOG.md, parsed at build for /changelog/ with the
- * same rules as the product's own parser (`src/warding/changelog.py`):
+ * same rules as the product's own parser (`src/junction/changelog.py`):
  * only `## [X.Y.Z] — YYYY-MM-DD` sections count, any other level-2 heading
  * closes the section above it (so an Unreleased section is never swallowed
  * and never listed), a prerelease spelling folds onto its base version, and
  * the first section for a version in document order wins.
  *
+ * The tree carries the upstream project's release notes up to
+ * `INHERITED_THROUGH`; they describe upstream's releases, so the page lists
+ * their versions and dates and links the file rather than reproducing them.
+ * Sections above that version are this product's own and render in full.
  */
 export interface ChangelogSection {
   version: string;
   date: string;
   body: string;
   html: string;
+  /** True when the section is this product's own release. */
+  own: boolean;
 }
+
+/** The last upstream release whose notes travel with the tree, unedited. */
+export const INHERITED_THROUGH = "0.4.0";
 
 const SECTION_RE = /^##\s+\[([^\]]+)\](?:\s*[—–-]\s*(\d{4}-\d{2}-\d{2}))?\s*$/;
 const H2_RE = /^##\s+\S/;
@@ -156,7 +165,8 @@ export function loadChangelog(path = resolve(process.cwd(), "..", "CHANGELOG.md"
   for (const s of parseSections(text)) {
     const key = baseVersion(s.version);
     if (byBase.has(key)) continue;
-    byBase.set(key, { version: key, date: s.date, body: s.body, html: renderMarkdown(s.body) });
+    const own = compareVersions(key, INHERITED_THROUGH) > 0;
+    byBase.set(key, { version: key, date: s.date, body: s.body, html: own ? renderMarkdown(s.body) : "", own });
   }
   return [...byBase.values()].sort((a, b) => compareVersions(b.version, a.version));
 }

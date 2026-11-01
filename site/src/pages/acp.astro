@@ -1,4 +1,5 @@
 ---
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import PageLayout from "../layouts/PageLayout.astro";
 import StatusChip from "../components/StatusChip.astro";
 import WardBars from "../components/WardBars.astro";
@@ -11,12 +12,12 @@ import { softwareApplication } from "../lib/seo";
 /**
  * /acp/ (site-spec §1): what the Agent Client Protocol is, the eleven runtimes
  * the registry can dock with the command each is started with
- * (src/warding/acp/runtimes.py builtin_specs), the verified cells from
+ * (src/junction/acp/runtimes.py builtin_specs), the verified cells from
  * src/data/harnesses.ts, and what this product adds on top. Runtimes that are
  * not docked are named only in a "not yet" sentence.
  */
 const title = "An always-on Agent Client Protocol (ACP) client";
-const description = "Warding speaks ACP to Claude Code, Codex, Cursor, Goose, OpenCode, Kimi, Grok, Pi, Droid and kiro-cli, adding schedules, chat apps and a sandbox.";
+const description = "Warding speaks ACP to Claude Code, Codex, Cursor, Goose, OpenCode, Kimi, Grok, Pi, Droid, adding schedules, chat apps and a sandbox.";
 
 /** The command line each runtime is spawned with over stdio, from the runtime registry. */
 const spawn: Record<string, string> = {
@@ -30,7 +31,7 @@ const spawn: Record<string, string> = {
   opencode: "opencode acp",
   pi: "npx -y pi-acp",
   droid: "droid exec --output-format acp",
-  "kiro-cli": "kiro-cli acp",
+  "legacy-adapter": "Executable omitted from this public overview",
 };
 for (const h of harnesses) if (!spawn[h.id]) throw new Error(`acp.astro: no spawn line for ${h.id}`);
 
@@ -39,7 +40,7 @@ const rows = harnesses.map((h) => {
   const status = v.length
     ? v.map(([k, d]) => `<a href="/verified/#${h.id}-${k}">${k} verified · ${d}</a>`).join("; ")
     : `<a href="/verified/">registered · unverified</a>`;
-  return [`<code>${h.command}</code> <span class="caption">${h.name.toLowerCase() !== h.command ? h.name : ""}${h.optional ? " · optional" : ""}</span>`, `<code>${spawn[h.id]}</code>`, status];
+  return [`<code>${h.command || h.name}</code> <span class="caption">${h.command && h.name.toLowerCase() !== h.command ? h.name : ""}${h.optional ? " · optional" : ""}</span>`, `<code>${spawn[h.id]}</code>`, status];
 });
 const notDockedLine = `No ${notDocked.join(", no ")} yet.`;
 ---
@@ -72,8 +73,8 @@ const notDockedLine = `No ${notDocked.join(", no ")} yet.`;
       <ul class="facts measure">
         <li><strong>Claude Code</strong> is reached through <code>claude-agent-acp</code>, an adapter published by the ACP project, not by Anthropic. If it is not installed, it is fetched with <code>npx</code> on first run, so the first start needs Node and a network connection. The Claude Code session runs under your own login; for shared or production automation, use an API key.</li>
         <li><strong>Codex</strong> and <strong>Pi</strong> are reached the same way, through their ACP adapters fetched with <code>npx</code>. Codex still needs the <code>codex</code> CLI installed and logged in.</li>
-        <li><strong>Cursor, Kimi, Goose, Grok, OpenCode, Droid and kiro-cli</strong> speak ACP from their own CLI, started with the flag in the table. OpenCode signs in to OpenRouter and other providers with its own login.</li>
-        <li><strong>kiro-cli is optional</strong> and last in the order. With the harness set to <code>auto</code>, the first installed runtime in the table's order is docked.</li>
+        <li><strong>Cursor, Kimi, Goose, Grok, OpenCode, Droid</strong> speak ACP from their own CLI, started with the flag in the table. OpenCode signs in to OpenRouter and other providers with its own login.</li>
+        <li><strong>The legacy adapter is optional</strong> and last in the order. With the harness set to <code>auto</code>, the first installed runtime in the table's order is docked.</li>
       </ul>
     </section>
 
@@ -96,7 +97,7 @@ const notDockedLine = `No ${notDocked.join(", no ")} yet.`;
       <ul class="facts measure">
         <li><strong>Chat runs the one harness you choose.</strong> Every chat session, channel and scheduled job uses it. Switching is one setting (<code>agent.acp_backend</code>), and your schedules, memory and channels stay.</li>
         <li><strong>A spawned subagent can run elsewhere.</strong> The {router.name.toLowerCase()} (<code>{router.command}</code>) {router.what} <a href="/verified/#notyet-h">Registered · unverified</a>.</li>
-        <li><strong>The agent's own tools reach kiro-cli only today.</strong> On the other harnesses, the agent cannot create a scheduled job, spawn a subagent or ask you a question mid-turn from chat. Schedules still work from the dashboard and the CLI. <StatusChip kind="coming" label="Being extended" /></li>
+        <li><strong>The agent's own tools depend on the harness integration.</strong> Availability depends on permission mode and session identity. Agent-managed jobs, subagents and mid-turn questions remain unverified. Manage schedules from the dashboard or CLI. <StatusChip kind="coming" label="Being extended" /></li>
         <li><strong>Mostly unverified.</strong> The runtimes are registered; which features have been run on each is on <a href="/verified/">the verification log</a>, with dates.</li>
       </ul>
     </section>

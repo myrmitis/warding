@@ -45,3 +45,8 @@ export function headings(html: string, levels = [1, 2, 3]): string[] {
   for (const l of levels) for (const m of html.matchAll(new RegExp(`<h${l}\\b[^>]*>([\\s\\S]*?)<\\/h${l}>`, "gi"))) out.push(decode(m[1].replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim());
   return out;
 }
+
+/** The text of a page with elements carrying `data-alias` removed. */
+export function withoutAliases(html: string): string {
+  return html.replace(/<(\w+)\b[^>]*\bdata-alias\b[^>]*>[\s\S]*?<\/\1>/gi, " ");
+}

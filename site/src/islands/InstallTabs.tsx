@@ -1,3 +1,4 @@
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { site } from "../data/site";
@@ -40,6 +41,7 @@ export default function InstallTabs({ version = "", star = false, anchor = "inst
   const published = site.installOneLiner !== "";
   const [tab, setTab] = useState<Tab>(published ? "pipx" : "source");
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const timer = useRef(0);
   const id = useId();
 
@@ -51,12 +53,11 @@ export default function InstallTabs({ version = "", star = false, anchor = "inst
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      const ta = document.createElement("textarea");
-      ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); } catch { /* the block is still selectable by hand */ }
-      ta.remove();
+      setCopyFailed(true);
+      setCopied(false);
+      return;
     }
+    setCopyFailed(false);
     setCopied(true);
     track("install_copy", { tab });
     window.clearTimeout(timer.current);
@@ -69,6 +70,14 @@ export default function InstallTabs({ version = "", star = false, anchor = "inst
     if (e.key === "ArrowRight") { e.preventDefault(); setTab(TABS[(i + 1) % TABS.length]); }
     if (e.key === "ArrowLeft") { e.preventDefault(); setTab(TABS[(i - 1 + TABS.length) % TABS.length]); }
   };
+
+  if (!site.sourceAvailable) return (
+    <div className="install" id={anchor || undefined}>
+      <p className="ui install-label">Public source available</p>
+      <p className="caption">Public source and setup documentation are available on GitHub. Release downloads remain unavailable. A clean install and live workflow are not yet verified.</p>
+      <p><a className="btn btn-outline" href={site.sourceStatus}>Source status</a> <a href="/verified/">Read beta notes</a></p>
+    </div>
+  );
 
   return (
     <div className="install" id={anchor || undefined}>
@@ -106,8 +115,9 @@ export default function InstallTabs({ version = "", star = false, anchor = "inst
           <span className="line" key={i}><span className="prompt" aria-hidden="true">$ </span>{l}{"\n"}</span>
         ))}</code></pre>
         <p className="caption">
-          Needs <code>claude</code>, <code>codex</code>, <code>goose</code> or <code>kiro-cli</code> on your PATH, Python 3.10+ and Node 22+. <code>setup</code> finds your agent; <code>up</code> opens the dashboard in your browser.
+          Needs <code>claude</code>, <code>codex</code> or <code>goose</code> on your PATH, Python 3.10+ and Node 22+. <code>setup</code> finds your agent; <code>up</code> opens the dashboard in your browser.
         </p>
+        <p className="caption" data-alias><code>{site.cliAlias}</code> also works.</p>
       </div>
       <div className="install-actions">
         <button type="button" className="btn btn-primary" onClick={copy} aria-live="off">
@@ -120,8 +130,8 @@ export default function InstallTabs({ version = "", star = false, anchor = "inst
             Star on GitHub
           </a>
         )}
-        <span className="sr-only" aria-live="polite">{copied ? "Copied" : ""}</span>
-        <span className="caption copied" aria-hidden="true">{copied ? "Copied" : ""}</span>
+        <span className="sr-only" aria-live="polite">{copied ? "Copied" : copyFailed ? "Copy was not permitted. Select the commands above and copy them manually." : ""}</span>
+        <span className="caption copied" aria-hidden="true">{copied ? "Copied" : copyFailed ? "Select the commands above to copy them manually." : "Commands can also be selected and copied manually."}</span>
       </div>
     </div>
   );

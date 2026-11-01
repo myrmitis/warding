@@ -1,3 +1,4 @@
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import { CAPABILITIES, harnesses, type Capability } from "./harnesses";
 
 /**
@@ -46,7 +47,7 @@ const recorded: Record<string, Recorded> = {
   },
 };
 
-const KIRO_NOTE = "first-class harness · not run here";
+const LEGACY_NOTE = "upstream's mature path · not run here";
 
 export const verifiedRows: VerifiedRow[] = harnesses.flatMap((h) =>
   CAPABILITIES.map((c) => {
@@ -63,13 +64,13 @@ export const verifiedRows: VerifiedRow[] = harnesses.flatMap((h) =>
       date: run?.date ?? "",
       evidence: run?.evidence ?? "no run recorded",
       status: run?.status ?? "unverified",
-      note: run?.note ?? (h.firstClass ? KIRO_NOTE : ""),
+      note: run?.note ?? (h.upstreamMature ? LEGACY_NOTE : ""),
     };
   }),
 );
 
 export const verifiedCount = verifiedRows.filter((r) => r.status === "verified").length;
-export const notRunHereCount = verifiedRows.filter((r) => r.note === KIRO_NOTE).length;
+export const notRunHereCount = verifiedRows.filter((r) => r.note === LEGACY_NOTE).length;
 export const unverifiedCount = verifiedRows.length - verifiedCount - notRunHereCount;
 
 /** Verified rows first, then the registry order. */
@@ -93,7 +94,7 @@ export const notYet: NotYet[] = [
       "The service mode, cron and the task runner ship; no night has been recorded on any harness. Three dated Claude Code nights are the gate for the site's stronger copy.",
   },
   {
-    what: "Channels, schedules and approvals on a non-Kiro harness",
+    what: "Channels, schedules and approvals on another harness",
     status: "planned",
     detail:
       "The gateway and channel code is shared across harnesses, though each harness has its own capability flags (session sharing, steering, its own sandbox), and nobody has run a channel round-trip, a scheduled job or an in-chat approval on Claude Code, Codex or the others at runtime.",
@@ -113,7 +114,7 @@ export const notYet: NotYet[] = [
     what: "“The default build contacts no server of ours”, checked with lsof",
     status: "planned",
     detail:
-      "The update feed, app catalog and telemetry are off in the default build; the run that lists every outbound connection during a session has not been done. The embedding model is still fetched on first embedding use from a third-party CDN address.",
+      "Upstream's update feed, app catalog and telemetry are off in the default build; the run that lists every outbound connection during a session has not been done. The embedding model is still fetched on first embedding use from a CDN address inherited from the upstream codebase.",
   },
 ];
 

@@ -1,4 +1,5 @@
 ---
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 /**
  * The "What we don't claim" box (site-spec §2.10), repeated on
  * /security/. The bullets follow the homepage box; the sandbox bullet names
@@ -20,13 +21,13 @@ const { headingId = "dont-claim-h" } = Astro.props;
     <li>Chat runs the one harness you choose. Sending a spawned subagent to another installed harness is registered and unit-tested, not verified at runtime; the router picks a harness and forwards no provider traffic.</li>
     <li>The model catalog lists names; it forwards nothing and holds no keys.</li>
     <li>Approve buttons on five chat apps; WhatsApp is typed; four apps are chat-only.</li>
-    <li>Cron and subagents <em>from chat</em>, and the agent's mid-turn questions, work on kiro-cli today; on other harnesses create jobs and spawn subagents from the dashboard or CLI, and the agent cannot ask you a question mid-turn.</li>
+    <li>Tool integration depends on the harness, permission mode and session identity. Agent-managed jobs, subagents and mid-turn questions remain unverified. Manage schedules from the dashboard or CLI.</li>
     <li>The OS sandbox fails closed — it refuses to run rather than run unconfined — on Windows, in containers without user namespaces, and on Ubuntu ≥ 23.10 until <code>{site.cli} service install</code> adds its AppArmor profile (it asks for sudo); you can opt in to unsandboxed execution with a loud warning.</li>
     <li>Unaudited by a third party. Single owner. No hosted service. No signed installers yet.</li>
     <li>Your vendor's terms and any future metering of unattended use apply and may change.</li>
-    <li>The default build contacts no server of ours. One third-party address remains: the embedding model is fetched from it on first embedding use, checked against a pinned hash. The <code>lsof</code> run: <a href="/verified/">/verified</a>.</li>
+    <li>The default build contacts no server of ours. One address inherited from the upstream codebase remains: the embedding model is fetched from it on first embedding use, checked against a pinned hash. The <code>lsof</code> run: <a href="/verified/">/verified</a>.</li>
   </ul>
-  <p class="caption">How to report a bypass: <a href={site.links.securityMd} rel="noopener">SECURITY.md</a>.</p>
+  <p class="caption">Security reporting status: <a href={site.links.securityMd} rel="noopener">Publication and reporting limits</a>.</p>
   <p class="sec-signature">Last checked against the code on 2026-09-30.</p>
 </CharterSheet>
 <style>

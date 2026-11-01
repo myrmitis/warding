@@ -1,4 +1,5 @@
 ---
+# Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 title: "Microsoft Teams for your coding agent, with approve buttons"
 description: "Owner-only coding agent in a Microsoft Teams 1:1 chat, with Approve / Deny cards on gated tool calls. Needs a public HTTPS URL you provide."
 h1: "Your coding agent in Microsoft Teams"
@@ -45,9 +46,9 @@ Anyone in your organisation can find a Teams bot, so the allow-list is the gate,
 - **Owner-only.** One person runs this gateway, as themselves, with their files and credentials. There is no shared or team mode.
 - **One harness for chat.** The docked harness answers every channel; switching is one setting. A spawned subagent can be routed to another installed harness; that is registered, not verified.
 - **Your box has to stay on.** Nothing of ours runs in the cloud.
-- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) relies on the agent's own tools, which reach kiro-cli only today. On other harnesses, schedule from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
+- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) depends on harness integration, permission mode and session identity. These workflows remain unverified. Manage schedules from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
 - **A public HTTPS URL is on you.** There is no tunnel built in.
 - **Approve + auto-approve is machine-wide.** It is the same grant as the dashboard toggle and `/yolo`, and it still cannot approve what a deny rule refuses.
 - **No token streaming and no model picker in Teams**, and only PNG or JPEG images can be sent back as files.
 
-<StatusChip kind="approved" label="Approvals: buttons" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/warding/docs/teams-integration.md`} rel="noopener">Full reference in the repository</a>
+<StatusChip kind="approved" label="Approvals: buttons" /> · <a href="/channels/">All ten channels</a> · <a href={site.sourceStatus}>Public source reference</a>

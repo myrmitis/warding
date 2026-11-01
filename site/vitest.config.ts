@@ -1,8 +1,6 @@
-/// <reference types="vitest/config" />
-import { getViteConfig } from "astro/config";
+import { defineConfig } from "vitest/config";
 
-// The suites read the prerendered `dist/` tree: that is the artefact search
-// engines and social cards see, so it is the only thing worth asserting on.
-export default getViteConfig({
+// Full page suites validate the actual published static output.
+export default defineConfig({
   test: { environment: "node", include: ["tests/**/*.test.ts"] },
 });

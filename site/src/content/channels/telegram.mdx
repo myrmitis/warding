@@ -1,4 +1,5 @@
 ---
+# Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 title: "Claude Code and Codex from Telegram, with approvals"
 description: "Message your coding agent from Telegram. Sessions live on your own machine; risky tool calls arrive as Approve / Deny buttons. Why not the official plugin."
 h1: "Talk to your coding agent from Telegram"
@@ -13,7 +14,6 @@ import ChPluginCompare from "../../components/ChPluginCompare.astro";
 import Plate from "../../components/Plate.astro";
 import StatusChip from "../../components/StatusChip.astro";
 import { site } from "../../data/site";
-import channelsShot from "../../assets/shots/default-settings-channels.png";
 import ChProse from "../../components/ChProse.astro";
 
 <ChProse />
@@ -44,7 +44,7 @@ The status of each harness on each channel is on <a href="/verified/">the verifi
 - **Scheduled jobs report back here.** A job created from this conversation delivers its result to it.
 - **Pictures come back as pictures**, not file paths, when the agent produces a chart or a screenshot.
 
-Creating a new scheduled job, spawning a subagent or answering a question the agent asks mid-turn relies on the agent's own tools, which reach kiro-cli only today. On the other harnesses, create schedules from the dashboard or the CLI; <a href="/schedule/">the schedule page</a> says which is which.
+Creating a new scheduled job, spawning a subagent or answering a question the agent asks mid-turn depends on harness integration, permission mode and session identity. These workflows remain unverified. Manage schedules from the dashboard or the CLI; <a href="/schedule/">the schedule page</a> says which is which.
 
 ## Set it up
 
@@ -52,7 +52,7 @@ You need a running gateway and a Telegram account. Set it up by hand; the token 
 
 1. **Create a bot.** Message **@BotFather**, send `/newbot`, and follow the prompts. You get a token like `123456789:AA…`.
 2. **Find your user ID.** Message **@userinfobot**; it replies with your number. That is the only account the bot will answer.
-3. **Save the token** in the data home's `.env` file (`~/.warding/.env` by default):
+3. **Save the token** in the data home's `.env` file (`~/.junction/.env` by default):
    <pre tabIndex="0" role="region" aria-label="Command"><code>TELEGRAM_BOT_TOKEN=123456789:AA…</code></pre>
 4. **Turn the channel on** in `config.json`, with your ID as the whole allow-list:
    <pre tabIndex="0" role="region" aria-label="Command"><code>{`"telegram": { "enabled": true, "allowed_user_ids": [123456789] }`}</code></pre>
@@ -61,7 +61,7 @@ You need a running gateway and a Telegram account. Set it up by hand; the token 
 
 If it stays quiet, your ID is missing from `allowed_user_ids`, or the gateway log has no `Telegram channel started` line because the token is not set.
 
-<Plate num="I" title="Where channels are set up" caption="Dashboard · Settings Channels · 2026-09-26 · no agent connected" note="The channel list before any token is pasted: every channel reads Needs setup." src={channelsShot} alt="The dashboard's Channels settings: a list of Slack, Discord, Telegram, Webex, WeCom, Microsoft Teams, WeChat, iMessage and WhatsApp, each marked Needs setup." crop={0.315} cropRight={0.4825} cropTop={0.125} cropBottom={0.312} sizes="(min-width: 800px) 360px, 92vw" class="ch-narrow" />
+<Plate num="I" title="Where channels are set up" caption="Dashboard · capture pending · 2026-10-07 · no agent connected" note="The channel list before any token is pasted: every channel reads Needs setup." alt="The dashboard's Channels settings: a list of Slack, Discord, Telegram, Webex, WeCom, Microsoft Teams, WeChat, iMessage and WhatsApp, each marked Needs setup." crop={0.315} cropRight={0.4825} cropTop={0.125} cropBottom={0.312} sizes="(min-width: 800px) 360px, 92vw" class="ch-narrow" />
 
 ## Who can reach it
 
@@ -80,4 +80,4 @@ None of the approval buttons weakens the gate in front of them: a command on the
 - **Your box has to stay on.** Nothing of ours runs in the cloud. If the machine sleeps, the bot goes quiet until it wakes.
 - **Auto-approve is machine-wide.** `/yolo on` is the same grant as the dashboard toggle, not a Telegram-only switch. It expires on its own clock and still cannot approve what a deny rule refuses.
 
-<StatusChip kind="approved" label="Approvals: buttons" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/warding/docs/telegram-integration.md`} rel="noopener">Full Telegram reference in the repository</a>
+<StatusChip kind="approved" label="Approvals: buttons" /> · <a href="/channels/">All ten channels</a> · <a href={site.sourceStatus}>Public source reference</a>

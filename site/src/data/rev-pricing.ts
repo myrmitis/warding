@@ -1,3 +1,4 @@
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import type { Rail } from "./pricing";
 
 /**
@@ -49,14 +50,14 @@ export const CELL_LABEL: Record<Cell, string> = {
 
 export const hostedQuestions = [
   { id: "would-pay", label: "What would you pay per month for a box we run, with your own agent subscription?" },
-  { id: "harness", label: "Which harness would you dock? (Claude Code, Codex, Goose, kiro-cli, another)" },
+  { id: "harness", label: "Which harness would you dock? (Claude Code, Codex, Goose, another)" },
   { id: "channel", label: "Which chat channel would you reach it from?" },
 ];
 
 /** Answers are authored here, not user input; they may carry site-relative links. */
 export const faq: { q: string; a: string }[] = [
   {
-    q: "Do I need to pay you to use my own Claude plan, Codex or kiro-cli?",
+    q: "Do I need to pay you to use my own Claude plan, Codex or Goose?",
     a: "No. Warding launches the official CLI under your own login. We never see your keys and we never mark up tokens.",
   },
   {

@@ -1,4 +1,5 @@
 ---
+# Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 title: "Slack for your coding agent, with approve buttons"
 description: "Owner-only coding agent in Slack with Approve / Deny buttons on gated tool calls, running on your own box over Socket Mode. Setup and limits."
 h1: "Your coding agent in Slack"
@@ -36,7 +37,7 @@ The dashboard does most of it. Open **Settings → Channels → Slack** and clic
 4. **Restart the gateway**, then DM the bot:
    <pre tabIndex="0" role="region" aria-label="Command"><code>{`${site.cli} restart`}</code></pre>
 
-By hand, the same three values go in the data home's `.env` file as `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` and `WARDING_OWNER_ID`.
+By hand, the same three values go in the data home's `.env` file as `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` and `JUNCTION_OWNER_ID`.
 
 ## Who can reach it
 
@@ -49,7 +50,7 @@ A command on the built-in deny list, or a read of a keystone path such as `~/.ss
 - **Owner-only.** One person runs this gateway, as themselves, with their files and credentials. There is no shared or team mode.
 - **One harness for chat.** The docked harness answers every channel; switching is one setting. A spawned subagent can be routed to another installed harness; that is registered, not verified.
 - **Your box has to stay on.** Nothing of ours runs in the cloud.
-- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) relies on the agent's own tools, which reach kiro-cli only today. On other harnesses, schedule from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
+- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) depends on harness integration, permission mode and session identity. These workflows remain unverified. Manage schedules from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
 - **Auto-approve is machine-wide.** `!yolo on` is the same grant as the dashboard toggle, and it still cannot approve what a deny rule refuses.
 
-<StatusChip kind="approved" label="Approvals: buttons" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/warding/docs/slack-integration.md`} rel="noopener">Full reference in the repository</a>
+<StatusChip kind="approved" label="Approvals: buttons" /> · <a href="/channels/">All ten channels</a> · <a href={site.sourceStatus}>Public source reference</a>

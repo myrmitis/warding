@@ -1,0 +1,1 @@
+No tagged Warding release yet. Public source is available on GitHub. Original release notes remain in the source tree. See /changelog/ for the public release summary.

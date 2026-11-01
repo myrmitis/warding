@@ -1,0 +1,118 @@
+---
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
+import PageLayout from "../layouts/PageLayout.astro";
+import StatusChip from "../components/StatusChip.astro";
+import WardBars from "../components/WardBars.astro";
+import CharterSheet from "../components/CharterSheet.astro";
+import { site } from "../data/site";
+import { harnesses, router } from "../data/harnesses";
+
+/**
+ * /lineage/ (site-spec §7): the lineage statement, the carry-set, the fork
+ * strategy, what upstream has that we lack, and the affiliation line. The
+ * original project is described generically; its marks appear nowhere.
+ */
+const title = "Lineage: inherited code and Warding's changes";
+const description = "Warding derives from an Apache-2.0 agent workspace. Required notices, the changes we carry, and the features inherited from the original project.";
+const lineage = "An Apache-2.0 derivative of an open-source agent workspace. Most of the code is inherited; required attribution is preserved in NOTICE.";
+const otherHarnesses = harnesses.filter((h) => !h.upstreamMature);
+const registryOffered = ""; // ISO date once the registry has been offered upstream; "" renders "planned"
+---
+<PageLayout title={title} description={description} h1="Where it comes from" lead={lineage} breadcrumbs={[{ label: "Lineage", href: "/lineage/" }]}>
+  <div class="lineage">
+    <p class="caption">The attribution notice, verbatim, is <a href={site.links.notice} rel="noopener">NOTICE</a>, served verbatim on this site. The upstream project is not named on this site beyond that link; its authors are credited there, in the form the licence asks for.</p>
+
+    <section class="block" aria-labelledby="carry-h">
+      <WardBars align="left" />
+      <h2 id="carry-h">The carry-set</h2>
+      <p class="measure">What is ours is a thin, named set of changes carried on top of the upstream tree. Everything not on this list is upstream's, and we do not fork it.</p>
+      <ol class="carry">
+        <li>
+          <h3>The harness registry, with the legacy adapter optional and last</h3>
+          <p>One dock, {harnesses.length} runtimes, chosen by preference order or by one setting: {otherHarnesses.map((h) => (h.command || h.name)).join(", ")}, then an optional legacy adapter. Ten are adapted runtimes; five of them the upstream project does not dock, and both of us dock OpenCode. First run never asks for a vendor account with us. <a href="/registry/">The registry</a>, with what is verified on each.</p>
+        </li>
+        <li>
+          <h3>The harness router, for subagents</h3>
+          <p>Chat runs the one harness you choose. The {router.name.toLowerCase()} (<code>{router.command}</code>) {router.what} <a href="/verified/#notyet-h">Registered · unverified</a>.</p>
+        </li>
+        <li>
+          <h3>Endpoint removal</h3>
+          <p>The upstream project's update feed, app catalog and telemetry are off in the default build, and nothing contacts a server of ours. One inherited address remains: the embedding model is fetched on first embedding use from a CDN the upstream codebase shipped with, checked against a pinned hash; point <code>memory.embed_model_url</code> at your own mirror to avoid it. The run that lists every outbound connection is on <a href="/verified/">the verification log</a> as planned.</p>
+        </li>
+        <li>
+          <h3>The brand</h3>
+          <p>The name, the seal, the site and the CLI name <code>{site.cli}</code>. Package identifiers stay as their systems spelled them.</p>
+        </li>
+        <li>
+          <h3>The proof pages</h3>
+          <p><a href="/verified/">/verified/</a> and <a href="/registry/">/registry/</a>: a checkmark on this site links to a dated row, and a capability without one is written as unverified.</p>
+        </li>
+        <li>
+          <h3>Dawn-expiring approval grants <StatusChip kind="coming" /></h3>
+          <p>A grant that lets a class of command run until a clock time, then asks again.</p>
+        </li>
+        <li>
+          <h3>The Morning Report <StatusChip kind="coming" /></h3>
+          <p>What was done, what was asked, what was refused and what was redacted, counted from the audit log.</p>
+        </li>
+        <li>
+          <h3><code>{site.cli} switch</code> <StatusChip kind="coming" /></h3>
+          <p>Change the docked harness in one command; schedules, memory and channels stay.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="block" aria-labelledby="strategy-h">
+      <WardBars align="left" />
+      <h2 id="strategy-h">The fork strategy</h2>
+      <CharterSheet class="strategy">
+        <dl class="strategy-list">
+          <div><dt>Track upstream</dt><dd>Not a hard fork. Upstream releases are merged, not re-implemented; every one of them is free work for the people running Warding.</dd></div>
+          <div><dt>Rebase quarterly</dt><dd>The carry-set is rebased onto the upstream tree once a quarter, and we refuse to widen it.</dd></div>
+          <div><dt>Offer the registry upstream</dt><dd>The harness registry, the legacy adapter optional and last, is offered to the upstream project as a change of theirs to accept or decline. {registryOffered ? `Offered on ${registryOffered}.` : "Planned; not offered yet."}</dd></div>
+          <div><dt>Harden downstream</dt><dd>The proof artefacts and the two mechanisms above are where the work goes.</dd></div>
+        </dl>
+      </CharterSheet>
+    </section>
+
+    <section class="block" aria-labelledby="lack-h">
+      <WardBars align="left" />
+      <h2 id="lack-h">What upstream has that we lack</h2>
+      <p class="measure">The original project is ahead on its legacy adapter. <a href="/compare/upstream/">The comparison</a> puts its strengths first.</p>
+      <ul class="lack measure">
+        <li>No signed installers yet; upstream ships them for macOS, Windows and Linux.</li>
+        <li>No Docker image yet; upstream publishes one.</li>
+        <li>No desktop app yet; upstream ships one.</li>
+        <li>No KAS yet; upstream docks it. Both of us dock OpenCode.</li>
+        <li>Agent-managed jobs, subagents and mid-turn questions depend on harness integration, permission mode and session identity. These workflows remain unverified in Warding.</li>
+        <li>Install polish, generally. The upstream project is at a later version with more hands on it.</li>
+      </ul>
+    </section>
+
+    <section class="block" aria-labelledby="aff-h">
+      <WardBars align="left" />
+      <h2 id="aff-h">Not affiliated</h2>
+      <p class="measure">Myrmitis is independent of the original project. The upstream name and marks belong to their owners and appear nowhere in this product's name, logo, domain or tagline. Releases of this tree are listed on <a href="/changelog/">the changelog</a>, which reproduces only what we shipped.</p>
+    </section>
+  </div>
+</PageLayout>
+
+<style>
+  .lineage { display: grid; gap: 56px; }
+  .block { display: grid; gap: 16px; }
+  .carry { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 20px; counter-reset: carry; max-width: 76ch; }
+  .carry li { display: grid; gap: 6px; padding-left: 56px; position: relative; }
+  .carry li::before { counter-increment: carry; content: counter(carry, decimal-leading-zero); position: absolute; left: 0; top: 2px; font-family: var(--font-clock); font-size: 22px; color: var(--lamp); }
+  .carry h3 { font-size: 1.25rem; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .carry p { color: var(--fg-2); }
+  .strategy { max-width: 76ch; }
+  .strategy-list { margin: 0; display: grid; gap: 16px; }
+  .strategy-list div { display: grid; grid-template-columns: 200px 1fr; gap: 16px; }
+  .strategy-list dt { font-family: var(--font-display); font-weight: 500; font-size: 1.125rem; }
+  .strategy-list dd { margin: 0; color: var(--fg-2); }
+  .lack { margin: 0; padding-left: 1.25em; display: grid; gap: 8px; color: var(--fg-2); }
+  @media (max-width: 640px) {
+    .strategy-list div { grid-template-columns: 1fr; gap: 4px; }
+    .carry li { padding-left: 44px; }
+  }
+</style>

@@ -1,0 +1,58 @@
+---
+# Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
+title: "Warding vs its upstream: same engine, what we add and lack"
+description: "Warding derives from an Apache-2.0 agent workspace. The shared engine, our changes, and the original project's strengths."
+h1: "Same engine as the project we fork. Here is what we add, and what we lack."
+competitor: "Upstream"
+ogRegister: paper
+ogQualifier: "Inherited engine, Warding additions and current limits"
+verified: []
+sources:
+  - { label: "Apache-2.0 license: attribution requirements", url: "https://www.apache.org/licenses/LICENSE-2.0" }
+---
+import ChTable from "../../components/ChTable.astro";
+import StatusChip from "../../components/StatusChip.astro";
+import { site } from "../../data/site";
+import ChProse from "../../components/ChProse.astro";
+
+<ChProse />
+
+{site.name} is an Apache-2.0 derivative of an open-source agent workspace. Most of the code is inherited; required attribution is in <a href={site.links.notice} rel="noopener">NOTICE</a>, and <a href="/lineage/">the lineage page</a> lists what we carry on top. **The original project has a more mature legacy adapter.**
+
+The upstream project is further along than the version we forked. Since its 0.6 release it docks several agents besides its original agent CLI, and it ships installers and a container image. We forked at 0.5.0, before all of that.
+
+<ChTable
+  head={["", "The upstream project", site.name]}
+  rows={[
+    ["Governance engine: keystone paths, POLICY ∩ PROFILE, audit log, sandbox", "yes", "the same engine"],
+    ["First launch", "guides you through installing its legacy agent CLI and signing in", "no account with us; <code>auto</code> docks the first agent CLI you have installed"],
+    ["Harnesses", "Upstream docks its legacy adapter, Claude Code, Codex, KAS, OpenCode, Pi and goose (the others in preview, behind Developer Mode)", "Cursor, Claude Code, Codex, Kimi, DeepSeek Harness, Goose, Grok, OpenCode, Pi, Droid and an optional legacy adapter; mostly unverified. Both of us dock OpenCode"],
+    ["The agent's own tools on another harness", "yes, except on Pi", "integration-dependent and unverified; manage schedules from the dashboard or CLI"],
+    ["How many backends at once", "one, set globally", "one for chat, set globally"],
+    ["Sending a subagent to another harness", "not checked yet", "the harness router: flat-rate quota before metered spend, the kind of task, a cooldown after a usage limit or a failed login; it never forwards provider traffic. <a href=\"/verified/#notyet-h\">Registered · unverified</a>"],
+    ["Installers, wheel, Docker", "yes: installers for macOS, Windows and Linux, a one-line wheel install, and Docker", "<strong>no</strong>: public source available"],
+    ["Chat channels", "the same ten; we inherited them from this engine", "the same ten: five with approve buttons, one typed, four chat-only"],
+    ["What the default build contacts", "its own update feed and app catalog", "none of ours; the embedding model still comes from the CDN address upstream shipped, on first use, hash-checked"],
+    ["Version", "0.7.1", "based on 0.5.0; no tagged release yet"],
+    ["Dawn-expiring approval grants, a Morning Report", "no", "in development"],
+  ]}
+/>
+
+## What we add
+
+- **A registry of eleven runtimes with the legacy adapter optional and last.** Five of our ten other runtimes are ones the upstream project does not dock: Cursor, Kimi, DeepSeek Harness, Grok and Droid. Both of us dock OpenCode. <a href="/registry/">The registry</a> says what is verified on each, which today is little.
+- **A harness router for subagents.** Chat runs the one harness you choose; the router can send a spawned subagent to another installed harness and never forwards provider traffic. It is registered and unit-tested, not verified on a live run; whether upstream has an equivalent is not checked yet.
+- **No first-launch account with us.** You still need your agent vendor's own login.
+- **Endpoint removal.** Upstream's update feed, app catalog and telemetry are off by default; the one address left is the embedding download in the table.
+- **Proof pages.** A check on this site links to a dated row on <a href="/verified/">the verification log</a>.
+
+## What we lack
+
+- **Installers, a wheel and a container image.** The intended install is from a reviewed source checkout; public source is available on GitHub.
+- **The agent's own tools on other harnesses.** Upstream passes its tools to every backend except Pi. In Warding, availability depends on harness integration, permission mode and session identity; these workflows remain unverified.
+- **KAS**, which upstream docks and we do not yet.
+- **Maturity.** Upstream is at a later version, with more people on it.
+
+## Fork strategy
+
+We track upstream and rebase the carry-set onto it; the carry-set is listed on <a href="/lineage/">the lineage page</a>. Upstream facts on this page come from its own documentation and changelog, read on 2026-09-25; the original attribution is retained in NOTICE. Whether upstream requires a vendor sign-in when you choose another backend is not something we have verified. <StatusChip kind="coming" label="Being checked" />

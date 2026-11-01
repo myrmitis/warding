@@ -13,7 +13,7 @@
         "agents"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/worlds/icon.svg",
       "heroRef": "/app-assets/worlds/hero-light.svg"
@@ -33,7 +33,7 @@
         "github"
       ],
       "author": {
-        "name": "warding"
+        "name": "zedmor"
       },
       "iconRef": "/app-assets/auto-improvement/icon.svg",
       "heroRef": "/app-assets/auto-improvement/hero-light.svg"
@@ -51,7 +51,7 @@
         "autonudge"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/auto-research/icon.svg",
       "heroRef": "/app-assets/auto-research/hero-light.svg"
@@ -70,7 +70,7 @@
         "developer-tools"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/auto-triage-pipeline/icon.svg",
       "heroRef": "/app-assets/auto-triage-pipeline/hero-light.svg"
@@ -89,7 +89,7 @@
         "github"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/code-review-sage/icon.svg",
       "heroRef": "/app-assets/code-review-sage/hero-light.svg"
@@ -108,7 +108,7 @@
         "keyboard"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/command-bar/icon.svg",
       "heroRef": "/app-assets/command-bar/hero-light.svg"
@@ -129,7 +129,7 @@
         "heuristic-evaluation"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/design-critique/icon.svg",
       "heroRef": "/app-assets/design-critique/hero-light.svg"
@@ -149,7 +149,7 @@
         "productivity"
       ],
       "author": {
-        "name": "warding"
+        "name": "mxiaomen"
       },
       "iconRef": "/app-assets/design-tweak/icon.svg",
       "heroRef": "/app-assets/design-tweak/hero-light.svg"
@@ -169,7 +169,7 @@
         "wellbeing"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/desk-companion/icon.svg",
       "heroRef": "/app-assets/desk-companion/hero-light.svg"
@@ -187,7 +187,7 @@
         "worktrees"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/dev-fleet/icon.svg",
       "heroRef": "/app-assets/dev-fleet/hero-light.svg"
@@ -207,7 +207,7 @@
         "markdown"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/file-explorer/icon.svg",
       "heroRef": "/app-assets/file-explorer/hero-light.svg"
@@ -228,7 +228,7 @@
         "developer-tools"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/issue-radar/icon.svg",
       "heroRef": "/app-assets/issue-radar/hero-light.svg"
@@ -248,7 +248,7 @@
         "productivity"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/md-notebook/icon.svg",
       "heroRef": "/app-assets/md-notebook/hero-light.svg"
@@ -288,7 +288,7 @@
         "autonomous"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/mochi/icon.png",
       "heroRef": "/app-assets/mochi/hero.jpg"
@@ -304,12 +304,11 @@
         "ops",
         "oncall",
         "incidents",
-        "aws",
         "monitoring",
         "sre"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/ops-mission-control/icon.svg",
       "heroRef": "/app-assets/ops-mission-control/hero-light.svg"
@@ -349,7 +348,7 @@
         "lifestyle"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/personal-shopper/icon.svg",
       "heroRef": "/app-assets/personal-shopper/hero-light.svg"
@@ -387,7 +386,7 @@
         "execution"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/projects/icon.svg",
       "heroRef": "/app-assets/projects/hero-light.svg"
@@ -401,13 +400,12 @@
       "summary": "Spec-driven development inside Warding: turn a feature idea into Requirements → Design → Tasks with an embedded agent, review the markdown in-app, then hand the approved plan off to an autonomous execution session.",
       "tags": [
         "specs",
-        "kiro",
         "planning",
         "workflow",
         "developer-tools"
       ],
       "author": {
-        "name": "warding"
+        "name": "junction"
       },
       "iconRef": "/app-assets/spec-builder/icon.svg",
       "heroRef": "/app-assets/spec-builder/hero-light.svg"
