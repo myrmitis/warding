@@ -19,8 +19,8 @@ The CLI is `warding`; <span data-alias>`junction`</span> is a silent alias for i
 
 Two kinds of file, both in the data home:
 
-- `~/.junction/security_policy.json`: the **policy**, the ceiling for everything on this machine.
-- `~/.junction/profiles/*.json`: **profiles**, each one narrowing the ceiling for a single surface (a cron job, a chat channel, a subagent), an app, or a task.
+- `~/.warding/security_policy.json`: the **policy**, the ceiling for everything on this machine.
+- `~/.warding/profiles/*.json`: **profiles**, each one narrowing the ceiling for a single surface (a cron job, a chat channel, a subagent), an app, or a task.
 
 Both paths are on the keystone: the deny list of secret and policy paths the agent is refused at read and at write, through file tools and through shell read, write and extract verbs. You edit these files yourself, in your editor; the agent cannot open them, so it cannot learn where the edges are or move them. Profiles are reloaded when the file changes; the policy is read at start.
 
@@ -39,7 +39,7 @@ Command and path patterns are shell-style globs, case-sensitive; `*` also crosse
 
 ## A worked profile for a nightly job
 
-Save this as `~/.junction/profiles/nightly-build.json`. It binds to the cron surface, so it applies to scheduled runs only.
+Save this as `~/.warding/profiles/nightly-build.json`. It binds to the cron surface, so it applies to scheduled runs only.
 
 ```json
 {
@@ -88,7 +88,7 @@ The dashboard's **Settings → Security** page shows the same posture live.
 
 ## Reading the audit log and verifying the chain
 
-Every decision at the gate is appended to `~/.junction/security_events.jsonl`. Each entry carries an HMAC-SHA256 over the entry before it, and the key lives in `~/.junction/trust/`, outside the log's directory. The log and the key are on the keystone too, so the agent can neither read nor rewrite them.
+Every decision at the gate is appended to `~/.warding/security_events.jsonl`. Each entry carries an HMAC-SHA256 over the entry before it, and the key lives in `~/.warding/trust/`, outside the log's directory. The log and the key are on the keystone too, so the agent can neither read nor rewrite them.
 
 `warding security audit` scans recent history for suspicious tool use. `warding security verify` checks the chain and reports how many entries verify and how many were tampered with. A green chain shows that nothing without the key edited the log afterwards; it does not show that every action was logged.
 

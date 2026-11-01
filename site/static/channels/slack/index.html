@@ -23,7 +23,7 @@
 <pre tabIndex="0" role="region" aria-label="Command"><code>warding restart</code></pre>
 </li>
 </ol>
-<p>By hand, the same three values go in the data home’s <code>.env</code> file as <code>SLACK_BOT_TOKEN</code>, <code>SLACK_APP_TOKEN</code> and <code>JUNCTION_OWNER_ID</code>.</p>
+<p>By hand, the same three values go in the data home’s <code>.env</code> file as <code>SLACK_BOT_TOKEN</code>, <code>SLACK_APP_TOKEN</code> and <code>WARDING_OWNER_ID</code>.</p>
 <h2 id="who-can-reach-it">Who can reach it</h2>
 <p>Only the owner. Letting other members in is disabled on purpose, because anyone admitted would act under the owner’s identity on the owner’s machine. In a shared channel, remember that the bot’s replies, including tool output, are readable by everyone in it; the activation mode decides when it speaks, not who reads.</p>
 <p>A command on the built-in deny list, or a read of a keystone path such as <code>~/.ssh</code>, is refused before any button reaches Slack. <a href="/security/">The security page</a> names each mechanism.</p>

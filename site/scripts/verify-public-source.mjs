@@ -4,12 +4,13 @@ const read = url => execFileSync('curl', ['-4', '--fail', '--location', '--silen
 
 const base = process.argv[2];
 assert(base, 'Pass the running website URL');
-const pages = ['/', '/source/', '/quickstart/'];
+const pages = ['/', '/source/', '/quickstart/', '/about/', '/changelog/', '/verified/', '/registry/', '/security/', '/channels/slack/', '/channels/telegram/', '/guides/write-a-policy/', '/guides/run-claude-code-24-7/'];
 for (const path of pages) {
   const html = read(new URL(path, base));
   const visible = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '').replace(/<[^>]*>/g, ' ');
   assert(!/source publication (?:is )?pending|source access is not publicly available|repository is not publicly accessible/i.test(visible), path);
-  assert(/local beta/i.test(visible), path);
+  if (['/', '/source/', '/quickstart/'].includes(path)) assert(/local beta/i.test(visible), path);
+  assert(!/~\/\.junction|JUNCTION_OWNER_ID/.test(visible), 'Retired configuration instructions: ' + path);
   if (path === '/source/') assert(html.includes('href="https://github.com/myrmitis/warding"'), 'Public source link');
   if (path === '/') {
     assert(/UI concept|Example data/.test(visible), 'Demo disclosure');

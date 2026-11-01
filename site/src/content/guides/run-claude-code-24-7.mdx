@@ -29,7 +29,7 @@ Your Claude plan's limits, and Anthropic's terms for unattended use, apply exact
 
 Public source is available. Clean-machine installation remains unqualified. Read the [source status](/source/) and [setup notes](/quickstart/). The remaining steps describe the intended workflow for an operator who already has a reviewed source checkout; they are not a public download or a verified overnight workflow.
 
-`warding setup` docks the first harness it finds. To make it Claude Code whatever else is installed, set one key in `~/.junction/config.json`:
+`warding setup` docks the first harness it finds. To make it Claude Code whatever else is installed, set one key in `~/.warding/config.json`:
 
 ```json
 "agent": { "acp_backend": "claude" }
@@ -49,13 +49,13 @@ This installs and starts the gateway as a user service (systemd on Linux, launch
 
 1. Message **@BotFather**, send `/newbot`, and follow the prompts. You get a token like `123456789:AA…`.
 2. Message **@userinfobot** to get your numeric user ID. It is the only account the bot will answer.
-3. Put the token in `~/.junction/.env`:
+3. Put the token in `~/.warding/.env`:
 
    ```
    TELEGRAM_BOT_TOKEN=123456789:AA…
    ```
 
-4. Turn the channel on in `~/.junction/config.json`:
+4. Turn the channel on in `~/.warding/config.json`:
 
    ```json
    "telegram": { "enabled": true, "allowed_user_ids": [123456789] }

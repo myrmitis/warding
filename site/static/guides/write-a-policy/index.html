@@ -6,8 +6,8 @@
 <h2 id="where-the-policy-lives-and-why-the-agent-cant-read-it">Where the policy lives, and why the agent can’t read it</h2>
 <p>Two kinds of file, both in the data home:</p>
 <ul>
-<li><code>~/.junction/security_policy.json</code>: the <strong>policy</strong>, the ceiling for everything on this machine.</li>
-<li><code>~/.junction/profiles/*.json</code>: <strong>profiles</strong>, each one narrowing the ceiling for a single surface (a cron job, a chat channel, a subagent), an app, or a task.</li>
+<li><code>~/.warding/security_policy.json</code>: the <strong>policy</strong>, the ceiling for everything on this machine.</li>
+<li><code>~/.warding/profiles/*.json</code>: <strong>profiles</strong>, each one narrowing the ceiling for a single surface (a cron job, a chat channel, a subagent), an app, or a task.</li>
 </ul>
 <p>Both paths are on the keystone: the deny list of secret and policy paths the agent is refused at read and at write, through file tools and through shell read, write and extract verbs. You edit these files yourself, in your editor; the agent cannot open them, so it cannot learn where the edges are or move them. Profiles are reloaded when the file changes; the policy is read at start.</p>
 <p>With no policy file, the ceiling is the built-in secure defaults, and profiles narrow those. <code>warding policy show</code> says which is in force.</p>
@@ -20,7 +20,7 @@
 </ul>
 <p>Command and path patterns are shell-style globs, case-sensitive; <code>*</code> also crosses <code>/</code>. A profile that fails to parse becomes deny-all, never the ceiling, so a typo locks the surface down rather than opening it.</p>
 <h2 id="a-worked-profile-for-a-nightly-job">A worked profile for a nightly job</h2>
-<p>Save this as <code>~/.junction/profiles/nightly-build.json</code>. It binds to the cron surface, so it applies to scheduled runs only.</p>
+<p>Save this as <code>~/.warding/profiles/nightly-build.json</code>. It binds to the cron surface, so it applies to scheduled runs only.</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="json"><code><span class="line"><span style="color:#E1E4E8">{</span></span>
 <span class="line"><span style="color:#79B8FF">  &quot;name&quot;</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">&quot;nightly-build&quot;</span><span style="color:#E1E4E8">,</span></span>
 <span class="line"><span style="color:#79B8FF">  &quot;bind&quot;</span><span style="color:#E1E4E8">: { </span><span style="color:#79B8FF">&quot;type&quot;</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">&quot;surface&quot;</span><span style="color:#E1E4E8">, </span><span style="color:#79B8FF">&quot;id&quot;</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">&quot;cron&quot;</span><span style="color:#E1E4E8"> },</span></span>
@@ -81,7 +81,7 @@
 <span class="line"><span style="color:#B392F0">warding</span><span style="color:#9ECBFF"> security</span><span style="color:#9ECBFF"> deny-list</span><span style="color:#6A737D">   # every built-in denied-command pattern</span></span></code></pre>
 <p>The dashboard’s <strong>Settings → Security</strong> page shows the same posture live.</p>
 <h2 id="reading-the-audit-log-and-verifying-the-chain">Reading the audit log and verifying the chain</h2>
-<p>Every decision at the gate is appended to <code>~/.junction/security_events.jsonl</code>. Each entry carries an HMAC-SHA256 over the entry before it, and the key lives in <code>~/.junction/trust/</code>, outside the log’s directory. The log and the key are on the keystone too, so the agent can neither read nor rewrite them.</p>
+<p>Every decision at the gate is appended to <code>~/.warding/security_events.jsonl</code>. Each entry carries an HMAC-SHA256 over the entry before it, and the key lives in <code>~/.warding/trust/</code>, outside the log’s directory. The log and the key are on the keystone too, so the agent can neither read nor rewrite them.</p>
 <p><code>warding security audit</code> scans recent history for suspicious tool use. <code>warding security verify</code> checks the chain and reports how many entries verify and how many were tampered with. A green chain shows that nothing without the key edited the log afterwards; it does not show that every action was logged.</p>
 <h2 id="what-this-does-not-cover">What this does not cover</h2>
 <p>Some controls fail open, and they are listed in one table: <a href="/security/#scope">/security/#scope</a>. The two most relevant to a profile: a tool the harness pre-authorised can skip the gate, and app manifest permissions are advisory today. If you rely on a control that reads “open” there, do not run unattended.</p>

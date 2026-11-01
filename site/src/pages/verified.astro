@@ -86,7 +86,7 @@ const chip = (r: (typeof verifiedRowsSorted)[number]) =>
       <div class="prose measure">
         <p>Rows come from one dated log in the repository, <code>{rowSource.path}</code>, written by the person who runs the product: the harness, the feature, the machine, the date, the command and what came back. This page updates from that data after a reviewed export and manifest update; nothing here is written from memory.</p>
         {!rowSource.exists && <p class="caption">That file does not exist yet. The one verified row above is recorded in the research notes behind this site and is the first entry the log will carry.</p>}
-        <p>The rule that makes the page useful: a checkmark elsewhere on the site links to a row here, and a capability with no row is written as unverified even when we expect it to work. Public issue reporting is pending with <a href={site.sourceStatus}>source publication</a>.</p>
+        <p>The rule that makes the page useful: a checkmark elsewhere on the site links to a row here, and a capability with no row is written as unverified even when we expect it to work. Public issue reporting is available alongside <a href={site.sourceStatus}>source publication</a>.</p>
       </div>
     </section>
   </div>

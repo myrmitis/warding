@@ -14,7 +14,7 @@
 <p>Your Claude plan’s limits, and Anthropic’s terms for unattended use, apply exactly as they do in the terminal. Warding adds no run cap of its own. For shared or production automation, use an API key.</p>
 <h2 id="install">Install</h2>
 <p>Public source is available. Clean-machine installation remains unqualified. Read the <a href="/source/">source status</a> and <a href="/quickstart/">setup notes</a>. The remaining steps describe the intended workflow for an operator who already has a reviewed source checkout; they are not a public download or a verified overnight workflow.</p>
-<p><code>warding setup</code> docks the first harness it finds. To make it Claude Code whatever else is installed, set one key in <code>~/.junction/config.json</code>:</p>
+<p><code>warding setup</code> docks the first harness it finds. To make it Claude Code whatever else is installed, set one key in <code>~/.warding/config.json</code>:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="json"><code><span class="line"><span style="color:#9ECBFF">&quot;agent&quot;</span><span style="color:#E1E4E8">: { </span><span style="color:#79B8FF">&quot;acp_backend&quot;</span><span style="color:#E1E4E8">: </span><span style="color:#9ECBFF">&quot;claude&quot;</span><span style="color:#E1E4E8"> }</span></span></code></pre>
 <p>Chat runs this one harness; switching later keeps your schedules, memory and channels. <code>warding planes</code> prints which one is docked. A spawned subagent can be routed to another installed harness by the harness router; that is registered, not verified.</p>
 <h2 id="run-it-as-a-service">Run it as a service</h2>
@@ -29,11 +29,11 @@
 <p>Message <strong>@userinfobot</strong> to get your numeric user ID. It is the only account the bot will answer.</p>
 </li>
 <li>
-<p>Put the token in <code>~/.junction/.env</code>:</p>
+<p>Put the token in <code>~/.warding/.env</code>:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="plaintext"><code><span class="line"><span>TELEGRAM_BOT_TOKEN=123456789:AA…</span></span></code></pre>
 </li>
 <li>
-<p>Turn the channel on in <code>~/.junction/config.json</code>:</p>
+<p>Turn the channel on in <code>~/.warding/config.json</code>:</p>
 <pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8;overflow-x:auto" tabindex="0" data-language="json"><code><span class="line"><span style="color:#9ECBFF">&quot;telegram&quot;</span><span style="color:#E1E4E8">: { </span><span style="color:#79B8FF">&quot;enabled&quot;</span><span style="color:#E1E4E8">: </span><span style="color:#79B8FF">true</span><span style="color:#E1E4E8">, </span><span style="color:#79B8FF">&quot;allowed_user_ids&quot;</span><span style="color:#E1E4E8">: [</span><span style="color:#79B8FF">123456789</span><span style="color:#E1E4E8">] }</span></span></code></pre>
 </li>
 <li>

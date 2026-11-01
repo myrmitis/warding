@@ -117,7 +117,7 @@
     },
     {
       "file": "src/content/channels/slack.mdx",
-      "sha256": "8bd8994a09ad5cdde97ff09cf160e05b7aee12d17b3936d50d0cb8399b20b4dc"
+      "sha256": "b99326f0d4e2f9822a9e41b7281a0f1e7ed7d594a1ceb3058dc91573bd152894"
     },
     {
       "file": "src/content/channels/teams.mdx",
@@ -125,7 +125,7 @@
     },
     {
       "file": "src/content/channels/telegram.mdx",
-      "sha256": "2b97efc34cafb0799ef752f2aa40afd14cdf285ac1f3fff1096ff7c8a45867e0"
+      "sha256": "88f10b57da68d40d571c3a5cc3d659d354a76ab53c371a6e288e6811ca965285"
     },
     {
       "file": "src/content/channels/webex.mdx",
@@ -169,11 +169,11 @@
     },
     {
       "file": "src/content/guides/run-claude-code-24-7.mdx",
-      "sha256": "bd13adc28af3916a26a15782e163df5d86ea9f941bdb509c8f8e82101adf1a2f"
+      "sha256": "73367557cae68f3389afda269112025ba44771fe562a8f781956d465ae61c9eb"
     },
     {
       "file": "src/content/guides/write-a-policy.mdx",
-      "sha256": "062c84b0a015b84fadd2f381f432a759cc42bdc948bdc8082da14a6430cdf135"
+      "sha256": "6f3df7463313acf2c814a103ca900dba4b14a2cbd24d2d4407959e71a2bb17d5"
     },
     {
       "file": "src/content.config.ts",
@@ -305,7 +305,7 @@
     },
     {
       "file": "src/pages/about.astro",
-      "sha256": "9e08ef2773d18fd48231d9f74f5830628688e8cf63095cb7a91ec70c321891ee"
+      "sha256": "5edc9c0cb2a4f613fee6fe4b104edab95365c3fee0875b38d8503288f3b3c632"
     },
     {
       "file": "src/pages/acp.astro",
@@ -321,7 +321,7 @@
     },
     {
       "file": "src/pages/changelog.astro",
-      "sha256": "cb2e53676e6630be01c6309971d5b5193d7bd73e3e04c63403481f8af0287886"
+      "sha256": "d2bd89cbd3f9dbeacb48c40f8358b6ad5e7c848d289571aaaad6baaf8e1b3bd2"
     },
     {
       "file": "src/pages/changelog.txt.ts",
@@ -389,7 +389,7 @@
     },
     {
       "file": "src/pages/registry.astro",
-      "sha256": "e7a33138d3cf1f5340ed4ac4e981eb0b039107c7cbfe2b2fcac2c73bfe95ae77"
+      "sha256": "5fda3add17a32b572dcf53bf652eba68f23059282bd45e4f5f55c3760cfcc956"
     },
     {
       "file": "src/pages/robots.txt.ts",
@@ -405,7 +405,7 @@
     },
     {
       "file": "src/pages/security.astro",
-      "sha256": "3bf65707cc390b2a8d436644826bad5acc1c6e496199749ae56ed93917074dc5"
+      "sha256": "b8ab2171341f48fa8b74fb98761c0211511dc35ec094cbadb9e6d13227d3d415"
     },
     {
       "file": "src/pages/source.astro",
@@ -421,7 +421,7 @@
     },
     {
       "file": "src/pages/verified.astro",
-      "sha256": "920a1c77feb0c0a5240208b8661eeebc1b91e980b6d7e17d0c14d4e9c11365b2"
+      "sha256": "54410c582f2ecc4ca71ebad3de34c7a2242a2a6475f0441f4eed28335604ab3c"
     },
     {
       "file": "src/styles/global.css",
@@ -736,8 +736,8 @@
     },
     {
       "file": "about/index.html",
-      "size": 28626,
-      "sha256": "efdffda40c73598d0e3ad1cd7050ee64c7d85cae5044bec2e8abacfff18eeb96"
+      "size": 28663,
+      "sha256": "e4b0a9380e382374c3c93b81b14b866fc7db7c3bb2a5a22901e39e08e13f4177"
     },
     {
       "file": "acp/index.html",
@@ -761,8 +761,8 @@
     },
     {
       "file": "changelog/index.html",
-      "size": 25244,
-      "sha256": "b063ccdd5ea4e216a66192c4b16a967da629842508300f042f334133f4b66d40"
+      "size": 25246,
+      "sha256": "b3ead9e17f8ab102049517ac2116a790c92e739f082003a250d00f2a91b6f449"
     },
     {
       "file": "changelog.txt",
@@ -791,8 +791,8 @@
     },
     {
       "file": "channels/slack/index.html",
-      "size": 27186,
-      "sha256": "75e9c829cd6e92f49f634547a6946f0a0886c3ca6b1abb17024384c774b7eb20"
+      "size": 27185,
+      "sha256": "7bd55bf642e2cf20787a70a8d6084eb13be530e2718e7448aa2417d910ba964a"
     },
     {
       "file": "channels/teams/index.html",
@@ -801,8 +801,8 @@
     },
     {
       "file": "channels/telegram/index.html",
-      "size": 37241,
-      "sha256": "8c0a7bb64cbf1c74b1533d6e194c5cce5004eac05d8f90549403317c5423c0ec"
+      "size": 37240,
+      "sha256": "820f1bc048b782406727c580389c5ef00ebdf54ba2a13390a83148372ed5abff"
     },
     {
       "file": "channels/webex/index.html",
@@ -871,13 +871,13 @@
     },
     {
       "file": "guides/run-claude-code-24-7/index.html",
-      "size": 29624,
-      "sha256": "76ec53332c1f7737c5006283beca1e7a03a487328f2f7b377f3458ef6dfbc74e"
+      "size": 29621,
+      "sha256": "772103d74e613501ed0d4962e39d333abb8fc4e72576332b6c1dac6a28f6c6ab"
     },
     {
       "file": "guides/write-a-policy/index.html",
-      "size": 32797,
-      "sha256": "23a94c11d42c71627f0b3b32ac2b750511811a27a0df26dc751aa27a5632702e"
+      "size": 32792,
+      "sha256": "e5ae433477651556c0896372ec508d66908e19dadc7d377f00c9b30d037c52e7"
     },
     {
       "file": "index.html",
@@ -1106,8 +1106,8 @@
     },
     {
       "file": "registry/index.html",
-      "size": 39535,
-      "sha256": "6ffac9557fc1a893eab477fded6dcd7aef4cd520e491cc380266e06f612e80c6"
+      "size": 39537,
+      "sha256": "36375d9bcff9718f00f482cd369b58ee69b0baf2fad84284d316b9a84827bf15"
     },
     {
       "file": "robots.txt",
@@ -1126,8 +1126,8 @@
     },
     {
       "file": "security/index.html",
-      "size": 57701,
-      "sha256": "01f6d617097516198e6bcdd36c00d4dd20b7ee57ee2312f0456173382fc8e303"
+      "size": 57692,
+      "sha256": "a78c2734eece994b3054a1ec05761a10f65ed734391befa2c405397337edcf9c"
     },
     {
       "file": "sitemap-0.xml",
@@ -1156,8 +1156,8 @@
     },
     {
       "file": "verified/index.html",
-      "size": 90150,
-      "sha256": "3d9ef3b7c6c1a695e95f7462cadfdefde97f21bf50f2f553e6b8aeaef5fc25d8"
+      "size": 90157,
+      "sha256": "5a02dbf8f0bdce6015af05a6e2477daedb93881cbcddc1422ecd01119b768f8c"
     }
   ],
   "export_base_tree": "c7c0b208ca73588256affda08cd1c9d15dc03cbe",

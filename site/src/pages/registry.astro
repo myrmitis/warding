@@ -79,7 +79,7 @@ const verifiedCells = harnesses.reduce((n, h) => n + Object.keys(h.verified).len
       <div class="prose measure">
         <p>One adapter in the runtime registry: the command line that starts the agent over stdio, which protocol family it speaks, a one-line login hint, and the binaries it needs on the path. That is the whole entry. The gateway, the channels and the schedules are shared code. What differs per harness is a short list of capability flags: whether it can share or steer a session, and whether it brings its own sandbox (the legacy adapter does, so Warding's own is not layered on top of it).</p>
         <p>A harness adapts to the seams the first-class path already runs through. It cannot add a step, a flag or a failure mode to that path, and a harness that cannot fit does not land. What each one can do is then a matter of record, not of the registry: a cell above turns into a check only when a dated row exists on <a href="/verified/">the verification log</a>.</p>
-        <p>{notDockedLine}. If you run one of those, public issue reporting is pending; <a href={site.sourceStatus}>check source status</a>. <StatusChip kind="coming" label="Adding one is a small change, not a promise" /></p>
+        <p>{notDockedLine}. If you run one of those, public issue reporting is available; <a href={site.sourceStatus}>check source status</a>. <StatusChip kind="coming" label="Adding one is a small change, not a promise" /></p>
       </div>
     </section>
   </div>

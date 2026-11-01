@@ -52,7 +52,7 @@ You need a running gateway and a Telegram account. Set it up by hand; the token 
 
 1. **Create a bot.** Message **@BotFather**, send `/newbot`, and follow the prompts. You get a token like `123456789:AA…`.
 2. **Find your user ID.** Message **@userinfobot**; it replies with your number. That is the only account the bot will answer.
-3. **Save the token** in the data home's `.env` file (`~/.junction/.env` by default):
+3. **Save the token** in the data home's `.env` file (`~/.warding/.env` by default):
    <pre tabIndex="0" role="region" aria-label="Command"><code>TELEGRAM_BOT_TOKEN=123456789:AA…</code></pre>
 4. **Turn the channel on** in `config.json`, with your ID as the whole allow-list:
    <pre tabIndex="0" role="region" aria-label="Command"><code>{`"telegram": { "enabled": true, "allowed_user_ids": [123456789] }`}</code></pre>

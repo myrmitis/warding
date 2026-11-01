@@ -27,7 +27,7 @@ const pretty = (iso: string) => (iso ? dateFmt.format(new Date(`${iso}T00:00:00Z
       <section class="empty tile" aria-labelledby="empty-h">
         <p class="eyebrow">Releases</p>
         <h2 id="empty-h">No tagged release yet.</h2>
-        <p class="measure">The first release writes its section to <code>CHANGELOG.md</code> under its final version number and appears here after a reviewed export and manifest update. Public source and the commit log are pending: <a href={site.sourceStatus}>source status</a>.</p>
+        <p class="measure">The first release writes its section to <code>CHANGELOG.md</code> under its final version number and appears here after a reviewed export and manifest update. Public source and the commit log are available: <a href={site.sourceStatus}>source status</a>.</p>
         <p class="caption">Subscribe to <a href="/rss.xml">the RSS feed</a> for releases and guides.</p>
       </section>
     ) : (

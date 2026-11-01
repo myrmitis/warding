@@ -25,7 +25,7 @@ const title = "A sandboxed coding agent with a policy it cannot edit";
 const description = "OS sandbox, built-in deny rules, blocked ~/.ssh and ~/.gnupg paths, credential redaction and a hash-chained audit log, with what holds where, per OS.";
 const lead = `A policy file the agent cannot read or write, built-in deny rules for secrets and destructive commands, credential redaction, an OS sandbox where one is available, and a hash-chained audit log. Enforced at ${site.name}'s own gate. Unaudited by a third party. Here is exactly what is covered, what isn't, and what is still in development.`;
 
-const home = "~/.junction";
+const home = "~/.warding";
 const keystoneHome = [
   `${home}/security_policy.json`, `${home}/profiles/`, `${home}/admission_policy.json`, `${home}/computer_use.json`,
   `${home}/denied_commands.json`, `${home}/.env`, `${home}/trust/`, `${home}/security_events.jsonl`,
@@ -55,7 +55,7 @@ const scope: { control: string; where: string; fails: Fails; failText: string }[
   { control: "Computer use", where: "in band on the tool dispatch path, never at the hook", fails: "closed", failText: "closed; off by default; one operator opt-in on the keystone file" },
   { control: "App manifest permissions", where: "advisory today", fails: "open", failText: "open on an empty allowlist" },
   { control: "Admission policy", where: "fleet seam", fails: "open", failText: "an absent policy admits (the public edition ships none)" },
-  { control: "Owner lock on channels", where: "messaging identity", fails: "open", failText: "no-op until JUNCTION_OWNER_ID is set" },
+  { control: "Owner lock on channels", where: "messaging identity", fails: "open", failText: "no-op until WARDING_OWNER_ID is set" },
   { control: "Credential redaction", where: "one chokepoint before the log", fails: "closed", failText: "always on, no policy key" },
   { control: "Audit write on nested sandbox passthrough", where: "best effort", fails: "open", failText: "logs loudly and proceeds (the child stays inside the outer sandbox)" },
 ];
