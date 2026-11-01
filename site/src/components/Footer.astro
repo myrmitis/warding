@@ -16,7 +16,7 @@ const year = 2026;
           <span class="wordmark">warding</span>
         </a>
         <a class="publisher" href={site.publisher.url} rel="noopener">by {site.publisher.name}</a>
-        <p class="tagline display-italic">{site.tagline}</p>
+        <p class="tagline">{site.tagline}</p>
         <p class="caption">{siteHost}</p>
       </div>
       {footerColumns.map((col) => (
@@ -52,7 +52,7 @@ const year = 2026;
   .wordmark { font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; letter-spacing: -0.015em; font-variation-settings: "SOFT" 0, "WONK" 0, "opsz" 144; }
   .foot-brand :global(.ward-bars) { margin-bottom: 10px; }
   .tagline { margin-top: 14px; font-family: var(--font-display); font-weight: 500; font-size: 1.5rem; line-height: 1.2; color: var(--fg); max-width: 14ch; }
-  .foot-title { font-family: var(--font-sans); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--fg-2); margin-bottom: 8px; }
+  .foot-title { font-family: var(--font-sans); font-size: 0.875rem; font-weight: 600; color: var(--fg); margin-bottom: 8px; }
   .site-footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
   .site-footer nav a {
     position: relative; color: var(--fg-2); text-decoration: none; font-size: 0.9375rem;

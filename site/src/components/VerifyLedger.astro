@@ -1,10 +1,9 @@
 ---
 /**
- * The verification ledger: one square per harness × capability, so the honest
- * count is the picture. A filled seal square is a dated row on /verified (and
- * links to it); a hollow square is registered and not yet verified. The grid
- * is decorative to assistive tech; the sentence under the counter says the
- * same thing in words and names every verified cell.
+ * The verification ledger: one square per harness × capability. A filled seal
+ * square is a dated row on /verified (and links to it); a hollow square is
+ * registered and not yet verified. The grid is decorative to assistive tech;
+ * the sentence says the same thing in words and names every verified cell.
  */
 import { harnesses, CAPABILITIES } from "../data/harnesses";
 
@@ -17,11 +16,9 @@ const total = harnesses.length * CAPABILITIES.length;
 const verified = rows.flatMap((h) =>
   CAPABILITIES.filter((c) => h.verified[c.key]).map((c) => ({ h, c, date: h.verified[c.key] as string })),
 );
-const pad = (n: number) => String(n).padStart(2, "0");
 ---
 <figure class={`ledger ${cls}`}>
   <div class="ledger-head">
-    <p class="ledger-count clock" aria-hidden="true"><span class="n">{pad(verified.length)}</span><span class="of"> / {total}</span></p>
     <p class="ledger-say">
       {verified.length} of {total} harness checks verified{verified.length > 0 && ": "}{verified.map((v, i) => (
         <>{i > 0 && "; "}{v.h.name} {v.c.label.toLowerCase()}, <span class="nowrap">{v.date}</span></>
@@ -54,8 +51,6 @@ const pad = (n: number) => String(n).padStart(2, "0");
 <style>
   .ledger { margin: 48px 0 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 48px; align-items: end; }
   .ledger-head { display: grid; gap: 12px; align-content: end; }
-  .ledger-count { font-size: clamp(56px, 4vw + 32px, 88px); line-height: 0.9; color: var(--seal); }
-  .ledger-count .of { color: var(--fg-3); font-size: 0.5em; }
   .ledger-say { max-width: 46ch; color: var(--fg-2); }
   .nowrap { white-space: nowrap; }
   .ledger-grid {

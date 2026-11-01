@@ -224,7 +224,7 @@ h1, h2, h3, h4 {
   color: var(--fg);
   letter-spacing: -0.012em;
 }
-h1 { font-size: clamp(2.75rem, 2rem + 3.2vw, 4.5rem); line-height: 0.98; letter-spacing: -0.028em; text-wrap: balance; }
+h1 { font-size: clamp(2.75rem, 2rem + 3.2vw, 4.5rem); line-height: 0.98; letter-spacing: -0.015em; text-wrap: balance; }
 h2 { font-size: clamp(2rem, 1.6rem + 1.4vw, 2.5rem); line-height: 1.1; text-wrap: balance; font-variation-settings: "SOFT" 0, "WONK" 0, "opsz" 96; }
 /* Display cuts: Fraunces at its largest optical size, no soft or wonky forms. */
 h1, .wordmark, .final h2 { font-variation-settings: "SOFT" 0, "WONK" 0, "opsz" 144; }
@@ -284,10 +284,7 @@ button { font: inherit; color: inherit; }
   font-size: 22px;
   line-height: 1;
   color: var(--lamp);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
-.display-italic { font-variation-settings: "SOFT" 0, "WONK" 1; font-style: italic; }
 .measure { max-width: 68ch; }
 .lucide-inline { display: inline-block; width: 1em; height: 1em; vertical-align: -0.15em; }
 
@@ -340,9 +337,7 @@ button { font: inherit; color: inherit; }
 
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line);
   font-size: 0.8125rem; line-height: 1.4; font-weight: 500; color: var(--fg-2);
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
   white-space: nowrap;
 }
 .chip .lucide { width: 14px; height: 14px; stroke-width: 1.75; }
@@ -378,11 +373,8 @@ button { font: inherit; color: inherit; }
 
 .plate { margin: 0; }
 .plate-frame { border: 1px solid var(--line); background: var(--surface); padding: 8px; position: relative; }
-.plate-frame::before {
-  content: ""; position: absolute; inset: 3px; border: 0.5px solid var(--line); pointer-events: none;
-}
 .plate figcaption { margin-top: 10px; font-size: 0.8125rem; line-height: 1.4; color: var(--fg-3); }
-.plate-num { font-family: var(--font-display); font-weight: 500; font-style: italic; color: var(--fg-2); }
+.plate-num { font-family: var(--font-sans); font-weight: 500; font-style: normal; color: var(--fg-2); }
 .plate-placeholder {
   display: grid; place-items: center; min-height: 240px; text-align: center; padding: 24px;
   color: var(--fg-3); background: repeating-linear-gradient(45deg, transparent 0 10px, color-mix(in srgb, var(--line) 50%, transparent) 10px 11px);
@@ -483,7 +475,7 @@ details.faq .faq-body { padding: 0 0 18px; color: var(--fg-2); max-width: 68ch; 
 }
 @keyframes lamp-wash { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
-.install { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); background: var(--surface); border-radius: 4px; }
+.install { display: grid; gap: 12px; padding: 0; border: 0; background: transparent; }
 .install-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .tabs { display: flex; gap: 4px; }
 .tab { min-height: 44px; padding: 6px 12px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; font-family: var(--font-mono); font-size: 0.875rem; color: var(--fg-2); }
