@@ -1,6 +1,6 @@
 # Website recovery and production acceptance
 
-Owning task: https://github.com/myrmitis/warding/issues/27. Review: https://github.com/myrmitis/warding/pull/60.
+Owning task: https://github.com/myrmitis/warding/issues/27. Review: https://github.com/myrmitis/warding/pull/61.
 Base: fe9d83357327ca7dfeacd38a87114b5b66aa5c89. Original deployment: dpl_2hB46QmGS5MzWjTzcoy62ti71p8d.
 
 All 268 original files matched the Vercel upload inventory before editing. `recovery-inventory.json` preserves those original hashes.
@@ -23,3 +23,10 @@ Complete model and CI costs remain unknown. No outside customer trial or new bet
 
 Rollback: promote the previous deployment, `dpl_2hB46QmGS5MzWjTzcoy62ti71p8d`, in the existing Vercel project.
 Do not run product/package publication or change DNS to roll back this website correction.
+
+## Integration repairs
+
+The hosted results identified stale source references, a stale generated catalog and a daylight-saving error in schedule descriptions.
+The source references and unsupported CLI alias are corrected. The catalog was regenerated from current canonical inputs without refreshing external pins.
+The HTTP acceptance check uses the standard HTML parser and checks all twelve affected public entry points.
+Existing assertions and merge gates remain unchanged. Hosted execution results and final merge evidence are recorded in PR #61.

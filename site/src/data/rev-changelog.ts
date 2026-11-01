@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 /**
  * The repository's CHANGELOG.md, parsed at build for /changelog/ with the
- * same rules as the product's own parser (`src/junction/changelog.py`):
+ * same rules as the product's own parser (`src/warding/changelog.py`):
  * only `## [X.Y.Z] — YYYY-MM-DD` sections count, any other level-2 heading
  * closes the section above it (so an Unreleased section is never swallowed
  * and never listed), a prerelease spelling folds onto its base version, and

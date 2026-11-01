@@ -169,11 +169,11 @@
     },
     {
       "file": "src/content/guides/run-claude-code-24-7.mdx",
-      "sha256": "73367557cae68f3389afda269112025ba44771fe562a8f781956d465ae61c9eb"
+      "sha256": "04f759c46d7699db3b837779a0f02e2ffcd0cbda9c85d630b6d6eeda14ffd623"
     },
     {
       "file": "src/content/guides/write-a-policy.mdx",
-      "sha256": "6f3df7463313acf2c814a103ca900dba4b14a2cbd24d2d4407959e71a2bb17d5"
+      "sha256": "7ae362c3da82724cea558729506089af7d02d0f2f5c00584688896f502cc437e"
     },
     {
       "file": "src/content.config.ts",
@@ -185,7 +185,7 @@
     },
     {
       "file": "src/data/harnesses.ts",
-      "sha256": "baf911abde0c4a9692466089b82a450178954e35c20434cd5560530921c8ae9a"
+      "sha256": "de59d0645cecd13de746b2f8b2da6641b9ae13d9a3c346d3cd4e86d8bafb9a6f"
     },
     {
       "file": "src/data/nav.ts",
@@ -197,7 +197,7 @@
     },
     {
       "file": "src/data/rev-changelog.ts",
-      "sha256": "6ef777aca62b16cb393e55f3f2756325e85c8f28d4fbae6a2fdc1193aed654d0"
+      "sha256": "9bf58867f6555fc3cef53e6c33341f216f953c0199d3c0d8dd9521cc6f2b03ef"
     },
     {
       "file": "src/data/rev-pricing.ts",
@@ -269,7 +269,7 @@
     },
     {
       "file": "src/lib/metrics.ts",
-      "sha256": "c99d0d9c5d08cbb61bf2bc3477f4cac8b275e4ee4a665ddfab31200bfb20e608"
+      "sha256": "0cf5787b3001cc36a5cd5e874f0eb302287acebc0994affaa6265670f6f54d02"
     },
     {
       "file": "src/lib/og-pages/README.md",
@@ -309,7 +309,7 @@
     },
     {
       "file": "src/pages/acp.astro",
-      "sha256": "f55d035df9ad1007d3559af0617483c91abb5d0523b608304ff4c2cbd9585ac5"
+      "sha256": "ce108563dfc52fba286f9c75da872c7f8e5ec77c0a82f0ae3850dcce323e3bdc"
     },
     {
       "file": "src/pages/agent-worlds.astro",
@@ -433,7 +433,7 @@
     },
     {
       "file": "public/catalog/official-registry.json",
-      "sha256": "08dc1b0437f05c0d29adf2746ebf99622040191ceae9f333eaa36d3557a5978d"
+      "sha256": "ae8648195e76cb90682ba21f8caa19b88bf428b39f5bab0e90a84f90393ca095"
     },
     {
       "file": "public/favicon.svg",
@@ -756,8 +756,8 @@
     },
     {
       "file": "catalog/official-registry.json",
-      "size": 18435,
-      "sha256": "08dc1b0437f05c0d29adf2746ebf99622040191ceae9f333eaa36d3557a5978d"
+      "size": 18450,
+      "sha256": "ae8648195e76cb90682ba21f8caa19b88bf428b39f5bab0e90a84f90393ca095"
     },
     {
       "file": "changelog/index.html",
@@ -871,13 +871,13 @@
     },
     {
       "file": "guides/run-claude-code-24-7/index.html",
-      "size": 29621,
-      "sha256": "772103d74e613501ed0d4962e39d333abb8fc4e72576332b6c1dac6a28f6c6ab"
+      "size": 29482,
+      "sha256": "55b6a4e1171c451230795511c4101a9c712c7750713120ce5c31b85afd955071"
     },
     {
       "file": "guides/write-a-policy/index.html",
-      "size": 32792,
-      "sha256": "e5ae433477651556c0896372ec508d66908e19dadc7d377f00c9b30d037c52e7"
+      "size": 32713,
+      "sha256": "d6d988917dfdc63a8ccb4e3acccf8a43da040e6d393c765af48382214a1043e9"
     },
     {
       "file": "index.html",

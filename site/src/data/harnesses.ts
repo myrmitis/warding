@@ -57,7 +57,7 @@ export const harnesses: Harness[] = [
 export const notDocked = ["Gemini CLI"];
 
 /**
- * The harness router (`src/junction/harness_router/`): chat sessions run the one
+ * The harness router (`src/warding/harness_router/`): chat sessions run the one
  * harness `agent.acp_backend` names; a spawned subagent can be routed to another
  * installed harness. Registered and unit-tested; no routed run is recorded on
  * /verified/, so every surface that shows verification says "registered ·

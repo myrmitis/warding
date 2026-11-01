@@ -27,7 +27,7 @@ export function collectMetrics(): Metrics {
   try {
     const commits = git(["rev-list", "--count", "--since=30.days", "HEAD"]);
     const tests = git([
-      "ls-files", "test/test_*.py", "src/junction/**/test_*.py", "website/src/**/*.test.ts", "website/src/**/*.test.tsx",
+      "ls-files", "test/test_*.py", "src/warding/**/test_*.py", "website/src/**/*.test.ts", "website/src/**/*.test.tsx",
     ]).split("\n").filter(Boolean).length;
     let latestTag = "";
     try { latestTag = git(["describe", "--tags", "--abbrev=0"]); } catch { latestTag = ""; }

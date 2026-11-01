@@ -653,9 +653,10 @@ def _humanize_cron(expr: str, tz_name: str = "") -> str:
     if tz_name and len(parts) == 5 and parts[0].isdigit() and parts[1].isdigit():
         try:
             tz = ZoneInfo(tz_name)
-            # Evaluate in job timezone, same as the scheduler does
-            base = datetime.now(tz)
-            next_local = croniter(expr, base).get_next(datetime).astimezone(tz)
+            # Resolve the calendar date in local wall time before attaching the zone.
+            # A timezone-aware croniter base can shift the displayed hour at DST.
+            base = datetime.now(tz).replace(tzinfo=None)
+            next_local = croniter(expr, base).get_next(datetime).replace(tzinfo=tz)
             local_time = platform_compat.strftime(next_local, "%-I:%M %p %Z")
             # cron_descriptor produces UTC-based text; replace the time portion
             utc_base = datetime.now(timezone.utc)

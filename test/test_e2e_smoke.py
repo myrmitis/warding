@@ -18,6 +18,8 @@ import json
 import os
 import time
 import urllib.request
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -325,3 +327,23 @@ def test_chat_tool_call_renders(acp_gateway):
 
     reply = _await_assistant_reply(acp_gateway, slot)
     assert "pong from the fake ACP backend" in json.dumps(reply)
+
+
+@pytest.mark.parametrize("zone", ["America/Los_Angeles", "America/New_York"])
+@pytest.mark.parametrize("hour, label", [(22, "10:00 PM"), (3, "3:00 AM")])
+def test_cron_api_preserves_local_display_hour(gateway, zone, hour, label):
+    month = 7 if datetime.now(ZoneInfo(zone)).dst() == timedelta(0) else 1
+    body = {
+        "name": "e2e-local-hour",
+        "cron": f"0 {hour} 15 {month} *",
+        "message": "local-hour display check",
+        "timezone": zone,
+    }
+    created = _api_post(gateway, "/api/crons", body)
+    job_id = created["id"]
+    try:
+        jobs = _api_get(gateway, "/api/crons")["jobs"]
+        job = next(row for row in jobs if row["id"] == job_id)
+        assert label in job["schedule"]
+    finally:
+        _api_delete(gateway, f"/api/crons/{job_id}")

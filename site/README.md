@@ -62,3 +62,5 @@ Verify complete file bytes against the retained deployment inventory before usin
 
 The publishing build copies the canonical root NOTICE into `dist/notice.txt` after verifying its authoring-input hash.
 The static source omits a duplicate NOTICE. The served attribution remains byte-identical to the canonical file.
+
+The HTTP acceptance command requires Python 3 and curl. It parses page text with Python's standard HTML parser.

@@ -1489,3 +1489,9 @@ marker (`CONN_RECOVERY_PREFIX`, `BUSY_RECOVERY_PREFIX`), is folded by the fronte
 ### Custom Domain
 
 `warding setup` uses `warding.localhost` (RFC 6761 reserved, resolves to loopback natively) for `http://warding.localhost:5476` (macOS/Linux via `sudo tee -a /etc/hosts`). Gateway startup also prints the hostname URL for remote access.
+
+## Schedule display across daylight-saving changes
+
+Fixed-hour cron descriptions resolve their next calendar date in local wall time before applying the job timezone.
+The displayed hour remains the expression hour across daylight-saving transitions. This does not change next-run prediction or scheduler execution.
+The cron API smoke check creates and lists schedules in Los Angeles and New York, then deletes the test jobs.
