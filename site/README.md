@@ -59,3 +59,6 @@ The check verifies public-source navigation, beta limits, demonstration disclosu
 If direct Vercel CLI requests time out, retry with `NODE_OPTIONS=--dns-result-order=ipv4first`.
 This setting changes address selection for that command. It does not change system networking or credentials.
 Verify complete file bytes against the retained deployment inventory before using recovered source.
+
+The publishing build copies the canonical root NOTICE into `dist/notice.txt` after verifying its authoring-input hash.
+The static source omits a duplicate NOTICE. The served attribution remains byte-identical to the canonical file.

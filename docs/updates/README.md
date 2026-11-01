@@ -5,3 +5,5 @@ The repository-scoped `.github/workflows/documentation-receipts.yml` writes an i
 | Month | Receipts |
 |---|---|
 | [2026-10](2026-10/README.md) | Documentation hub adoption on 2026-10-28. |
+
+Historical receipt: [2026-10-28 source revision](2026-10/2026-10-28-35d00cd0dea6.md).

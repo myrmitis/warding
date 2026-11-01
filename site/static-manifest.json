@@ -900,11 +900,6 @@
       "sha256": "6ded795b2bfe45beac07ef392021939a1920f0f9f3079031d3bfbde4191bb8c0"
     },
     {
-      "file": "notice.txt",
-      "size": 2008,
-      "sha256": "a85ea220632b95c3cd0d6717af8255acd2c3f7cb6300122b98ffcb1e2515dba9"
-    },
-    {
       "file": "og/404.png",
       "size": 47999,
       "sha256": "44b8948cb6706c618c0133820b584d9f24bbc98b76b5eeb50b58c8da922ac09e"

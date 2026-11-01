@@ -48,4 +48,5 @@ for (const row of manifest.outputs) {
   await mkdir(dirname(target), { recursive: true });
   await copyFile(resolve(source, row.file), target);
 }
+await copyFile(resolve(root, '..', 'NOTICE'), join(output, 'notice.txt'));
 console.log(`Verified and built ${manifest.outputs.length} static files from reviewed source tree ${manifest.source_tree}.`);
