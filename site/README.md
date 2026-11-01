@@ -37,8 +37,8 @@ are already stored as static files. Runtime browser JavaScript is retained;
 font and compiled-runtime licenses are served in `/THIRD-PARTY-LICENSES.txt`.
 Required root NOTICE/LICENSE attribution remains served verbatim.
 
-Public Warding source publication is pending. The reviewed pages use Source
-status and beta notes, with no private-repository setup/download CTA. Clipboard
+Public Warding source is available. The reviewed pages link source availability
+and beta notes. Release downloads and installation qualification remain pending. Clipboard
 permission remains unverified/blocked; the guarded future copy UI describes
 manual selection and never retries via another API or claims failed copies
 succeeded. Product/backend runtime paths are not qualified by website tests.
