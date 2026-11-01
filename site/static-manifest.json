@@ -305,7 +305,7 @@
     },
     {
       "file": "src/pages/about.astro",
-      "sha256": "cae51d00158863990b1a02a06bd384b04d0348cf0dcc8f698f61df73b087a3f1"
+      "sha256": "9e08ef2773d18fd48231d9f74f5830628688e8cf63095cb7a91ec70c321891ee"
     },
     {
       "file": "src/pages/acp.astro",
@@ -321,7 +321,7 @@
     },
     {
       "file": "src/pages/changelog.astro",
-      "sha256": "fc792ea9deda87a414748eba1aebe364abfd837034b1e3742b8df7abe317f5b3"
+      "sha256": "cb2e53676e6630be01c6309971d5b5193d7bd73e3e04c63403481f8af0287886"
     },
     {
       "file": "src/pages/changelog.txt.ts",
@@ -736,8 +736,8 @@
     },
     {
       "file": "about/index.html",
-      "size": 28622,
-      "sha256": "d8c875f37b375906f545382267eead0dd4fa01ae50cde5bbb5ea887615bc23ab"
+      "size": 28626,
+      "sha256": "efdffda40c73598d0e3ad1cd7050ee64c7d85cae5044bec2e8abacfff18eeb96"
     },
     {
       "file": "acp/index.html",
@@ -762,7 +762,7 @@
     {
       "file": "changelog/index.html",
       "size": 25244,
-      "sha256": "4bd4c9d7cc593127e2c1d51f0674ab68811d3a76b3812aabcb1a448b8cfb93a8"
+      "sha256": "b063ccdd5ea4e216a66192c4b16a967da629842508300f042f334133f4b66d40"
     },
     {
       "file": "changelog.txt",
