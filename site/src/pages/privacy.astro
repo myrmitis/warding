@@ -1,7 +1,7 @@
 ---
 import PageLayout from "../layouts/PageLayout.astro";
 import WardBars from "../components/WardBars.astro";
-import { site, siteHost } from "../data/site";
+import { site } from "../data/site";
 
 /**
  * /privacy/ (site-spec §8): a plain-language summary. What the site collects
@@ -10,10 +10,9 @@ import { site, siteHost } from "../data/site";
  */
 const title = `${site.name} privacy`;
 const description = "A plain-language summary: this site collects nothing unless cookieless analytics is on, where a waitlist email goes, and what the product sends.";
-const contact = `hello@${siteHost}`;
 const analytics = site.analytics.provider;
 const wl = site.waitlist;
-const updated = "2026-10-09";
+const updated = "2026-09-29";
 ---
 <PageLayout endBand={false} title={title} description={description} h1="Privacy" lead={`A plain-language summary, not a contract drafted by a lawyer. It covers this website and the ${site.name} software. Updated ${updated}.`} breadcrumbs={[{ label: "Privacy", href: "/privacy/" }]} ogSlug="privacy">
   <div class="legal prose measure">
@@ -37,7 +36,7 @@ const updated = "2026-10-09";
         <li>A list endpoint we configure{wl.endpoint ? " (set up today)" : " (not set up today)"}: it receives your email, the list name and any answers you typed.</li>
         <li>Your own mail app, with a message to us prefilled{wl.mailto ? " (set up today)" : " (not set up today)"}. Nothing is sent until you press send.</li>
         <li>A GitHub Discussion{wl.discussionUrl ? " (set up today)" : " (not set up today)"}: you post the reply yourself, under your GitHub account, in public.</li>
-        <li>With none of those set up, the form does not take an address at all and points you to the repository.</li>
+        <li>With none of those set up, the form does not take an address and shows the source availability and beta limits.</li>
       </ol>
       <p>We use a waitlist address only to tell you about the thing you signed up for. We do not sell, rent or share it.</p>
     </section>
@@ -47,7 +46,7 @@ const updated = "2026-10-09";
       <h2 id="product-h">The software</h2>
       <p>{site.name} runs on your machine. Its data home, sessions, memory and audit log stay there. The default build sends nothing to us: there is no server of ours in the loop and no telemetry to us by default.</p>
       <p>It does talk to the services you point it at: your agent vendor, through the vendor's own CLI under your login, and the chat apps you connect. What those services do with the data is covered by their terms, not ours.</p>
-      <p>One download is not yours to choose by default: the embedding model is fetched from a third-party CDN address the first time embeddings are used, and checked against a pinned hash. You can point <code>memory.embed_model_url</code> at a mirror, or supply your own model file, to avoid it.</p>
+      <p>One download is not yours to choose by default: the embedding model is fetched from a CDN address inherited from the upstream codebase the first time embeddings are used, and checked against a pinned hash. You can point <code>memory.embed_model_url</code> at a mirror, or supply your own model file, to avoid it.</p>
     </section>
 
     <section aria-labelledby="pay-h">
@@ -59,7 +58,7 @@ const updated = "2026-10-09";
     <section aria-labelledby="contact-h">
       <WardBars align="left" />
       <h2 id="contact-h">Contact</h2>
-      <p>Questions, or a request to delete what we hold about you: <a href={`mailto:${contact}`}>{contact}</a>. {site.company} is one person; you will get a person.</p>
+      <p>Public contact setup is pending. Read the <a href="/about/#contact-h">contact status</a>. No mailing-list backend or analytics script is configured today.</p>
     </section>
   </div>
 </PageLayout>

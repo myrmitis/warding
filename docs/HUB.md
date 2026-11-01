@@ -10,6 +10,7 @@ This is the stable index for this owner-controlled repository. Existing source d
 | ARCHITECTURE.md | [ARCHITECTURE.md](../ARCHITECTURE.md) |
 | ROADMAP.md | [ROADMAP.md](../ROADMAP.md) |
 | CHANGELOG.md | [CHANGELOG.md](../CHANGELOG.md) |
+| Website publication and verification | [Publishing guide](../site/README.md) · [source recovery #27](https://github.com/myrmitis/warding/issues/27) |
 | Existing documentation | [Browse docs](./) |
 | Open work | [Issues](https://github.com/myrmitis/warding/issues), [pull requests](https://github.com/myrmitis/warding/pulls) |
 | Change and release evidence | [Commits](https://github.com/myrmitis/warding/commits), [Actions](https://github.com/myrmitis/warding/actions), [releases](https://github.com/myrmitis/warding/releases) |

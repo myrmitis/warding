@@ -1,0 +1,18 @@
+---
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
+import PageLayout from "../layouts/PageLayout.astro";
+import InstallTabs from "../islands/InstallTabs";
+import { site } from "../data/site";
+---
+<PageLayout title="Warding quickstart — Your local workspace" description="Review Warding setup prerequisites and local beta limits. Public source is available. Clean-machine installation remains unqualified." h1="Before you set up Warding." lead="Local beta. Public source is available on GitHub." breadcrumbs={[{ label: "Quickstart", href: "/quickstart/" }]} endBand={false}>
+  <section aria-labelledby="bring-agent"><h2 id="bring-agent">1. Bring your agent</h2><p>Install and sign in to a <a href="/registry/">supported coding-agent CLI</a>. Warding uses your own agent login. Provider terms, subscriptions and usage limits apply.</p><p>Chat uses one chosen harness. Capabilities and approval behavior vary by harness and launch path.</p></section>
+  <section aria-labelledby="install"><h2 id="install">2. Check source availability</h2><p>The intended setup builds Warding from a reviewed source checkout. Clean-machine installation remains unqualified; <a href={site.sourceStatus}>check source status</a> before attempting setup.</p><InstallTabs client:visible anchor="" /><p>No desktop app yet. No signed installers yet. No hosted service. A clean install and live end-to-end workflow have not yet been verified for this seed.</p></section>
+  <section aria-labelledby="shape-work"><h2 id="shape-work">3. Give the work a shape</h2><p>After obtaining a reviewed checkout, the intended workflow opens the local browser dashboard to start a chat and review project context. Schedules, checkpointed tasks and focused background agents are available through the dashboard or CLI.</p><p>Optional approvals require Interactive mode for gated tool calls. They do not replace a security boundary. Read the <a href="/security/">security model</a> before granting access to tools or files.</p><p>Schedules, channels, overnight runs and subagents routed through another installed harness are not yet runtime-verified. Check the <a href="/verified/">beta notes</a> before relying on them.</p></section>
+  <aside aria-labelledby="source-notes"><h2 id="source-notes">Source and attribution</h2><p>Warding by Myrmitis is Apache-2.0 software. Required upstream attribution is preserved in <a href={site.links.notice}>NOTICE</a>. Read the <a href="/lineage/">project lineage</a> and <a href={site.sourceStatus}>source availability and beta limits</a>.</p></aside>
+</PageLayout>
+<style>
+  section, aside { margin-bottom: 40px; max-width: 760px; }
+  h2 { font-size: clamp(1.5rem, 3vw, 2rem); line-height: 1.25; margin: 0 0 18px; }
+  p { color: var(--fg-2); line-height: 1.75; }
+  aside { padding-top: 28px; border-top: 1px solid var(--line); }
+</style>

@@ -1,30 +1,37 @@
 ---
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import PageLayout from "../layouts/PageLayout.astro";
 import WardBars from "../components/WardBars.astro";
 import { site } from "../data/site";
-import { loadChangelog } from "../data/rev-changelog";
+import { INHERITED_THROUGH, loadChangelog } from "../data/rev-changelog";
 
 /**
  * /changelog/: the repository's CHANGELOG.md parsed at build. Only shipped
  * `## [X.Y.Z] — date` sections, newest first, never an Unreleased section.
+ * Sections up to INHERITED_THROUGH are the upstream project's release notes
+ * carried in the tree; they are listed by version and date and linked, not
+ * reproduced, because they describe upstream's releases rather than ours.
  */
 const title = "Warding changelog";
 const description = "Every shipped release, parsed from the repository's CHANGELOG.md at build. Only shipped sections; nothing unreleased.";
 const sections = loadChangelog();
+const own = sections.filter((s) => s.own);
+const inherited = sections.filter((s) => !s.own);
+const changelogUrl = site.sourceStatus;
 const dateFmt = new Intl.DateTimeFormat("en-GB", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
 const pretty = (iso: string) => (iso ? dateFmt.format(new Date(`${iso}T00:00:00Z`)) : "undated");
 ---
 <PageLayout title={title} description={description} h1="Changelog" lead="Shipped releases, in the words written when they shipped. Nothing unreleased appears here." breadcrumbs={[{ label: "Changelog", href: "/changelog/" }]}>
   <div class="log">
-    {sections.length === 0 ? (
+    {own.length === 0 ? (
       <section class="empty tile" aria-labelledby="empty-h">
         <p class="eyebrow">Releases</p>
         <h2 id="empty-h">No tagged release yet.</h2>
-        <p class="measure">The first release writes its section to <code>CHANGELOG.md</code> under its final version number and appears here at the next build. Until then, the commit log is the record: <a href={`${site.githubRepo}/commits/main`} rel="noopener">commits on GitHub</a>.</p>
+        <p class="measure">The first release writes its section to <code>CHANGELOG.md</code> under its final version number and appears here after a reviewed export and manifest update. Public source and the commit log are available: <a href={site.sourceStatus}>source status</a>.</p>
         <p class="caption">Subscribe to <a href="/rss.xml">the RSS feed</a> for releases and guides.</p>
       </section>
     ) : (
-      sections.map((s) => (
+      own.map((s) => (
         <article class="release" id={`v${s.version.replace(/\./g, "-")}`} aria-labelledby={`rel-${s.version.replace(/\./g, "-")}`}>
           <header class="release-head">
             <WardBars align="left" />
@@ -35,10 +42,31 @@ const pretty = (iso: string) => (iso ? dateFmt.format(new Date(`${iso}T00:00:00Z
         </article>
       ))
     )}
+
+    {inherited.length > 0 && (
+      <section class="inherited" aria-labelledby="inh-h">
+        <WardBars align="left" />
+        <h2 id="inh-h">What the tree inherits</h2>
+        <p class="measure">The repository retains the original project's release notes up to {INHERITED_THROUGH}, unedited. They describe the original project's releases. Public source is available on GitHub; see <a href={changelogUrl} rel="noopener">source status</a>.</p>
+        <table class="matrix inh-table">
+          <thead><tr><th scope="col">Version</th><th scope="col">Date</th><th scope="col">Origin</th></tr></thead>
+          <tbody>
+            {inherited.map((s) => (
+              <tr>
+                <th scope="row"><span class="mono">{s.version}</span></th>
+                <td><time datetime={s.date || undefined}>{pretty(s.date)}</time></td>
+                <td class="unv">upstream project's release; carried in the tree</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    )}
   </div>
 </PageLayout>
 
 <style>
+  .empty > .eyebrow { color: var(--fg-2); }
   .log { display: grid; gap: 56px; max-width: 76ch; }
   .empty { display: grid; gap: 12px; padding: 28px; }
   .empty h2 { font-size: 1.75rem; }
@@ -49,4 +77,6 @@ const pretty = (iso: string) => (iso ? dateFmt.format(new Date(`${iso}T00:00:00Z
   .release-body :global(h4) { font-size: 1.125rem; color: var(--fg); }
   .release-body :global(ul) { margin: 0; padding-left: 1.25em; display: grid; gap: 8px; }
   .release-body :global(strong) { color: var(--fg); font-weight: 600; }
+  .inherited { display: grid; gap: 16px; }
+  .inh-table td, .inh-table th { white-space: normal; }
 </style>

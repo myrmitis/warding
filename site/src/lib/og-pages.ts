@@ -18,7 +18,9 @@ export interface OgPage {
 const groups = import.meta.glob<{ pages: OgPage[] }>("./og-pages/*.ts", { eager: true });
 
 export const staticOgPages: OgPage[] = [
-  { slug: "home", h1: "One agent, all night, on your own box.", qualifier: "Claude Code, Codex, Goose, OpenCode or kiro-cli · the one you choose", register: "night" },
+  { slug: "home", h1: "Your coding agent. A workspace of its own.", qualifier: "A local workspace for coding agents · Public source available · by Myrmitis", register: "night" },
+  { slug: "quickstart", h1: "Before you set up Warding.", qualifier: "Setup prerequisites · Public source available", register: "paper" },
+  { slug: "source", h1: "Source is publicly available.", qualifier: "Local beta · Public installation pending", register: "paper" },
   { slug: "404", h1: "That page is not on this floor.", qualifier: "The lamp is on. The page is not.", register: "night" },
   { slug: "compare", h1: "Compare", qualifier: "Fair comparisons, the other tool's strengths first", register: "paper" },
   { slug: "guides", h1: "Guides", qualifier: "Step by step, with the harness and date named", register: "paper" },

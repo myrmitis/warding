@@ -1,0 +1,71 @@
+---
+import CalendarDays from "@lucide/astro/icons/calendar-days";
+import MessageSquare from "@lucide/astro/icons/message-square";
+import Boxes from "@lucide/astro/icons/boxes";
+import BookOpen from "@lucide/astro/icons/book-open";
+import ListChecks from "@lucide/astro/icons/list-checks";
+const navigation = [
+  { label: "Sessions", icon: MessageSquare }, { label: "Schedule", icon: CalendarDays },
+  { label: "Artifacts", icon: Boxes }, { label: "Knowledge", icon: BookOpen },
+  { label: "Apps", icon: Boxes }, { label: "Task Runner", icon: ListChecks },
+];
+const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const hours = ["08:00", "12:00", "16:00"];
+const jobs = [{ day: 0, hour: 0 }, { day: 1, hour: 1 }, { day: 2, hour: 0 }, { day: 3, hour: 2 }, { day: 4, hour: 1 }, { day: 5, hour: 0 }, { day: 6, hour: 2 }];
+---
+<figure class="workspace-concept" aria-labelledby="concept-caption">
+  <figcaption id="concept-caption"><span>UI concept · Example data</span><span class="caption-detail">Illustrates scheduled jobs, not completed runs.</span></figcaption>
+  <div class="workspace-frame">
+    <div class="workspace-sidebar"><div class="workspace-brand">warding <span>workspace</span></div><ul>{navigation.map(({ label, icon: Icon }) => <li class:list={{ selected: label === "Schedule" }}><Icon aria-hidden="true" /><span>{label}</span></li>)}</ul><div class="sidebar-bottom"><span>Terminal</span><span>Agent Capabilities</span><span>Settings</span></div></div>
+    <div class="workspace-main">
+      <div class="workspace-heading"><div><h2>Schedule</h2><p>Create jobs for work that returns.</p></div><span class="command-label">Run a command</span></div>
+      <div class="calendar-toolbar"><div class="view-labels"><span>List</span><span class="active">Calendar</span><span>Executions</span></div><span class="add-label">+ Add Job</span></div>
+      <div class="calendar-meta"><span>Example week</span><span>Rendered in UTC</span></div>
+      <table class="calendar" aria-label="Illustrative schedule in UTC; example tasks are not recorded executions"><thead><tr><th scope="col"><span class="sr-only">Time</span></th>{days.map((day, i) => <th scope="col" class:list={{ "extra-day": i > 2 }}>{day}<span>{21 + i}</span></th>)}</tr></thead><tbody>{hours.map((hour, row) => <tr><th scope="row">{hour}</th>{days.map((_day, col) => <td class:list={{ "extra-day": col > 2 }}>{jobs.some((job) => job.day === col && job.hour === row) && <span class="job"><span class="sr-only">Example scheduled task</span><span aria-hidden="true">Task</span></span>}</td>)}</tr>)}</tbody></table>
+      <p class="concept-footer">Example calendar · controls are illustrative</p>
+    </div>
+  </div>
+</figure>
+<style>
+  .workspace-concept { margin: 0; border: 1px solid #353D4B; border-radius: 10px; background: #10151F; overflow: hidden; box-shadow: 0 20px 70px #0005; }
+  figcaption { display: flex; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid #303846; color: #D9D2C7; font-size: .75rem; background: #151B26; }
+  .caption-detail { color: #B8C0CB; }
+  .workspace-frame { display: grid; grid-template-columns: 185px minmax(0, 1fr); }
+  .workspace-sidebar { border-right: 1px solid #303846; padding: 26px 14px 16px; display: flex; flex-direction: column; }
+  .workspace-brand { font: 600 1.25rem var(--font-display); color: #ECE8E1; padding: 0 12px 20px; }
+  .workspace-brand span { display: block; font: 400 .6875rem var(--font-sans); color: #ADB6C4; margin-top: 4px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-left: 2px solid transparent; color: #B8C0CB; font-size: .8125rem; }
+  li :global(svg) { width: 16px; height: 16px; stroke-width: 1.5; }
+  li.selected { background: #232C3B; color: #FFE0A9; border-left-color: #FFB547; border-radius: 3px; }
+  .sidebar-bottom { display: grid; gap: 12px; margin-top: auto; padding: 24px 12px 0; color: #ADB6C4; font-size: .75rem; }
+  .workspace-main { min-width: 0; padding: 28px; }
+  .workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  h2 { margin: 0; font: 500 1.625rem var(--font-sans); letter-spacing: -.025em; color: #ECE8E1; }
+  .workspace-heading p { color: #B8C0CB; font-size: .8125rem; margin: 7px 0 0; }
+  .command-label { padding: 8px 12px; color: #C7CFDA; border: 1px solid #3C4555; border-radius: 4px; font-size: .75rem; }
+  .calendar-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 28px; }
+  .view-labels { display: flex; gap: 4px; color: #B8C0CB; font-size: .75rem; }
+  .view-labels span { padding: 7px 10px; border-radius: 4px; } .view-labels .active { background: #293445; color: #ECE8E1; }
+  .add-label { background: #FFB547; color: #11141C; padding: 7px 12px; border-radius: 4px; font-size: .75rem; font-weight: 500; }
+  .calendar-meta { display: flex; justify-content: space-between; margin: 20px 0 12px; font-size: .75rem; color: #B8C0CB; }
+  .calendar { width: 100%; table-layout: fixed; border-collapse: collapse; color: #C7CFDA; font-size: .75rem; }
+  .calendar th, .calendar td { border: 1px solid #303846; }
+  .calendar thead th { height: 58px; background: #171F2D; font-weight: 400; text-align: center; }
+  .calendar thead th span:not(.sr-only) { display: block; color: #ECE8E1; margin-top: 4px; font-size: .9375rem; }
+  .calendar th:first-child { width: 54px; } .calendar tbody th { font-weight: 400; color: #B8C0CB; }
+  .calendar td { height: 70px; padding: 7px; vertical-align: top; }
+  .job { display: block; border-left: 2px solid #FFB547; background: #503D25; color: #FFE0A9; border-radius: 3px; padding: 6px; font-size: .6875rem; }
+  .concept-footer { color: #ADB6C4; font-size: .6875rem; margin: 14px 0 0; }
+  @media (max-width: 900px) { .workspace-frame { grid-template-columns: 150px minmax(0, 1fr); } .workspace-main { padding: 22px 18px; } .workspace-sidebar { padding-inline: 8px; } }
+  @media (max-width: 700px) {
+    figcaption { padding: 12px; flex-direction: column; gap: 4px; } .caption-detail { font-size: .6875rem; }
+    .workspace-frame { grid-template-columns: minmax(0, 1fr); } .workspace-sidebar { border-right: 0; border-bottom: 1px solid #303846; padding: 12px; }
+    .workspace-brand { padding: 0 0 12px; font-size: 1rem; } .workspace-brand span { display: inline; margin-left: 6px; }
+    ul { display: flex; flex-wrap: wrap; gap: 3px; } li { padding: 6px 8px; font-size: .6875rem; border-left: 0; border-bottom: 2px solid transparent; } li :global(svg) { width: 13px; height: 13px; }
+    li.selected { border-bottom-color: #FFB547; } .sidebar-bottom { display: none; } .workspace-main { padding: 20px 12px 14px; }
+    .workspace-heading { align-items: flex-start; } h2 { font-size: 1.375rem; } .workspace-heading p { font-size: .75rem; max-width: 180px; }
+    .command-label { display: none; } .calendar-toolbar { margin-top: 20px; } .view-labels span { padding: 6px 7px; font-size: .6875rem; } .add-label { padding: 6px 8px; font-size: .6875rem; }
+    .extra-day { display: none; } .calendar td { height: 57px; } .calendar th:first-child { width: 44px; } .calendar-meta { font-size: .6875rem; }
+  }
+</style>

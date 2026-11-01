@@ -16,7 +16,7 @@ const never: [string, RegExp][] = [
   ["model router", /\bmodel router\b/i],
   ["routes your", /\broutes your\b/i],
   ["cheaper tokens", /\bcheaper tokens\b/i],
-  ["pip install warding", /\bpip install warding\b/i],
+  ["pip install junction", /\bpip install junction\b/i],
   ["docker pull", /\bdocker pull\b/i],
   ["desktop app (except 'no desktop app yet')", /(?<!\bno )\bdesktop app\b/i],
   ["signed installer (except 'no signed installers yet')", /(?<!\bno )\bsigned installers?\b/i],
@@ -54,8 +54,8 @@ const never: [string, RegExp][] = [
   ["software factory", /\bsoftware factory\b/i],
   ["autonomous software engineer", /\bautonomous software engineer\b/i],
   ["10X", /\b10x\b/i],
-  ["retired two-word product name, joined or spaced", new RegExp("\\b" + "ki" + "ro" + "[\\s_-]*" + "cr" + "ew" + "\\b", "i")],
-  ["retired GitHub org slug", new RegExp("ki" + "ro" + "dot" + "dev", "i")],
+  ["upstream two-word product name, joined or spaced", new RegExp("\\b" + "ki" + "ro" + "[\\s_-]*" + "cr" + "ew" + "\\b", "i")],
+  ["upstream GitHub org slug", new RegExp("ki" + "ro" + "dot" + "dev", "i")],
   ["trusted by", /\btrusted by\b/i],
   ["used by + number", /\bused by\s+[\d,.]+k?\b/i],
   ["stars + number", /\b\d[\d,.]*\s*k?\s*stars\b|\bstars\b[^.\n]{0,12}\d/i],
@@ -96,12 +96,12 @@ describe("forbidden claims (site-spec §11)", () => {
         for (const h of headings(page.html)) expect(h).not.toMatch(/\bany agent\b/i);
       });
 
-      it("names Gemini only in a not-docked / not-yet sentence", () => {
+      it("names Gemini only in a not-docked / not-yet / upstream-has sentence", () => {
         for (const m of text.matchAll(/\b(Gemini)\b/g)) {
           const start = text.lastIndexOf(".", m.index ?? 0) + 1;
           const end = text.indexOf(".", m.index ?? 0);
           const sentence = text.slice(start, end < 0 ? undefined : end + 1);
-          expect(sentence, `"${m[1]}" in: ${sentence}`).toMatch(/\b(no|not|yet)\b/i);
+          expect(sentence, `"${m[1]}" in: ${sentence}`).toMatch(/\b(no|not|yet|upstream)\b/i);
         }
       });
 

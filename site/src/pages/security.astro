@@ -1,4 +1,5 @@
 ---
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import PageLayout from "../layouts/PageLayout.astro";
 import StatusChip from "../components/StatusChip.astro";
 import WardBars from "../components/WardBars.astro";
@@ -11,7 +12,6 @@ import { softwareApplication } from "../lib/seo";
 import Ban from "@lucide/astro/icons/ban";
 import Link2 from "@lucide/astro/icons/link-2";
 import ArrowRight from "@lucide/astro/icons/arrow-right";
-import securityShot from "../assets/shots/default-settings-security.png";
 
 /**
  * /security/ (site-spec §4): the charter, the scope table a reviewer greps for
@@ -22,7 +22,7 @@ import securityShot from "../assets/shots/default-settings-security.png";
  * The denied-command rule count is deliberately never written in prose.
  */
 const title = "A sandboxed coding agent with a policy it cannot edit";
-const description = "OS sandbox, built-in deny rules, blocked ~/.ssh and ~/.aws paths, credential redaction and a hash-chained audit log, with what holds where, per OS.";
+const description = "OS sandbox, built-in deny rules, blocked ~/.ssh and ~/.gnupg paths, credential redaction and a hash-chained audit log, with what holds where, per OS.";
 const lead = `A policy file the agent cannot read or write, built-in deny rules for secrets and destructive commands, credential redaction, an OS sandbox where one is available, and a hash-chained audit log. Enforced at ${site.name}'s own gate. Unaudited by a third party. Here is exactly what is covered, what isn't, and what is still in development.`;
 
 const home = "~/.warding";
@@ -31,15 +31,15 @@ const keystoneHome = [
   `${home}/denied_commands.json`, `${home}/.env`, `${home}/trust/`, `${home}/security_events.jsonl`,
 ];
 const keystoneUser = [
-  "~/.ssh", "~/.aws", "~/.gnupg", "~/.gpg", "~/.config/gcloud", "~/.azure", "~/.docker/config.json",
+  "~/.ssh", "~/.gnupg", "~/.gpg", "~/.config/gcloud", "~/.azure", "~/.docker/config.json",
   "~/.kube/config", "~/.npmrc", "~/.pypirc", "~/.netrc", "~/.git-credentials",
 ];
 const denyCategories = [
-  "aws-destructive", "sensitive-file-read", "credential-exfil", "local-destructive", "self-protection",
+  "sensitive-file-read", "credential-exfil", "local-destructive", "self-protection",
   "git-publish", "iac-teardown", "sql", "pipe-to-shell", "reverse-shell",
 ];
 const credentialShapes = [
-  "AWS access key ids (AKIA… / ASIA…) and aws_secret_access_key / aws_session_token values",
+  "Cloud access-key identifiers and secret/session-token values",
   "PEM private-key blocks, including encrypted and truncated ones",
   "GitHub, GitLab, npm and PyPI tokens",
   "Slack and Telegram bot tokens",
@@ -49,7 +49,7 @@ const credentialShapes = [
 
 type Fails = "closed" | "open" | "mixed";
 const scope: { control: string; where: string; fails: Fails; failText: string }[] = [
-  { control: "Keystone paths", where: `${site.name}'s PreToolUse gate, for file tools and for read, write and extract verbs in shell commands. The OS sandbox also hides credential directories: ~/.gnupg, ~/.config/gcloud, ~/.azure and ~/.docker in every tier, ~/.aws and ~/.kube in the stricter tiers.`, fails: "closed", failText: "closed" },
+  { control: "Keystone paths", where: `${site.name}'s PreToolUse gate, for file tools and for read, write and extract verbs in shell commands. The OS sandbox also hides credential directories: ~/.gnupg, ~/.config/gcloud, ~/.azure and ~/.docker in every tier, additional credential directories, including ~/.kube, in the stricter tiers.`, fails: "closed", failText: "closed" },
   { control: "Denied commands", where: "PreToolUse gate", fails: "closed", failText: "closed" },
   { control: "POLICY ∩ PROFILE for tools and MCP calls", where: "PreToolUse gate", fails: "mixed", failText: "closed for denied calls; open for tools the harness pre-authorised (a pre-authorised tool can skip the hook)" },
   { control: "Computer use", where: "in band on the tool dispatch path, never at the hook", fails: "closed", failText: "closed; off by default; one operator opt-in on the keystone file" },
@@ -65,10 +65,10 @@ const sandboxRows: { os: string; kind: "approved" | "refused" | "pending"; label
   { os: "Ubuntu 23.10 and newer", kind: "refused", label: "Fails closed", note: `The default AppArmor setting blocks the mount namespace. Run ${site.cli} service install: it asks for sudo and installs a narrow profile that grants only userns, attached to the service by systemd. A gateway started by hand stays unconfined, so it refuses to spawn.` },
   { os: "Containers without user namespaces", kind: "refused", label: "Fails closed", note: "Usually the container's own seccomp filter denies unshare. Nothing spawns until you fix that or opt in." },
   { os: "macOS (Seatbelt)", kind: "approved", label: "Sandboxed", note: "sandbox-exec with a generated profile, including macOS 26. Availability is probed empirically at runtime, not gated on a version number." },
-  { os: "Windows", kind: "refused", label: "Fails closed", note: "There is no sandbox backend of ours, so agent processes refuse to start until you opt in. A reviewed kiro-cli spawn uses kiro-cli's own sandbox instead." },
+  { os: "Windows", kind: "refused", label: "Fails closed", note: "There is no sandbox backend of ours, so agent processes refuse to start until you opt in. A reviewed legacy-adapter spawn uses the selected legacy adapter's own sandbox instead." },
 ];
 
-const selLine = `{"event_id":"6c1d0e9a7f3b2a54","timestamp":"2026-09-27T03:05:41.208113+00:00","event_type":"tool_invocation","caller_identity":"acp:3f2a9c…","agent":"warding","source":"acp","operation":"execute_bash","tool_kind":"execute","outcome":"denied","resources":"git push origin main","error":"denied command (git-publish)","prev_hash":"b71e42…","entry_hash":"9f2c8d…"}`;
+const selLine = `{"event_id":"6c1d0e9a7f3b2a54","timestamp":"2026-09-27T03:05:41.208113+00:00","event_type":"tool_invocation","caller_identity":"acp:3f2a9c…","agent":"junction","source":"acp","operation":"execute_bash","tool_kind":"execute","outcome":"denied","resources":"git push origin main","error":"denied command (git-publish)","prev_hash":"b71e42…","entry_hash":"9f2c8d…"}`;
 ---
 <PageLayout title={title} description={description} h1="Some things it is not allowed to do, and we show you where that holds." lead={lead} breadcrumbs={[{ label: "Security", href: "/security/" }]} ogSlug="security" jsonLd={[softwareApplication()]}>
   <div class="sec">
@@ -101,7 +101,7 @@ const selLine = `{"event_id":"6c1d0e9a7f3b2a54","timestamp":"2026-09-27T03:05:41
           <p class="caption proof-label">Under the data home</p>
           <ul class="keystone-list">{keystoneHome.map((k) => <li>{k}</li>)}</ul>
           <p class="caption proof-label">Under your home directory</p>
-          <ul class="keystone-list">{keystoneUser.map((k) => <li>{k}</li>)}<li>… and the kiro-cli auth stores</li></ul>
+          <ul class="keystone-list">{keystoneUser.map((k) => <li>{k}</li>)}<li>… and the legacy-adapter auth stores</li></ul>
         </div>
       </article>
 
@@ -140,7 +140,7 @@ prev_hash <Link2 class="lucide lucide-inline" aria-hidden="true" /> entry_hash</
         <div class="article-proof">
           <pre class="terminal" tabindex="0" role="region" aria-label="How the effective policy is computed"><code>effective = POLICY ∩ PROFILE
 <span class="dim"># denied unless both grant it</span></code></pre>
-          <p class="caption proof-label">Denied-command categories</p>
+          <p class="caption proof-label">Denied-command categories (excerpt)</p>
           <ul class="cat-list">{denyCategories.map((c) => <li class="mono">{c}</li>)}</ul>
         </div>
       </article>
@@ -150,7 +150,7 @@ prev_hash <Link2 class="lucide lucide-inline" aria-hidden="true" /> entry_hash</
         <p class="caption"><code>{site.cli} charter</code> <StatusChip kind="coming" label="in development" />: one page with your effective policy, profile by profile. Until it ships, <code>{site.cli} policy show</code> prints the active policy and the rule categories.</p>
       </div>
 
-      <div class="plate-wrap"><Plate num="I" title="The posture page" caption="Dashboard · Settings Security · 2026-09-26 · no agent connected" src={securityShot} alt="The dashboard's Security settings page listing the live posture: process sandbox, tool approval, sensitive path blocking, write-protected paths, denied commands, output redaction and credential patterns." crop={0.5} cropTop={0.48} sizes="(min-width: 1200px) 880px, 92vw" /></div>
+      <div class="plate-wrap"><Plate num="I" title="The posture page" caption="Dashboard · capture pending · 2026-10-07 · no agent connected" alt="The dashboard's Security settings page listing the live posture: process sandbox, tool approval, sensitive path blocking, write-protected paths, denied commands, output redaction and credential patterns." crop={0.5} cropTop={0.48} sizes="(min-width: 1200px) 880px, 92vw" /></div>
     </section>
 
     <!-- 2. Scope -->
@@ -227,7 +227,7 @@ prev_hash <Link2 class="lucide lucide-inline" aria-hidden="true" /> entry_hash</
       <div class="refusal">
         <div class="stamp-seal"><Ban class="lucide" aria-hidden="true" /> Refused · built-in rule · 03:05:41</div>
         <pre class="terminal sel-line" tabindex="0" role="region" aria-label="One audit log entry"><code>{JSON.stringify(JSON.parse(selLine), null, 2)}</code></pre>
-        <p class="caption">The fields are the log's real ones (<code>SecurityEvent</code> in <code>sel.py</code>); the values are illustrative. <code>agent</code> reads <code>warding</code>, the default agent profile.</p>
+        <p class="caption">The fields are the log's real ones (<code>SecurityEvent</code> in <code>sel.py</code>); the values are illustrative. <code>agent</code> reads <span class="mono" data-alias>junction</span>, the package's internal name.</p>
       </div>
       <p><a href="/approvals/">What does reach your phone, per chat app <ArrowRight class="lucide lucide-inline" aria-hidden="true" /></a></p>
     </section>
@@ -237,9 +237,8 @@ prev_hash <Link2 class="lucide lucide-inline" aria-hidden="true" /> entry_hash</
       <WardBars align="left" />
       <h2 id="report-h">Report a vulnerability</h2>
       <div class="measure prose">
-        <p>Please don't open a public issue. Use GitHub's <a href={`${site.githubRepo}/security/advisories/new`} rel="noopener">private vulnerability report</a> with a description, steps to reproduce, the impact and a fix if you have one.</p>
-        <p>We acknowledge reports within 48 hours and aim to fix or mitigate critical issues within 7 days. Only the latest release gets security patches. Third-party services the product connects to, such as model providers, are out of scope.</p>
-        <p class="caption">The full policy: <a href={site.links.securityMd} rel="noopener">SECURITY.md</a>.</p>
+        <p>Please don't post vulnerabilities in public issues. A verified private reporting channel remains pending. No response-time commitment is verified for this beta.</p>
+        <p>Third-party services such as model providers are out of scope. Read the <a href={site.sourceStatus}>source status</a> and the scope statement above. A reporting channel must be established before a public source launch.</p>
       </div>
     </section>
 

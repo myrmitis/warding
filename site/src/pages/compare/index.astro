@@ -3,7 +3,7 @@ import PageLayout from "../../layouts/PageLayout.astro";
 import { getCollection } from "astro:content";
 const entries = (await getCollection("compare")).filter((e) => !e.data.draft);
 ---
-<PageLayout title="Compare Warding with OpenClaw, Paseo and Routines" description="Fair, sourced comparisons, including what the other tool does better." h1="Compare" lead="The other tool's strengths first. Primary sources only." breadcrumbs={[{ label: "Compare", href: "/compare/" }]}>
+<PageLayout title="Compare Warding with OpenClaw, Paseo and upstream" description="Fair, sourced comparisons, including what the other tool does better." h1="Compare" lead="The other tool's strengths first. Primary sources only." breadcrumbs={[{ label: "Compare", href: "/compare/" }]}>
   {entries.length === 0 ? (
     <p class="caption">Comparisons are being written. Each one cites primary sources and says where the other tool wins.</p>
   ) : (

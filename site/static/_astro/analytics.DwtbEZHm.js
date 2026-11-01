@@ -1,0 +1,1 @@
+function e(e,t={}){try{if(typeof window>`u`)return;window.plausible?window.plausible(e,{props:t}):window.umami&&window.umami.track(e,t)}catch{}}export{e as t};

@@ -1,0 +1,35 @@
+# Warding
+
+> Warding by Myrmitis is a local workspace for coding agents. Bring your coding-agent CLI for browser chat, schedules, checkpointed tasks and optional approvals on your own machine. Local beta, Apache-2.0; public source is available on GitHub. Schedules, channels and overnight runs are not yet runtime-verified.
+
+## What is true
+
+- Chat sessions run the one harness you choose in one setting. The harness router can send a spawned subagent to another installed harness (flat-rate quota before metered, task kind, a cooldown after a usage limit or failed login); it picks a harness and never forwards provider traffic. Registered, not verified at runtime.
+- No model routing: the model catalog lists names only; nothing is forwarded and no keys are held.
+- No hosted service, no account with Myrmitis, no multi-user mode. It runs on your hardware.
+- 10 chat channels: 5 with in-chat approve buttons, 1 with typed approvals (WhatsApp), 4 chat-only.
+- Registry of 11 runtimes (cursor, claude, codex, kimi, dsh, goose, grok, opencode, pi, droid, Legacy ACP adapter); a capability counts as verified only with a dated row on /verified/.
+- Apache-2.0 software derived from an open-source agent workspace; required attribution is served at /notice.txt.
+- Source status: https://warding.dev/source/. Public source, installation and downloads are not available yet.
+
+## Pages
+
+- [Home](https://warding.dev/): the workspace concept, capabilities, setup steps and beta limits.
+- [Quickstart](https://warding.dev/quickstart/): setup prerequisites and qualification limits; clean-machine installation remains unqualified.
+- [Beta notes](https://warding.dev/verified/): verification scope and unverified runtime paths.
+- [Claude Code Routines and Channels alternative, self-hosted](https://warding.dev/compare/claude-code-routines/): Routines run without approvals and have per-account caps. Warding: your box, mid-run approvals in five chat apps, ten channels, the harness you choose.
+- [OpenClaw alternative for coding: sandboxed, self-hosted](https://warding.dev/compare/openclaw/): Want an agent you can text from Telegram, but for real code work? Compare on agents, channels, sandboxing, policy and audit. Sources cited.
+- [Paseo vs Warding: at the keyboard vs on the box](https://warding.dev/compare/paseo/): Paseo runs several agents at once while you watch. Warding runs the agent you choose unattended, under a policy it can't edit. Use both.
+- [Warding vs its upstream: same engine, what we add and lack](https://warding.dev/compare/upstream/): Warding derives from an Apache-2.0 agent workspace. The shared engine, our changes, and the original project's strengths.
+- [How to run Claude Code 24/7 on a home server or VPS](https://warding.dev/guides/run-claude-code-24-7/): Step by step: install Claude Code, run Warding as a service, connect Telegram, add a schedule, lock it down with the sandbox and a policy.
+- [Write a policy your coding agent can't edit](https://warding.dev/guides/write-a-policy/): The keystone, profiles, POLICY ∩ PROFILE, deny rules and the audit log, with a worked example and how to read the effective permissions.
+- [Discord for your coding agent, with approve buttons](https://warding.dev/channels/discord/): Owner-only coding agent in Discord DMs and approved threads, with Approve / Deny buttons on gated tool calls, running on your own box.
+- [Feishu chat for your coding agent (chat only today)](https://warding.dev/channels/feishu/): Chat with your coding agent from Feishu or Lark today. In-chat approvals are planned, not built: buttons for Feishu. Join the list.
+- [iMessage chat for your coding agent (chat only today)](https://warding.dev/channels/imessage/): Chat with your coding agent from iMessage today. In-chat approvals are planned, not built: typed replies for iMessage. Join the list.
+- [Slack for your coding agent, with approve buttons](https://warding.dev/channels/slack/): Owner-only coding agent in Slack with Approve / Deny buttons on gated tool calls, running on your own box over Socket Mode. Setup and limits.
+- [Microsoft Teams for your coding agent, with approve buttons](https://warding.dev/channels/teams/): Owner-only coding agent in a Microsoft Teams 1:1 chat, with Approve / Deny cards on gated tool calls. Needs a public HTTPS URL you provide.
+- [Claude Code and Codex from Telegram, with approvals](https://warding.dev/channels/telegram/): Message your coding agent from Telegram. Sessions live on your own machine; risky tool calls arrive as Approve / Deny buttons. Why not the official plugin.
+- [Webex for your coding agent, with approve buttons](https://warding.dev/channels/webex/): Owner-only coding agent in Webex with Approve / Deny buttons on gated tool calls, a typed fallback, and no public URL. Runs on your own box.
+- [WeChat chat for your coding agent (chat only today)](https://warding.dev/channels/wechat/): Chat with your coding agent from personal WeChat, signed in with a QR code. In-chat approvals are not built and not scheduled. Join the list.
+- [WeCom chat for your coding agent (chat only today)](https://warding.dev/channels/wecom/): Chat with your coding agent from WeCom today through an AI bot. In-chat approvals are planned, not built: buttons for WeCom. Join the list.
+- [Run Claude Code or Codex from WhatsApp, self-hosted](https://warding.dev/channels/whatsapp/): Pair WhatsApp with a QR code and send tasks to the agent on your own machine. Approvals are typed replies on WhatsApp, stated plainly.

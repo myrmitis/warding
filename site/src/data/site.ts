@@ -7,21 +7,24 @@
  */
 export const site = {
   name: "Warding",
-  company: "Warding Labs",
+  company: "Myrmitis",
   publisher: {
     name: "Myrmitis",
     url: "https://myrmitis.com",
   },
-  // Every canonical URL, OG image URL, sitemap entry and the footer domain text
-  // derive from it.
+  // Canonical identity for the local seed. DNS and production attachment
+  // are separate owner actions; this value does not perform a cutover.
   domain: "https://warding.dev",
-  githubRepo: "https://github.com/myrmitis/warding",
+  githubRepo: "https://github.com/myrmitis/warding", // Intended repository, not a public download.
+  sourceAvailable: true, // Enable only after anonymous access to the reviewed source is verified.
+  sourceStatus: "/source/",
   version: "0.5.0", // pyproject version; shown next to the install command
   nightsVerified: false, // flips [pre] -> [post] copy; the claims test enforces it
   installOneLiner: "", // "" -> quickstart tabs + "Copy the quickstart"
   tagline: "The lamp stays on. The rules stay shut.",
   taglineShort: "The lamp stays on.",
   cli: "warding",
+  cliAlias: "junction",
   links: {
     supporterCheckout: "", // Polar checkout link; "" -> "Opens November", disabled, aria-disabled
     supporterMonthly: "", // Polar monthly link
@@ -32,7 +35,8 @@ export const site = {
     discord: "",
     discussions: "",
     telegramGroup: "", // "" -> that footer link hidden
-    securityMd: "https://github.com/myrmitis/warding/blob/main/SECURITY.md",
+    securityMd: "/security/#report",
+    notice: "/notice.txt",
   },
   waitlist: {
     endpoint: "", // POST JSON {email, list, answers}; "" -> fallback chain (site-spec §10)

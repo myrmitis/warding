@@ -1,0 +1,1165 @@
+{
+  "schema": 1,
+  "source_tree": "cf24e5210f5794ebfeabe29e511320b76ddbf0ad",
+  "mode": "Reviewed static export with narrow-phone header spacing and policy-guide inline wrapping; retained authoring is provenance and is not recompiled by publisher.",
+  "authoring_inputs": [
+    {
+      "file": "src/assets/cli-junction-planes.txt",
+      "sha256": "5c7feea2f011bc304ddb3f17c8ac1c4591c978f0c2922bb59b057a3520487805"
+    },
+    {
+      "file": "src/assets/fonts/DepartureMono-Regular.woff",
+      "sha256": "8ede4e8a40475d440389d1bb44201bd3067129a62c718158921b111ceb52fca5"
+    },
+    {
+      "file": "src/assets/launch/late-desk.png",
+      "sha256": "516c78c040e10c1053cefece62dccb85e2df1b066e0da08245cc72bf6c7b3dfc"
+    },
+    {
+      "file": "src/components/Button.astro",
+      "sha256": "f6af7b4fbc8d709b8d51d5d405fc12eaf8623c4d0cc9bef5a6765e3d1897c535"
+    },
+    {
+      "file": "src/components/ChChatOnly.astro",
+      "sha256": "45a6118de81a434e1ca110c5ca281d560318b88845c61c1e4950616ae9bbe698"
+    },
+    {
+      "file": "src/components/ChExchange.astro",
+      "sha256": "0b586a82a529ce84c40d01bfe3afcaca1056a15abf66d5e4fe0253c9299fe185"
+    },
+    {
+      "file": "src/components/ChPluginCompare.astro",
+      "sha256": "e0796e67745ba4c988079aa3fbfd5a3283e3fdd0579d57f9908e22922cac3dd7"
+    },
+    {
+      "file": "src/components/ChProse.astro",
+      "sha256": "33589c482b9f090c07cca85c954c0289fa875cbe52695af848d3f0dffdcffb0f"
+    },
+    {
+      "file": "src/components/ChTable.astro",
+      "sha256": "614ccc6fd81125783bab20c2ca60d6592db78c930e3a49468230db041c2c66e4"
+    },
+    {
+      "file": "src/components/CharterSheet.astro",
+      "sha256": "7d8d319977274351137f2cfd3c4efbd2be23f46d52df2d08b577490db964ef77"
+    },
+    {
+      "file": "src/components/ClockHead.astro",
+      "sha256": "a72828b0636fcd93a4dad1820cfe630e41021ad51050c280cfe2b3e8bc7d28a7"
+    },
+    {
+      "file": "src/components/FaqItem.astro",
+      "sha256": "65508c62c63acd0bf333f9d583f281d3755dafc6849dbab8a1cd336d43b11460"
+    },
+    {
+      "file": "src/components/Footer.astro",
+      "sha256": "346a7bd84e2c974e23ccb1c6242a283148852ade61e0b2fc054a5f80be5efe83"
+    },
+    {
+      "file": "src/components/GithubMark.astro",
+      "sha256": "056ad1070f9017a35b889805086ce472d68099e9f6c6b63c03cdf55f027e284c"
+    },
+    {
+      "file": "src/components/LinkButton.astro",
+      "sha256": "77d340e0a15c7ab35111246d0e212271716cd7f904de87362f588e88f1d7503f"
+    },
+    {
+      "file": "src/components/Nav.astro",
+      "sha256": "adb49116befee14268ecdf43001beb48da713c39acadf8771e189dd580e38aad"
+    },
+    {
+      "file": "src/components/PhoneCard.astro",
+      "sha256": "b58cf1625438c44fabbd0782711664c5ce37ca74106b857fbcf57def42ce0d0c"
+    },
+    {
+      "file": "src/components/Plate.astro",
+      "sha256": "d28ee07bee5afd694506e47a2e687ef8bbbed6103e34e4d5c7fbba987e47d95b"
+    },
+    {
+      "file": "src/components/ScheduleConcept.astro",
+      "sha256": "cf05b7fa5756c12f93ca0e1bf204d6202497ad6260b1928b7240e9703db43e56"
+    },
+    {
+      "file": "src/components/SecDontClaim.astro",
+      "sha256": "03205efd95afdfb1ff66d110a3e1f7311c41287d6b9c7616525ed3836a183a2e"
+    },
+    {
+      "file": "src/components/StatusChip.astro",
+      "sha256": "317077d16f6a90c7a81850ba27e3abb26126bede47398a431aaa466d755c9b74"
+    },
+    {
+      "file": "src/components/VerifyLedger.astro",
+      "sha256": "8db138c9640a9a3bf7ccbeb39b5495fc8243043c370f6db34a9753d0c7ebfa2f"
+    },
+    {
+      "file": "src/components/WardBars.astro",
+      "sha256": "33525c2fc4987084ff7a0cf46aa7bf68753e106e55d245f1ade4b81f3f6216c6"
+    },
+    {
+      "file": "src/components/WardSeal.astro",
+      "sha256": "a08ae682219343b182fa0d615b0f432320b24bb2b02303404c7674939801bbad"
+    },
+    {
+      "file": "src/content/channels/_template.mdx",
+      "sha256": "6ba6c847321d00db021ef2e6ba6edafff8405f185a444e6d992ffa40c6edf943"
+    },
+    {
+      "file": "src/content/channels/discord.mdx",
+      "sha256": "ebaeba080d0c4512abe75e2cca3292d23c7ef8c9f1207af01834685dd19297f7"
+    },
+    {
+      "file": "src/content/channels/feishu.mdx",
+      "sha256": "2f96ccafad0d78e1e1296b106767c4390bc5e398d1a5ba1cd5ba0f389d40df1c"
+    },
+    {
+      "file": "src/content/channels/imessage.mdx",
+      "sha256": "da0662d6fcbfd413467a1c6cb0fe10dd3c926ca0e65108239465c96b3b620fc6"
+    },
+    {
+      "file": "src/content/channels/slack.mdx",
+      "sha256": "b99326f0d4e2f9822a9e41b7281a0f1e7ed7d594a1ceb3058dc91573bd152894"
+    },
+    {
+      "file": "src/content/channels/teams.mdx",
+      "sha256": "7db59cb5f8edca6766ff1da799229319756256dc566bcaaba6208e4b111c7b36"
+    },
+    {
+      "file": "src/content/channels/telegram.mdx",
+      "sha256": "88f10b57da68d40d571c3a5cc3d659d354a76ab53c371a6e288e6811ca965285"
+    },
+    {
+      "file": "src/content/channels/webex.mdx",
+      "sha256": "c455966b5a1eb0ae89b137fd71d27e45d3b89a5ccca5c4ab48f14f0d8819801b"
+    },
+    {
+      "file": "src/content/channels/wechat.mdx",
+      "sha256": "5bf72b822119a5237ac1526c3cf06778a0698226f711ae469d9e823abb85a33a"
+    },
+    {
+      "file": "src/content/channels/wecom.mdx",
+      "sha256": "dc7c29050fe93cac9fa77a65fb4b116830ad910e8f7a657a23f6dcd3fb944e08"
+    },
+    {
+      "file": "src/content/channels/whatsapp.mdx",
+      "sha256": "b4149a49938c136a9514af93c69460d00031800f881903b51768e60095c40e93"
+    },
+    {
+      "file": "src/content/compare/_template.mdx",
+      "sha256": "224a759694c9dde15576dfc6f115edd99d6eb82cecb1fe15373cc343de8c282e"
+    },
+    {
+      "file": "src/content/compare/claude-code-routines.mdx",
+      "sha256": "048a1941fb0a02f73939b8d7c5fb68ef8c6ac7c61e87fa9d237b141cab4586ba"
+    },
+    {
+      "file": "src/content/compare/openclaw.mdx",
+      "sha256": "ada20ac0b8c9c3ba9f1f912cbbbb1d34dcf17b8ec8a1ff2b9125b31b0b0daec2"
+    },
+    {
+      "file": "src/content/compare/paseo.mdx",
+      "sha256": "02b02de81e3bb8131d987e988e2db3817659d791fd61e029aa348765ee25d769"
+    },
+    {
+      "file": "src/content/compare/upstream.mdx",
+      "sha256": "1d4a17daf074e1cd24784f08e018ee9d2b5fce4c2b7a9c097fedc0a135a4f82b"
+    },
+    {
+      "file": "src/content/guides/_template.mdx",
+      "sha256": "d518d223569f669c06c3dc67c044de6154b2921a966cf76978816972152b7477"
+    },
+    {
+      "file": "src/content/guides/run-claude-code-24-7.mdx",
+      "sha256": "73367557cae68f3389afda269112025ba44771fe562a8f781956d465ae61c9eb"
+    },
+    {
+      "file": "src/content/guides/write-a-policy.mdx",
+      "sha256": "6f3df7463313acf2c814a103ca900dba4b14a2cbd24d2d4407959e71a2bb17d5"
+    },
+    {
+      "file": "src/content.config.ts",
+      "sha256": "519e038b5f6c7841b03f74a83b91cd2f36195fe537c8455df91246ea12d27eec"
+    },
+    {
+      "file": "src/data/channels.ts",
+      "sha256": "441b9f0e47208c07231c631c39349be72dfc41a74be2a7c7bd0d4a29acb8bb10"
+    },
+    {
+      "file": "src/data/harnesses.ts",
+      "sha256": "baf911abde0c4a9692466089b82a450178954e35c20434cd5560530921c8ae9a"
+    },
+    {
+      "file": "src/data/nav.ts",
+      "sha256": "7579a71608e5382447e4b52edc02c1c79f49670d74d16488469989fa4187d75e"
+    },
+    {
+      "file": "src/data/pricing.ts",
+      "sha256": "0fbeae5fb61e91d6708aa28735169cb877f156323c5fcf2ca2b19c716f3ed38d"
+    },
+    {
+      "file": "src/data/rev-changelog.ts",
+      "sha256": "6ef777aca62b16cb393e55f3f2756325e85c8f28d4fbae6a2fdc1193aed654d0"
+    },
+    {
+      "file": "src/data/rev-pricing.ts",
+      "sha256": "24d8cabcb7f7d741e51714691f89438b01bf0e123f584f0e0354982579aada45"
+    },
+    {
+      "file": "src/data/rev-verified.ts",
+      "sha256": "d2abad1f201f81b61d6b66475fc0517bca68c828737e6328fb370fffe67041f2"
+    },
+    {
+      "file": "src/data/site.ts",
+      "sha256": "cd67f688cbe6d6fa535c7443a067eb1550eb21e727436f2d4629360d22237ce4"
+    },
+    {
+      "file": "src/env.d.ts",
+      "sha256": "9c9283a414423d9223e5ea86941b142443b8af7a007f77612dc2c098de2d2500"
+    },
+    {
+      "file": "src/islands/ApproveFromChatDemo.tsx",
+      "sha256": "708d01e0824e919767d4d7e55be0b3d525a8c25fdc278a03e254e9adee1eaa29"
+    },
+    {
+      "file": "src/islands/InstallTabs.tsx",
+      "sha256": "5eef3fffabf44952902f8d37d7fab0231e2f3ec17bae60d243d82474b2bef436"
+    },
+    {
+      "file": "src/islands/WaitlistForm.tsx",
+      "sha256": "24ef24d76ac2740b5c96d3ec38dad022b7cd18fe6bf32315c39b108f5721d1a8"
+    },
+    {
+      "file": "src/islands/world/Drollery.tsx",
+      "sha256": "eecc2d5a2910c3c565fba27b0ef72c44946ed2891db1adc34f8e04e1cd7d116a"
+    },
+    {
+      "file": "src/islands/world/OfficeWorld.tsx",
+      "sha256": "72f4ff9e494dec12c77ed885a9b57aa6bd72f380351d94fc04c9e3a2d600e2ad"
+    },
+    {
+      "file": "src/islands/world/office.ts",
+      "sha256": "ced9fbf452cd4a5eb02e9cf9dc6f96d4f2066b38edfcbd9f50fa6f5a6d04b035"
+    },
+    {
+      "file": "src/islands/world/svgRecorder.ts",
+      "sha256": "75330e2b5d9b9c89fef2e9af4927e4226a5224abe8192622c0429ec80bcf62c4"
+    },
+    {
+      "file": "src/islands/world/timeline.ts",
+      "sha256": "220bd62685aa5acd42ed469439c39381d17d725c36c788682ea19dceaf001169"
+    },
+    {
+      "file": "src/islands/world/types.ts",
+      "sha256": "4e19a955ad2d6745e1aca6d1a2000c8091496f2100aeddbbfc715b0db5ff0ea7"
+    },
+    {
+      "file": "src/layouts/BaseLayout.astro",
+      "sha256": "57728eaa20725682d0e998868903967c83178ba8346c85dfe4d8f2d5d33274ee"
+    },
+    {
+      "file": "src/layouts/PageLayout.astro",
+      "sha256": "cd30f246491029af8f5ba786b2749ef12d46aa4d5f7f43483bb711758e022f9e"
+    },
+    {
+      "file": "src/lib/analytics.ts",
+      "sha256": "ead14716e8ee34d7667ea959ec262eb21e9c0d4f455032ace4f2f45b40100caa"
+    },
+    {
+      "file": "src/lib/github-mark.ts",
+      "sha256": "bfed6dd46082f7ed05cf9f141d6771e180b10394fb7323ae437f39046060b8cb"
+    },
+    {
+      "file": "src/lib/metrics.ts",
+      "sha256": "c99d0d9c5d08cbb61bf2bc3477f4cac8b275e4ee4a665ddfab31200bfb20e608"
+    },
+    {
+      "file": "src/lib/og-pages/README.md",
+      "sha256": "8f2bc0ce1c6337e853b5b8291a7af2cd2e0cc94772ce0fdae6a59f51b89db846"
+    },
+    {
+      "file": "src/lib/og-pages/channels.ts",
+      "sha256": "d1887169770ef40cad2d9cda0574f682e9bfeddadfdfb1ee5b6d962e768002bb"
+    },
+    {
+      "file": "src/lib/og-pages/revenue.ts",
+      "sha256": "aacff89964536e7020878106828d0030c765d95df06c27abcb112e2f76a01a2b"
+    },
+    {
+      "file": "src/lib/og-pages/security.ts",
+      "sha256": "d10906d40999c32559c334e5eff6091c0f6d1037ddd8a317b6c221460ae8b251"
+    },
+    {
+      "file": "src/lib/og-pages.ts",
+      "sha256": "020c9cf8f29b243a6ea3ddfc684b9cf64daf3e09bf6fd05ea36a6fa4b61d5c4f"
+    },
+    {
+      "file": "src/lib/og.ts",
+      "sha256": "6d7ac1ef9dbe666c7442817465da8a6ca1fe05160906ce395594ea89c62f3aae"
+    },
+    {
+      "file": "src/lib/seo.ts",
+      "sha256": "e9d7e161d647730eb6257d5c249bbb2d6e83472af97dc3c9b4e2fcae9bc75317"
+    },
+    {
+      "file": "src/pages/404.astro",
+      "sha256": "c661d075ee275288c1e09c7527284c64840edcb5aeee0f1025d666045e74eb9a"
+    },
+    {
+      "file": "src/pages/about.astro",
+      "sha256": "5edc9c0cb2a4f613fee6fe4b104edab95365c3fee0875b38d8503288f3b3c632"
+    },
+    {
+      "file": "src/pages/acp.astro",
+      "sha256": "f55d035df9ad1007d3559af0617483c91abb5d0523b608304ff4c2cbd9585ac5"
+    },
+    {
+      "file": "src/pages/agent-worlds.astro",
+      "sha256": "e7d3f95c98b5d220e579e8cd35fd3ae085dfd3277d79c4e980c489b13bb46070"
+    },
+    {
+      "file": "src/pages/approvals.astro",
+      "sha256": "36de2ad232b00bb3da0aa0e5c5e2e07913ee33f5a44bd800c8aa2651c9c478b6"
+    },
+    {
+      "file": "src/pages/changelog.astro",
+      "sha256": "d2bd89cbd3f9dbeacb48c40f8358b6ad5e7c848d289571aaaad6baaf8e1b3bd2"
+    },
+    {
+      "file": "src/pages/changelog.txt.ts",
+      "sha256": "f76fa22748a3fcf33d9e1fe8e4b25ef546821e9a141018d00e1fb4de01d6e305"
+    },
+    {
+      "file": "src/pages/channels/[slug].astro",
+      "sha256": "f63f9a257e3dc9dee207732ca29b131860e4c9237edb4c28ad5bf3698db59eb1"
+    },
+    {
+      "file": "src/pages/channels/index.astro",
+      "sha256": "0ee83194bee51abe63e4603f4b3c859c5613723c23cfb0cd238969052af56363"
+    },
+    {
+      "file": "src/pages/compare/[slug].astro",
+      "sha256": "990dbc052f6e65d80382592d576947eb8ac58ef4bd22de47ffd2dcd70328a77a"
+    },
+    {
+      "file": "src/pages/compare/index.astro",
+      "sha256": "4a923dfa0e8717acb31379c87be9a7aaba98406d2477cca9ea137febaeb2f72e"
+    },
+    {
+      "file": "src/pages/guides/[slug].astro",
+      "sha256": "38b03bff1fc32b24300654bb91c811592cdaa3f188357a1277056b9bd9fcd88f"
+    },
+    {
+      "file": "src/pages/guides/index.astro",
+      "sha256": "871fa03e1bdf19df37baf7e26de6512c7a173d4d40c6ab87251547facae209fc"
+    },
+    {
+      "file": "src/pages/index.astro",
+      "sha256": "5b17cbf3dc4ca87ea6245f25af2cd35e5dd3894f53de553f6eb6f2bc12a7192a"
+    },
+    {
+      "file": "src/pages/license.txt.ts",
+      "sha256": "fe29365f38b839cf7b0281b29433298b23bcf29a2418ef08799e2176871ac28f"
+    },
+    {
+      "file": "src/pages/lineage.astro",
+      "sha256": "a419cd9e532761e7981d6c6e7382b2bcec89df77cc31f4ca8f64e7fa78e7e420"
+    },
+    {
+      "file": "src/pages/llms.txt.ts",
+      "sha256": "a85ef92485b821fe4aebef98ab43e34d7ab5dbd2ef3e42901ef784ab2a0574f1"
+    },
+    {
+      "file": "src/pages/notice.txt.ts",
+      "sha256": "ba59df4941644c48c8a0ea9a00fa87a66e801362f4788f7ea85f85fd5fbb7e06"
+    },
+    {
+      "file": "src/pages/og/[...slug].png.ts",
+      "sha256": "305b35e03f000fe13d8db6b6e90a3d6d74c781d8acb5e803fb91669177606459"
+    },
+    {
+      "file": "src/pages/pricing.astro",
+      "sha256": "e72d2cb58dcc0e42451e4a6a7ad601785566e8f14980594e1d38eeb9ac06d895"
+    },
+    {
+      "file": "src/pages/privacy.astro",
+      "sha256": "53e494b94d22d45167884d08e4f188d60cad3437d60a4a798c0ed90470db21ea"
+    },
+    {
+      "file": "src/pages/quickstart.astro",
+      "sha256": "bb1305910319d70aaa4833b7fd8781894a253e0ec3902bc2890ff07e5a50564c"
+    },
+    {
+      "file": "src/pages/registry.astro",
+      "sha256": "5fda3add17a32b572dcf53bf652eba68f23059282bd45e4f5f55c3760cfcc956"
+    },
+    {
+      "file": "src/pages/robots.txt.ts",
+      "sha256": "2f9c247d3e54f2b6fca1f89abf819f796721352894560a25395bd20adcebd782"
+    },
+    {
+      "file": "src/pages/rss.xml.ts",
+      "sha256": "ca57adfafe4bbaba0db7620a0dfbd8da7c18a82bd858f0252a4ef2fa26d41cc3"
+    },
+    {
+      "file": "src/pages/schedule.astro",
+      "sha256": "d4189974f60dc47ef0de557113369556fdce01ed2aa14e3dab734ee6190ae8d3"
+    },
+    {
+      "file": "src/pages/security.astro",
+      "sha256": "b8ab2171341f48fa8b74fb98761c0211511dc35ec094cbadb9e6d13227d3d415"
+    },
+    {
+      "file": "src/pages/source.astro",
+      "sha256": "999d8b2b90757a3d62a10e1b8189660d056caa94aac82fc924a97234fd1d62ee"
+    },
+    {
+      "file": "src/pages/supporters.astro",
+      "sha256": "cc6b8c4c383d5aa5f1aecc9b2c7e9408f8da19d377e228e9bf4929bdd5697194"
+    },
+    {
+      "file": "src/pages/terms.astro",
+      "sha256": "03a8c5e750029f42770dc19a3e5e8456762c1dcc0492c259642b4b2ec0411849"
+    },
+    {
+      "file": "src/pages/verified.astro",
+      "sha256": "54410c582f2ecc4ca71ebad3de34c7a2242a2a6475f0441f4eed28335604ab3c"
+    },
+    {
+      "file": "src/styles/global.css",
+      "sha256": "bee2ea0eb2782e99dc4b5c1c4282b3663055af9b3d47975fc2d8a8467fd5e9b6"
+    },
+    {
+      "file": "public/.well-known/security.txt",
+      "sha256": "0edd179afbfe54faffed2893d666a95579d54cfe5e6bf85c1ce1f5328712c2f9"
+    },
+    {
+      "file": "public/catalog/official-registry.json",
+      "sha256": "08dc1b0437f05c0d29adf2746ebf99622040191ceae9f333eaa36d3557a5978d"
+    },
+    {
+      "file": "public/favicon.svg",
+      "sha256": "0e7307a0f898336a107970e6aa877ca17d5ac10fcef29b18449f00728400e413"
+    },
+    {
+      "file": "public/fonts/DepartureMono-LICENSE.txt",
+      "sha256": "b65e42750f3cb65437a97f4dfd781c58f199259949db2341012be60e32500e83"
+    },
+    {
+      "file": "public/fonts/DepartureMono-Regular.woff2",
+      "sha256": "5b4fed1daa90708aa9c6ee1190abca9dc22164a1c1def0020386e46b61038cfb"
+    },
+    {
+      "file": "astro.config.mjs",
+      "sha256": "408ae3ca8b091c4f811828fd94c63709671b8076b2da7a769cc2117cb7b1e254"
+    },
+    {
+      "file": "../NOTICE",
+      "sha256": "a85ea220632b95c3cd0d6717af8255acd2c3f7cb6300122b98ffcb1e2515dba9"
+    },
+    {
+      "file": "../LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "file": "../CHANGELOG.md",
+      "sha256": "47f0cfa9a0b4ba0ce44a79e8189825800168061c5e92a9ec3086aca91202b46c"
+    },
+    {
+      "file": "authoring-tsconfig.json",
+      "sha256": "916ceb9f04bc01acca67e1b60917dbc46f5644d116b14f1f8e5e78b0597682fe"
+    }
+  ],
+  "outputs": [
+    {
+      "file": ".well-known/security.txt",
+      "size": 193,
+      "sha256": "0edd179afbfe54faffed2893d666a95579d54cfe5e6bf85c1ce1f5328712c2f9"
+    },
+    {
+      "file": "404.html",
+      "size": 58602,
+      "sha256": "b565cfb8f12c03a9ad496dc71baa987a61a4bdd7bc33a6d227d86c4a14f9f79d"
+    },
+    {
+      "file": "THIRD-PARTY-LICENSES.txt",
+      "size": 39770,
+      "sha256": "0ffd794375dfb4b05576666304c938ff1eacc7f2febdcff70d26815b4a1eadd9"
+    },
+    {
+      "file": "_astro/ApproveFromChatDemo.6zWtf5D-.js",
+      "size": 3443,
+      "sha256": "d9e8c621c64c1f38059358d9e81fbfe1266e3863c7d17a9c6ef36be1ff245304"
+    },
+    {
+      "file": "_astro/BaseLayout.a390827649ec.css",
+      "size": 36654,
+      "sha256": "a390827649ece90be6a3bec7651bbf1a732a8c8b50516c42e7239c4bd3201675"
+    },
+    {
+      "file": "_astro/InstallTabs.1b65a4c0b0c9.source-public-cf7c3810.js",
+      "size": 5153,
+      "sha256": "cf7c3810e7799e6abb71756b6a15a982a8965dc493baab2f5011d3d00b1c4bb7"
+    },
+    {
+      "file": "_astro/Nav.astro_astro_type_script_index_0_lang.B1-k_Yag.js",
+      "size": 757,
+      "sha256": "3901817008412a22f445ad294d21c96b67dc6948cf0367b913349b7f9dca7b76"
+    },
+    {
+      "file": "_astro/OfficeWorld.df368f755689.js",
+      "size": 22796,
+      "sha256": "df368f755689155ea1966330cb35f538395d5c28c37c19e0570d82371f24d3e2"
+    },
+    {
+      "file": "_astro/WaitlistForm.BfO0rfe6.source-public-918f3415.js",
+      "size": 4563,
+      "sha256": "918f3415d35040bc3a4dad446afd2c43e7c4003fce3fc009d6ca37861cb78fdb"
+    },
+    {
+      "file": "_astro/analytics.DwtbEZHm.js",
+      "size": 159,
+      "sha256": "2b247a27cd077230e78d22d050008a4eab3976c0e5c3de8995d2511d95efff46"
+    },
+    {
+      "file": "_astro/check.wPR2fbNr.js",
+      "size": 159,
+      "sha256": "1f5003056fe9e7150430f60d075d4d085cbdeb88caed2d0ef83393d01f0cb706"
+    },
+    {
+      "file": "_astro/client.CLhIxG29.js",
+      "size": 212922,
+      "sha256": "4698c577644dd82e07506c5a67216e21b73de9e14974388ab099053a7dcaec7f"
+    },
+    {
+      "file": "_astro/fraunces-latin-ext-opsz-normal.CJcjJNj7.woff2",
+      "size": 59388,
+      "sha256": "a2930b27d13a228bd9ab6a49269b5f800237892ad560cb9dd7fab01b1620f88e"
+    },
+    {
+      "file": "_astro/fraunces-latin-opsz-normal.DihXLNYH.woff2",
+      "size": 67304,
+      "sha256": "7234ed860a9cc83045413c4faee63c960a8f2d1917adcf728119307d56e0d783"
+    },
+    {
+      "file": "_astro/fraunces-vietnamese-opsz-normal.Czevyj-6.woff2",
+      "size": 19700,
+      "sha256": "f18853f63a870ebef013e30e789d8d544f102e4acd94988e57c223d9c796ddf4"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-cyrillic-400-normal.BSMlKf0J.woff2",
+      "size": 8356,
+      "sha256": "7635422bd10ddbbcb0e0caa1154b928298f5c8319b8c00b30978d4395f4783ce"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-cyrillic-400-normal.CEL4l2ZJ.woff",
+      "size": 7204,
+      "sha256": "42da81a28bbcddda6768a25a4b3105ee291e69d5fa6c74747bc51bbc6718c538"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-cyrillic-500-normal.Ael50iVv.woff",
+      "size": 7208,
+      "sha256": "55a3af5e5ba0f565b4e66149cfe077ba88ac42cc3f68650a901d58eadbf9cd9b"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-cyrillic-500-normal.Bq9vWWag.woff2",
+      "size": 8460,
+      "sha256": "1d89462e86cb8e87e7e9d6f6635605bd7c3081baca6caaecee84916bf7b60edc"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-cyrillic-ext-400-normal.DMdlQ8Kv.woff",
+      "size": 5820,
+      "sha256": "0e4a2393e8ed3185ae300e4a202b6d9149d47d8a0e5bb8f1d1db33e76b86ecd1"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-cyrillic-ext-400-normal.xuaO2J-f.woff2",
+      "size": 6912,
+      "sha256": "f8c22ec1804bd6966b70f43ac7c327025645b4c09597117fca2a5a6c750106fe"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-cyrillic-ext-500-normal.BIfNGwUT.woff",
+      "size": 5772,
+      "sha256": "eadb2c427859b185761380143d1f42187fd7cbd94704b543e4c76c6368fbab52"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-cyrillic-ext-500-normal.BqneJy0T.woff2",
+      "size": 6972,
+      "sha256": "3febe5c7f22e4b07b4552738673c3dbe8bced2dc5f48b866edf7ccd9552d109a"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-latin-400-normal.CvHOgSBP.woff",
+      "size": 13144,
+      "sha256": "328d50b6ece9ca25c46eea3e885ba497f6237f2fb84ef7b92f88e14a1a25e381"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-latin-400-normal.DMJ8VG8y.woff2",
+      "size": 14708,
+      "sha256": "08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-latin-500-normal.CB9ihrfo.woff",
+      "size": 13156,
+      "sha256": "09f018c58556e5801ecc49d5b5275dcff4c73311c2af6b88e31c51d76d076a9d"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-latin-500-normal.DSY6xOcd.woff2",
+      "size": 14888,
+      "sha256": "01d285447409c8a588692162439a038b8cbd7871309ee20267b0d2d91c6e8e22"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-latin-ext-400-normal.BmRBH3aV.woff2",
+      "size": 13348,
+      "sha256": "6bc0f226a5b7884a8170e3f62c63d7675609d4631bdc5931b5cdab81821f00eb"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-latin-ext-400-normal.D3D2R8hC.woff",
+      "size": 11768,
+      "sha256": "f8ddaa0ab9d3c052c9fe035751c8214b7e0d59e6e7b69b045f8659c2fe4dced2"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-latin-ext-500-normal.CAhNIIs5.woff2",
+      "size": 13432,
+      "sha256": "6bb06407c97584b0867a959e05e8874693bfeb8c317de190811c51598f2d99ea"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-latin-ext-500-normal.CZ70TYgx.woff",
+      "size": 11768,
+      "sha256": "ff5da89c3ee20d38359943b61a7aae9200d2a0f61cf95ca10a7cccef81da2ff5"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-vietnamese-400-normal.BulugwFq.woff2",
+      "size": 5868,
+      "sha256": "62632b6375305e70ddcafdd895218e6ae41a184fcd280a69c739460604ca00a9"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-vietnamese-400-normal.DDuiU_S-.woff",
+      "size": 5620,
+      "sha256": "bced561d991e3f81c150c08e71f7fa849fcbff523560f6059245f2edce19b600"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-vietnamese-500-normal.C8zxqsMH.woff",
+      "size": 5616,
+      "sha256": "755f62b418df17518aa0ea16b4232e546ce949a4ab7acc577071fa9be9e3dc88"
+    },
+    {
+      "file": "_astro/ibm-plex-mono-vietnamese-500-normal.DZ4AoWbu.woff2",
+      "size": 6040,
+      "sha256": "781633d95de88040fb77141d1e65d928c87c0144691fbc74da5a64d137a7e910"
+    },
+    {
+      "file": "_astro/ibm-plex-sans-cyrillic-ext-wght-normal.d45eAU9y.woff2",
+      "size": 23568,
+      "sha256": "7d0037a170882a49e65a45c38ef195237bb07b1cc791d078379f0ac0d7ae1935"
+    },
+    {
+      "file": "_astro/ibm-plex-sans-cyrillic-wght-normal.BAAhND-U.woff2",
+      "size": 29512,
+      "sha256": "9409ee21811f0f5272b7e1d828fe8838005b0573481ef906e7e55b63f6610ab0"
+    },
+    {
+      "file": "_astro/ibm-plex-sans-greek-wght-normal.CmyJS8uq.woff2",
+      "size": 19500,
+      "sha256": "f598dd0700f155e2facfaa8ecfacace397d4c2c153e9ce37ab7ad310e8505bc2"
+    },
+    {
+      "file": "_astro/ibm-plex-sans-latin-ext-wght-normal.CIII54If.woff2",
+      "size": 30964,
+      "sha256": "d160e20920ae4d6556518d352d3af27a74e9b0de3d8fe17b1c1044fc75aa2f81"
+    },
+    {
+      "file": "_astro/ibm-plex-sans-latin-wght-normal.IvpUvPa2.woff2",
+      "size": 45712,
+      "sha256": "e2291e842cf5af167122a22881a740c7f2dda7716f1e8cd76680264f4a859470"
+    },
+    {
+      "file": "_astro/ibm-plex-sans-vietnamese-wght-normal.Dg1JeJN0.woff2",
+      "size": 13160,
+      "sha256": "73e7f7b1c980416ae0c2461268b14c7cfcce0668e683dc43fbb11a82a227b9f2"
+    },
+    {
+      "file": "_astro/index.CGd-2y6F.css",
+      "size": 11506,
+      "sha256": "393b7d5a58cae9f5a1152cc4ac676e9d16e41b44e6a4b7f85964fdf640e57d8c"
+    },
+    {
+      "file": "_astro/jsx-runtime.j7j27MZo.js",
+      "size": 3460,
+      "sha256": "e8ad6343ee48381008758484826199f677ae5d00c2007dea5148dc667e32c1c8"
+    },
+    {
+      "file": "_astro/late-desk.CP4-BoF6_1qQruh.webp",
+      "size": 12388,
+      "sha256": "6e87e2e58d33cc554496ce66d817bf58b60d47e6bbd7b4e420208b6bf5c7290c"
+    },
+    {
+      "file": "_astro/late-desk.CP4-BoF6_2eIk5T.webp",
+      "size": 63850,
+      "sha256": "56fead41aad03a61c2122f618c20edab3897dd43212155cf92689c71a427e4ba"
+    },
+    {
+      "file": "_astro/late-desk.CP4-BoF6_Z19hx5e.webp",
+      "size": 27528,
+      "sha256": "279bfbae19621304ddd54435d31c8efd7612443a5b1c3d007bc704c7f922ddd0"
+    },
+    {
+      "file": "_astro/late-desk.CP4-BoF6_Z2oj7cr.webp",
+      "size": 19604,
+      "sha256": "9a7f8f33dcbebee755f88431e3d35cd6ee65d233f5bbf6a353d11685139338c7"
+    },
+    {
+      "file": "_astro/late-desk.CP4-BoF6_ZBFGHf.webp",
+      "size": 35744,
+      "sha256": "d830009f93a2fc8a5ceec3f3058c992960823c9ac5f6b2f1a939da570c9e4aa0"
+    },
+    {
+      "file": "_astro/late-desk.CP4-BoF6_jSLIc.webp",
+      "size": 79154,
+      "sha256": "45969112db917775821d3a58b71192b483a516058aa8e2d731f660f95a010044"
+    },
+    {
+      "file": "_astro/pricing.astro_astro_type_script_index_0_lang.BDPZiN8k.js",
+      "size": 932,
+      "sha256": "8be449d8c6ec230a911da1329f6dd47a8c5dcd1ecaf5ec28ee064843eb865bee"
+    },
+    {
+      "file": "_astro/react.DJY1zw8Z.js",
+      "size": 7899,
+      "sha256": "702812fc9378c73101b63526d0318d087e3d267ac7d54d67bd9c269dd1fcdbb6"
+    },
+    {
+      "file": "_astro/security.Bbsx77EB.css",
+      "size": 5546,
+      "sha256": "5ba5ff476cc6f3182015102c8c458fdf74081925508c2f9fef7237f01a33f722"
+    },
+    {
+      "file": "_astro/site.BGNL7Jaf.js",
+      "size": 1034,
+      "sha256": "8fe2406e6c5f0d65ef11d03d20608abe3d03ba41b13508e0d9b3f47ecf0555c4"
+    },
+    {
+      "file": "about/index.html",
+      "size": 28663,
+      "sha256": "e4b0a9380e382374c3c93b81b14b866fc7db7c3bb2a5a22901e39e08e13f4177"
+    },
+    {
+      "file": "acp/index.html",
+      "size": 36764,
+      "sha256": "41b3e6bb3af4e7c71ad3534565e26e488610532228924fa6414ea10ec9abc07c"
+    },
+    {
+      "file": "agent-worlds/index.html",
+      "size": 38621,
+      "sha256": "91be2ce3759576b8f284c090595d45d6fcac7a3e35ea31dd7e88fee915306015"
+    },
+    {
+      "file": "approvals/index.html",
+      "size": 46709,
+      "sha256": "d60ef96e58d4f65c7a4866771e3b43300b3f4504e67bbc28d19d8abd65216de8"
+    },
+    {
+      "file": "catalog/official-registry.json",
+      "size": 18435,
+      "sha256": "08dc1b0437f05c0d29adf2746ebf99622040191ceae9f333eaa36d3557a5978d"
+    },
+    {
+      "file": "changelog/index.html",
+      "size": 25246,
+      "sha256": "b3ead9e17f8ab102049517ac2116a790c92e739f082003a250d00f2a91b6f449"
+    },
+    {
+      "file": "changelog.txt",
+      "size": 167,
+      "sha256": "4f726e5bb5bed24e1ac57187084c9f0bbfeef7029f34f962ba59cab2100f7ab2"
+    },
+    {
+      "file": "channels/discord/index.html",
+      "size": 31622,
+      "sha256": "57cf6a36f4aed31a83dac3bc405ca5b4d9d68fc256d7be0bf4ae88a98bcd698a"
+    },
+    {
+      "file": "channels/feishu/index.html",
+      "size": 28939,
+      "sha256": "66e252aa5b9b1d81e83cb01136d78fe672957113b734820d14c3a4215165ff9b"
+    },
+    {
+      "file": "channels/imessage/index.html",
+      "size": 33697,
+      "sha256": "843c4a159ea70bf78873a01c550b308f49c14f324be2d28132240e390f68a1a4"
+    },
+    {
+      "file": "channels/index.html",
+      "size": 27136,
+      "sha256": "98f49722090c70ac7b916b85eb5226c6a36d644b14c62f1d96f79f3069be878b"
+    },
+    {
+      "file": "channels/slack/index.html",
+      "size": 27185,
+      "sha256": "7bd55bf642e2cf20787a70a8d6084eb13be530e2718e7448aa2417d910ba964a"
+    },
+    {
+      "file": "channels/teams/index.html",
+      "size": 27500,
+      "sha256": "8d7d4fec173c98c95a006685ee6672667cfbec777d9c1482c1dbb1532c0fe26b"
+    },
+    {
+      "file": "channels/telegram/index.html",
+      "size": 37240,
+      "sha256": "820f1bc048b782406727c580389c5ef00ebdf54ba2a13390a83148372ed5abff"
+    },
+    {
+      "file": "channels/webex/index.html",
+      "size": 26413,
+      "sha256": "6dd770bdc752987571b23cce44f973284500357fb37721bff8b19653614ef751"
+    },
+    {
+      "file": "channels/wechat/index.html",
+      "size": 28476,
+      "sha256": "7bcef3a5b42cf5ea224360f5f04b79262ea7a64d344887f8bc5ec1b48d20c9a9"
+    },
+    {
+      "file": "channels/wecom/index.html",
+      "size": 28596,
+      "sha256": "dd19c566706171410d716e48be231a1360d5428707cd1c79cbbc95e95ce3dcab"
+    },
+    {
+      "file": "channels/whatsapp/index.html",
+      "size": 31072,
+      "sha256": "060688c9c093aa3dc529dbe9eff2ba0a8a567d4d686116e4cede17a905e6421d"
+    },
+    {
+      "file": "compare/claude-code-routines/index.html",
+      "size": 31239,
+      "sha256": "052e7b1ac17d8a99946f9073080234c419d31f32d4643a13f01330a27df1ce49"
+    },
+    {
+      "file": "compare/index.html",
+      "size": 22553,
+      "sha256": "ce3c799fe68d79a7eb31f18cb8a87575e3a9c85e08db18ae2ba8069d2cc4de02"
+    },
+    {
+      "file": "compare/openclaw/index.html",
+      "size": 29851,
+      "sha256": "783bbc00e484dfe8fd4614f60ef4f5c8ef700a8c547e742a77435884593cc038"
+    },
+    {
+      "file": "compare/paseo/index.html",
+      "size": 29622,
+      "sha256": "4ca4ade3216b26d09ae78f1fe14fc7ffceaa65e2c5b687ea77048c5878b8b5b8"
+    },
+    {
+      "file": "compare/upstream/index.html",
+      "size": 33020,
+      "sha256": "2c9f77f47f130faeb2e82ed763d79fbb979f02fd4d80da9cc9ab1fdd5abd0b41"
+    },
+    {
+      "file": "favicon.svg",
+      "size": 531,
+      "sha256": "0e7307a0f898336a107970e6aa877ca17d5ac10fcef29b18449f00728400e413"
+    },
+    {
+      "file": "fonts/DepartureMono-LICENSE.txt",
+      "size": 4357,
+      "sha256": "b65e42750f3cb65437a97f4dfd781c58f199259949db2341012be60e32500e83"
+    },
+    {
+      "file": "fonts/DepartureMono-Regular.woff2",
+      "size": 22496,
+      "sha256": "5b4fed1daa90708aa9c6ee1190abca9dc22164a1c1def0020386e46b61038cfb"
+    },
+    {
+      "file": "guides/index.html",
+      "size": 21853,
+      "sha256": "a15a65adfbe223e22b3e125b93911ef37094a43789133c414e3cdc48553b5f35"
+    },
+    {
+      "file": "guides/run-claude-code-24-7/index.html",
+      "size": 29621,
+      "sha256": "772103d74e613501ed0d4962e39d333abb8fc4e72576332b6c1dac6a28f6c6ab"
+    },
+    {
+      "file": "guides/write-a-policy/index.html",
+      "size": 32792,
+      "sha256": "e5ae433477651556c0896372ec508d66908e19dadc7d377f00c9b30d037c52e7"
+    },
+    {
+      "file": "index.html",
+      "size": 33478,
+      "sha256": "0ef2bbe9007876087d9cba8de5619b4b8d26ae97a49c9ef2acfa96df5e87ff03"
+    },
+    {
+      "file": "license.txt",
+      "size": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "file": "lineage/index.html",
+      "size": 31053,
+      "sha256": "da5597e585020172304c1910372035674fd785efeef368d1d83417813daf4703"
+    },
+    {
+      "file": "llms.txt",
+      "size": 5508,
+      "sha256": "6ded795b2bfe45beac07ef392021939a1920f0f9f3079031d3bfbde4191bb8c0"
+    },
+    {
+      "file": "notice.txt",
+      "size": 2008,
+      "sha256": "a85ea220632b95c3cd0d6717af8255acd2c3f7cb6300122b98ffcb1e2515dba9"
+    },
+    {
+      "file": "og/404.png",
+      "size": 47999,
+      "sha256": "44b8948cb6706c618c0133820b584d9f24bbc98b76b5eeb50b58c8da922ac09e"
+    },
+    {
+      "file": "og/about.png",
+      "size": 25542,
+      "sha256": "4e6f9d267730f75da6f783dbd9259f2ab6408c5f02b8d6823eaaef35d36927ce"
+    },
+    {
+      "file": "og/acp.png",
+      "size": 44809,
+      "sha256": "a5c3a36f17bdf66221e2a4f25cd53cd21a3d92e5b713c6099288702b6a3982d9"
+    },
+    {
+      "file": "og/agent-worlds.png",
+      "size": 55224,
+      "sha256": "404d16e9049692130c345a91de3c9e01b1b83a095849732f85d5957d9a4a0e4a"
+    },
+    {
+      "file": "og/approvals.png",
+      "size": 36440,
+      "sha256": "f4950221112c4d8e7093664972c1e1866ed81feafb45259210d99853e92f012b"
+    },
+    {
+      "file": "og/changelog.png",
+      "size": 30272,
+      "sha256": "29d16a897fe59c94fbf89f7a72970a4bf950317eef662ec7c5c34a7647926244"
+    },
+    {
+      "file": "og/channels-discord.png",
+      "size": 39301,
+      "sha256": "d5bb149ee583f5297de9ef2f9b359faa607b0b9267eaec3b65d39457d421b0c6"
+    },
+    {
+      "file": "og/channels-feishu.png",
+      "size": 43169,
+      "sha256": "b7f1aa6622881a46d3b7d886efcf7ace9772a6addf5551a54adf7f202fca9001"
+    },
+    {
+      "file": "og/channels-imessage.png",
+      "size": 45149,
+      "sha256": "9e5b8df27a0f2b80850f98eca205cce497f38aef92337ae751344f3c8e9fab78"
+    },
+    {
+      "file": "og/channels-slack.png",
+      "size": 36137,
+      "sha256": "883aab2a82b5faad4436e13858b65ab90ccdadf19bba645e9df730f4e47129ca"
+    },
+    {
+      "file": "og/channels-teams.png",
+      "size": 43232,
+      "sha256": "101fb1653335e805857fba091b47b595e128a6d8f0c61eb46858cd2afba31ba0"
+    },
+    {
+      "file": "og/channels-telegram.png",
+      "size": 42683,
+      "sha256": "2d6c10a9ad7dca0cd3957c6d977099f77269a99b66eb018c2510812e645364e9"
+    },
+    {
+      "file": "og/channels-webex.png",
+      "size": 37249,
+      "sha256": "ed90e67249051fe46b598e57eeb7410f82631b2397c11f59b5012406583dd3bd"
+    },
+    {
+      "file": "og/channels-wechat.png",
+      "size": 43108,
+      "sha256": "a5810869c2a5725fcba3cc32a0da16c6756704c54483b8e8c6c995821a811fd3"
+    },
+    {
+      "file": "og/channels-wecom.png",
+      "size": 42933,
+      "sha256": "5ecc6423cbcf5d4ec14ed3834d0330708b2e0445d8b5bd52d2fc4ed6f641a574"
+    },
+    {
+      "file": "og/channels-whatsapp.png",
+      "size": 41417,
+      "sha256": "4c6e93c83bf996e0fd9c57bbaddba641b6e3787cfa4718010fbc90168e78187b"
+    },
+    {
+      "file": "og/channels.png",
+      "size": 41486,
+      "sha256": "2ca84978698066620432928e8ef202cfe55dfc9c632dc90ccda4ea0e0343896d"
+    },
+    {
+      "file": "og/compare-claude-code-routines.png",
+      "size": 44755,
+      "sha256": "3944db128544f8f42ee23a061f3b72e20b6bd1b388f9edf0e6dded36220db034"
+    },
+    {
+      "file": "og/compare-openclaw.png",
+      "size": 44996,
+      "sha256": "1a04323fbb5364384f2c575533e2462c5dda73f2cedcff3d0c26511c1671192c"
+    },
+    {
+      "file": "og/compare-paseo.png",
+      "size": 39355,
+      "sha256": "31685b598da63a15c68ca65b241aadb9c296074619b96a325954e422a4438a38"
+    },
+    {
+      "file": "og/compare-upstream.png",
+      "size": 57610,
+      "sha256": "f73a563e6ea9f4116d2cd45fa521520dc237765093376ce6902b4cd166829587"
+    },
+    {
+      "file": "og/compare.png",
+      "size": 27657,
+      "sha256": "b4dda12e502c2fc745319725ea14eb8821b1e2f4d8dbca9c8efaaf9c80ee0a48"
+    },
+    {
+      "file": "og/guides-run-claude-code-24-7.png",
+      "size": 47173,
+      "sha256": "5582b58598bee5ecc998474b2afe56a5493ee37404feed8dbb4f590fd9041301"
+    },
+    {
+      "file": "og/guides-write-a-policy.png",
+      "size": 42285,
+      "sha256": "7b190878a8686c5c86c48d1196f0453c9e47d1d2d41a294da0cb10488ddcee04"
+    },
+    {
+      "file": "og/guides.png",
+      "size": 26608,
+      "sha256": "548c4543ed086d871ad5f074de9af4e8cb6b1fff9a7af2f6dc5920178d49e875"
+    },
+    {
+      "file": "og/home.png",
+      "size": 60586,
+      "sha256": "40aa7f156b07ba07ae09d40882d31df0222fe2c244c6b6f2115149ef737709c0"
+    },
+    {
+      "file": "og/lineage.png",
+      "size": 40811,
+      "sha256": "46d7b7302199cb4f3e6d257265c03729d3b34f29f8ac9f984cf09473fea5bfa9"
+    },
+    {
+      "file": "og/pricing.png",
+      "size": 32054,
+      "sha256": "a704145818cb306eb24ac0b0b6a8944f6c3a523c873f1ca9e0d452a8cd6383eb"
+    },
+    {
+      "file": "og/privacy.png",
+      "size": 30896,
+      "sha256": "24aa6ee6328e5eb35c62e4b02ea4d757faff4292a14fb626eee4dcce9a3dd8d4"
+    },
+    {
+      "file": "og/quickstart.png",
+      "size": 38454,
+      "sha256": "79c84e39f1ef8541d434b9937197bb6f9d516ffec272ac099ad4aedaec84cb91"
+    },
+    {
+      "file": "og/registry.png",
+      "size": 34545,
+      "sha256": "4dbf25bdcb4db26b45292eb09cbc471e3176502554a5206b3f070bf5992f6b35"
+    },
+    {
+      "file": "og/schedule.png",
+      "size": 43113,
+      "sha256": "9c18cc3afe3c7e66d705d082d01a531aa5d9962d68341828072cb4a230a3fe02"
+    },
+    {
+      "file": "og/security.png",
+      "size": 40989,
+      "sha256": "ba793a1fc099a23b582f4e7f5a92f932e1ce669feb78b654a9bdb0468c3b3a0b"
+    },
+    {
+      "file": "og/source.png",
+      "size": 38026,
+      "sha256": "28f0871e0955a7374a7b7b8661ac83426b7260298caf528a371a9236e48496a0"
+    },
+    {
+      "file": "og/supporters.png",
+      "size": 32916,
+      "sha256": "1ab886794ae4dbeea2c947093dd1a1ac50bb888733fdf5f02f3afab13c0b27de"
+    },
+    {
+      "file": "og/terms.png",
+      "size": 28556,
+      "sha256": "a6d9ac324717b1894e40ce3c1a4c385234b647162ebefb6f684fcaa65d47236e"
+    },
+    {
+      "file": "og/verified.png",
+      "size": 48320,
+      "sha256": "f4fb415184f9f1dea1b4241b191676b3518bad35b56b7882aebb0473ef0f62d5"
+    },
+    {
+      "file": "pricing/index.html",
+      "size": 54411,
+      "sha256": "e468d79f0e6bc7b8c7f5183f905fe5d3df96341c10cf21fefaa61f9af8e88fc4"
+    },
+    {
+      "file": "privacy/index.html",
+      "size": 19268,
+      "sha256": "5dc05a090c4768c5eaa74078bf7a89177d81171c741544c12670808c88fa1e47"
+    },
+    {
+      "file": "quickstart/index.html",
+      "size": 23485,
+      "sha256": "54c0cabc982648841d43f70a8671a2d880f0e930d3c92c2ba4e6509d6167d774"
+    },
+    {
+      "file": "registry/index.html",
+      "size": 39537,
+      "sha256": "36375d9bcff9718f00f482cd369b58ee69b0baf2fad84284d316b9a84827bf15"
+    },
+    {
+      "file": "robots.txt",
+      "size": 71,
+      "sha256": "0b8b6b97a398c07cef7cec8a98a2714796245b30b155248fc127058907a849ab"
+    },
+    {
+      "file": "rss.xml",
+      "size": 1104,
+      "sha256": "b4900142637bb2dee2058de0b3098c182268316f962a7a4460e60076b56b858b"
+    },
+    {
+      "file": "schedule/index.html",
+      "size": 48536,
+      "sha256": "c58996c5da97d3d2a2893e5bdea96e1a4e73b01e6f58b01603a48c26d0963c7c"
+    },
+    {
+      "file": "security/index.html",
+      "size": 57692,
+      "sha256": "a78c2734eece994b3054a1ec05761a10f65ed734391befa2c405397337edcf9c"
+    },
+    {
+      "file": "sitemap-0.xml",
+      "size": 2298,
+      "sha256": "9e669fff5bf17d240ca41a79ff0ac0566bd322907e7e4fe9b9459f987a5359df"
+    },
+    {
+      "file": "sitemap-index.xml",
+      "size": 182,
+      "sha256": "109220312e066e98fa0862115c7865cc221aaac9a44e37dd6d3d2b085dc1d6cd"
+    },
+    {
+      "file": "source/index.html",
+      "size": 16478,
+      "sha256": "0003b19445813de0d18f9e901e7ce94fc1fce8a8dccf05c46c3209c5972a7cba"
+    },
+    {
+      "file": "supporters/index.html",
+      "size": 26225,
+      "sha256": "8105d4cf2a0eb1844eb867c89c3d8bffb62b4eecb3f3bc2f319f3b55c2fcafee"
+    },
+    {
+      "file": "terms/index.html",
+      "size": 18300,
+      "sha256": "fa1ae769b341f0d8ea9b40531a7c6689441de9ddb583a2be75b484f8cef36026"
+    },
+    {
+      "file": "verified/index.html",
+      "size": 90157,
+      "sha256": "5a02dbf8f0bdce6015af05a6e2477daedb93881cbcddc1422ecd01119b768f8c"
+    }
+  ],
+  "export_base_tree": "c7c0b208ca73588256affda08cd1c9d15dc03cbe",
+  "recovered_deployment": "dpl_2hB46QmGS5MzWjTzcoy62ti71p8d"
+}

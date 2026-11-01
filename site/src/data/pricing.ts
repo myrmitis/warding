@@ -1,3 +1,4 @@
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import { site } from "./site";
 
 /**
@@ -41,12 +42,12 @@ export const offers: Offer[] = [
     name: "Free",
     price: "$0",
     priceNote: "forever",
-    status: "available",
-    label: "Available now",
+    status: site.sourceAvailable ? "available" : "opens",
+    label: site.sourceAvailable ? "Available now" : "Public source available",
     rail: "none",
     blurb:
       "Dock the harness you choose for chat, with subagents routable to another; schedules; task runner; subagents; memory, lessons, skills; ten chat channels (five with approve buttons); OS sandbox, deny rules, keystone policy, credential redaction, hash-chained audit log; Agent Worlds; 21 apps; 18 themes; 12 languages.",
-    cta: site.installOneLiner ? "Copy the install command" : "Copy the quickstart",
+    cta: site.sourceAvailable ? "Read setup notes" : "Source status",
     href: "#install",
     preview: true,
     recommended: true,
@@ -74,7 +75,7 @@ export const offers: Offer[] = [
     label: setupOpen ? "Available now" : "Waitlist (free)",
     rail: setupOpen ? "stripe" : "waitlist",
     blurb:
-      "Sixty minutes on your Mac mini or Linux box: install as a service, dock kiro-cli or Claude Code, connect one channel with buttons, write your first policy profile, run one scheduled job. Scope in writing; full refund if we don't get there.",
+      "Sixty minutes on your Mac mini or Linux box: install as a service, dock Claude Code or Codex, connect one channel with buttons, write your first policy profile, run one scheduled job. Scope in writing; full refund if we don't get there.",
     cta: "Book a setup",
     href: site.links.setupPayment,
     preview: true,
@@ -129,8 +130,8 @@ export const offers: Offer[] = [
     id: "tips",
     name: "Tips",
     price: "any",
-    status: "available",
-    label: "Available now",
+    status: site.sourceAvailable ? "available" : "opens",
+    label: site.sourceAvailable ? "Available now" : "Public source available",
     rail: "github",
     blurb: "GitHub Sponsors. Nothing in return but thanks.",
     cta: "Sponsor on GitHub",

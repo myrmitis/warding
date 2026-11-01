@@ -1,4 +1,5 @@
 ---
+# Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 title: "Feishu chat for your coding agent (chat only today)"
 description: "Chat with your coding agent from Feishu or Lark today. In-chat approvals are planned, not built: buttons for Feishu. Join the list."
 h1: "Chat from Feishu. Approvals are planned."
@@ -49,6 +50,6 @@ Deny by default: an empty `allowed_open_ids` authorises nobody. A group needs tw
 - **One harness for chat.** The docked harness answers every channel; switching is one setting. A spawned subagent can be routed to another installed harness; that is registered, not verified.
 - **Text only, no streaming, replies only.** Images and files are ignored inbound, and the bot cannot start a conversation.
 - **No dashboard panel yet.** Configure it in `config.json`.
-- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) relies on the agent's own tools, which reach kiro-cli only today. On other harnesses, schedule from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
+- **Creating jobs from chat** (and subagents, and questions the agent asks you mid-turn) depends on harness integration, permission mode and session identity. These workflows remain unverified. Manage schedules from the dashboard or the CLI; see <a href="/schedule/">the schedule page</a>.
 
-<StatusChip kind="info" label="Approvals: chat only" /> · <a href="/channels/">All ten channels</a> · <a href={`${site.githubRepo}/blob/main/src/warding/docs/feishu-integration.md`} rel="noopener">Full reference in the repository</a>
+<StatusChip kind="info" label="Approvals: chat only" /> · <a href="/channels/">All ten channels</a> · <a href={site.sourceStatus}>Public source reference</a>

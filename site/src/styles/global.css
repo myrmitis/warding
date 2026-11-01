@@ -72,13 +72,6 @@
   --btn-primary-fg: var(--surface);
   --shadow: none;
   --grain-opacity: 0.045;
-  --dawn-0: #0b0e14;
-  --dawn-1: #141a26;
-  --dawn-2: #1c2333;
-  --dawn-3: #b86a00;
-  --dawn-4: #5e584d;
-  --dawn-5: #d9d0bf;
-  --dawn-6: #f3eee3;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -224,7 +217,7 @@ h1, h2, h3, h4 {
   color: var(--fg);
   letter-spacing: -0.012em;
 }
-h1 { font-size: clamp(2.75rem, 2rem + 3.2vw, 4.5rem); line-height: 0.98; letter-spacing: -0.028em; text-wrap: balance; }
+h1 { font-size: clamp(2.75rem, 2rem + 3.2vw, 4.5rem); line-height: 1; text-wrap: balance; }
 h2 { font-size: clamp(2rem, 1.6rem + 1.4vw, 2.5rem); line-height: 1.1; text-wrap: balance; font-variation-settings: "SOFT" 0, "WONK" 0, "opsz" 96; }
 /* Display cuts: Fraunces at its largest optical size, no soft or wonky forms. */
 h1, .wordmark, .final h2 { font-variation-settings: "SOFT" 0, "WONK" 0, "opsz" 144; }
@@ -355,14 +348,8 @@ button { font: inherit; color: inherit; }
 .status-info { color: var(--fg-2); }
 
 .ward-bars { display: flex; justify-content: center; gap: 4.5px; padding: 8px 0; }
-.ward-bars i { display: block; width: 14px; height: 2.5px; background: var(--seal); transform-origin: left center; }
+.ward-bars i { display: block; width: 14px; height: 2.5px; background: var(--seal); }
 .ward-bars-left { justify-content: flex-start; }
-@media (prefers-reduced-motion: no-preference) {
-  .ward-bars i { animation: bar-set 360ms steps(3, end) backwards; }
-  .ward-bars i:nth-child(2) { animation-delay: 80ms; }
-  .ward-bars i:nth-child(3) { animation-delay: 160ms; }
-}
-@keyframes bar-set { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 .sheet {
   background: var(--surface);
@@ -456,10 +443,7 @@ details.faq summary::after { content: "+"; font-family: var(--font-mono); color:
 details.faq[open] summary::after { content: "–"; }
 details.faq .faq-body { padding: 0 0 18px; color: var(--fg-2); max-width: 68ch; }
 
-.tile {
-  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; box-shadow: var(--shadow);
-  transition: border-color 240ms cubic-bezier(.22,1,.36,1);
-}
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; box-shadow: var(--shadow); }
 .matrix { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
 .matrix th, .matrix td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .matrix thead th { font-weight: 600; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-2); }
@@ -478,11 +462,8 @@ details.faq .faq-body { padding: 0 0 18px; color: var(--fg-2); max-width: 68ch; 
   background: radial-gradient(55% 45% at 30% 28%, rgba(255, 181, 71, 0.12), transparent 70%);
   mix-blend-mode: screen;
 }
-@media (prefers-reduced-motion: no-preference) {
-  html[data-office-live] .world-frame::after { animation: lamp-wash 5.2s steps(3, end) infinite; }
-}
-@keyframes lamp-wash { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
+/* Islands (install tabs, approve demo, waitlist) — shared by every page that renders one. */
 .install { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); background: var(--surface); border-radius: 4px; }
 .install-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .tabs { display: flex; gap: 4px; }
@@ -534,7 +515,10 @@ details.faq .faq-body { padding: 0 0 18px; color: var(--fg-2); max-width: 68ch; 
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
 
+/* Dawn: the page eases from night into paper between sections 6 and 7. */
 .dawn {
-  height: 280px;
-  background: linear-gradient(to bottom, var(--dawn-0) 0%, var(--dawn-1) 34%, var(--dawn-2) 52%, var(--dawn-3) 61%, var(--dawn-4) 70%, var(--dawn-5) 86%, var(--dawn-6) 100%);
+  height: 220px;
+  /* Literal ends, not tokens: the band sits between a .vault and a .paper, so
+     neither token set applies to it and the page scheme must not leak in. */
+  background: linear-gradient(to bottom, #0b0e14 0%, #141a26 30%, #5e584d 64%, #d9d0bf 86%, #f3eee3 100%);
 }

@@ -1,4 +1,5 @@
-import { site, siteHost } from "./site";
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
+import { site } from "./site";
 
 export interface NavLink {
   label: string;
@@ -8,13 +9,10 @@ export interface NavLink {
 
 /** Centre nav (site-spec §2.0). Docs is the repo's docs tree; there is no /docs/ page. */
 export const primaryNav: NavLink[] = [
-  { label: "Security", href: "/security/" },
-  { label: "Channels", href: "/channels/" },
-  { label: "Schedule", href: "/schedule/" },
-  { label: "Agent Worlds", href: "/agent-worlds/" },
-  { label: "Compare", href: "/compare/" },
-  { label: "Pricing", href: "/pricing/" },
-  { label: "Docs", href: `${site.githubRepo}/tree/main/docs`, external: true },
+  { label: "Product", href: "/#product" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Beta notes", href: "/verified/" },
+  { label: "Setup notes", href: "/quickstart/" },
 ];
 
 export const footerColumns: { title: string; links: NavLink[] }[] = [
@@ -33,6 +31,7 @@ export const footerColumns: { title: string; links: NavLink[] }[] = [
   {
     title: "Compare",
     links: [
+      { label: "Upstream", href: "/compare/upstream/" },
       { label: "OpenClaw", href: "/compare/openclaw/" },
       { label: "Claude Code Routines", href: "/compare/claude-code-routines/" },
       { label: "Paseo", href: "/compare/paseo/" },
@@ -41,9 +40,11 @@ export const footerColumns: { title: string; links: NavLink[] }[] = [
   {
     title: "Learn",
     links: [
+      { label: "Quickstart", href: "/quickstart/" },
       { label: "Guides", href: "/guides/" },
-      { label: "Docs", href: `${site.githubRepo}/tree/main/docs`, external: true },
+      { label: "Setup notes", href: "/quickstart/" },
       { label: "Changelog", href: "/changelog/" },
+      { label: "Lineage", href: "/lineage/" },
       { label: "About", href: "/about/" },
     ],
   },
@@ -52,10 +53,10 @@ export const footerColumns: { title: string; links: NavLink[] }[] = [
     links: [
       { label: "Pricing", href: "/pricing/" },
       { label: "Supporters", href: "/supporters/" },
-      { label: "SECURITY.md", href: site.links.securityMd, external: true },
+      { label: "Security reporting", href: site.links.securityMd },
       { label: "Privacy", href: "/privacy/" },
       { label: "Terms", href: "/terms/" },
-      { label: "Contact", href: `mailto:hello@${siteHost}` },
+      { label: "Contact status", href: "/about/#contact-h" },
     ],
   },
 ];

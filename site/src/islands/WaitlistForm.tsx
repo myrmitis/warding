@@ -129,7 +129,7 @@ export default function WaitlistForm({ list, label, questions = [], compact = fa
 export function ReleaseNoteLine() {
   return (
     <p className="caption release-note">
-      Get the release note: <a href={`${site.githubRepo}/releases`} rel="noopener">Watch → Custom → Releases on GitHub</a>
+      Release notifications are not available yet. <a href={site.sourceStatus}>Read the source availability and beta limits.</a>
     </p>
   );
 }

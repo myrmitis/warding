@@ -1,3 +1,4 @@
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 /**
  * The Office world renderer, ported from the product's shipping scene
  * (website/src/pages/scenes/OfficeScene.tsx) as a pure module: state in, pixels
@@ -68,7 +69,7 @@ const COL = {
 const CHAT_LINES: [string, string][] = [
   ["opening PR #412", "running tests"],
   ["asked for approval", "waiting on you"],
-  ["refused: ~/.aws", "logged · chained"],
+  ["refused: ~/.gnupg", "logged · chained"],
   ["nightly-deps · done", "posting report"],
 ];
 const COFFEE_MACHINE = { x: 390, y: 240 };
@@ -460,16 +461,16 @@ export function draw(state: OfficeState, X: Ctx, env: DrawEnv, t: number) {
     }
   }
 
+  // Ceiling lamps: sodium amber, flicker amplitude 0.12
   [70, 170, 270, 370].forEach((lx, i) => {
     d(lx - 4, 80, 8, 2, COL.lightFixture); d(lx - 2, 78, 4, 2, COL.lightFixture);
-    const phase = Math.sin(t * 0.05 + i * 1.3);
-    const flicker = 1 + phase * 0.12;
+    const flicker = 1 + Math.sin(t * 0.05 + i * 1.3) * 0.12;
     const g = X.createRadialGradient(lx * S, 82 * S, 0, lx * S, 82 * S, 45 * S * flicker);
-    g.addColorStop(0, "rgba(255,181,71,0.11)"); g.addColorStop(1, "rgba(255,181,71,0)");
+    g.addColorStop(0, "rgba(255,181,71,0.09)"); g.addColorStop(1, "rgba(255,181,71,0)");
     X.fillStyle = g; X.fillRect((lx - 45) * S, 80 * S, 90 * S, 50 * S);
-    d(lx - 1, 81, 2, 1, phase > 0 ? LAMP : "#8A6A32");
   });
 
+  // Rug
   [[40, 14, COL.rug], [34, 10, COL.rugPattern], [28, 7, COL.rug]].forEach(([rx, ry, c]) => {
     X.fillStyle = c as string; X.beginPath(); X.ellipse(MEET.x * S, (MEET.y + 5) * S, (rx as number) * S, (ry as number) * S, 0, 0, Math.PI * 2); X.fill();
   });

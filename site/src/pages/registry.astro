@@ -1,17 +1,19 @@
 ---
+// Accessibility revised by Myrmitis; original LICENSE and NOTICE retained.
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import PageLayout from "../layouts/PageLayout.astro";
 import StatusChip from "../components/StatusChip.astro";
 import WardBars from "../components/WardBars.astro";
 import { site } from "../data/site";
 import { CAPABILITIES, harnesses, notDocked, router } from "../data/harnesses";
 import Check from "@lucide/astro/icons/check";
-import planesText from "../assets/cli-warding-planes.txt?raw";
+import planesText from "../assets/cli-junction-planes.txt?raw";
 
 /**
  * /registry/: the harness compatibility matrix from src/data/harnesses.ts.
  * A check appears only where a dated row exists on /verified/; every cell
  * links to its row there, verified or not. The order is the one
- * `warding planes` uses (kiro-cli optional and last).
+ * `warding planes` uses (the legacy adapter optional and last).
  */
 const title = "Which coding agents Warding runs, and how verified";
 const description = `The harness compatibility matrix: ${harnesses.length} runtimes, one chosen for chat, subagents routable to another, dated rows and honest unverified cells.`;
@@ -33,13 +35,13 @@ const verifiedCells = harnesses.reduce((n, h) => n + Object.keys(h.verified).len
           <tbody>
             {harnesses.map((h) => (
               <tr>
-                <th scope="row"><span class="mono">{h.command}</span> <span class="caption">{h.name.toLowerCase() !== h.command ? h.name : ""}{h.optional ? " · optional" : ""}</span></th>
+                <th scope="row"><span class="mono">{h.command || h.name}</span> <span class="caption">{h.command && h.name.toLowerCase() !== h.command ? h.name : ""}{h.optional ? " · optional" : ""}</span></th>
                 {CAPABILITIES.map((c) => {
                   const date = h.verified[c.key];
                   return date ? (
                     <td><a href={`/verified/#${h.id}-${c.key}`} class="status status-approved"><Check class="lucide" aria-hidden="true" /> {date}</a></td>
                   ) : (
-                    <td class="unv"><a href={`/verified/#${h.id}-${c.key}`}>registered · unverified{h.firstClass ? " · first-class harness" : ""}</a></td>
+                    <td class="unv"><a href={`/verified/#${h.id}-${c.key}`}>registered · unverified{h.upstreamMature ? " · upstream's mature path" : ""}</a></td>
                   );
                 })}
               </tr>
@@ -55,18 +57,18 @@ const verifiedCells = harnesses.reduce((n, h) => n + Object.keys(h.verified).len
       <div>
         <WardBars align="left" />
         <h2 id="order-h">The order <code>{site.cli} planes</code> uses</h2>
-        <p class="measure">With the harness set to <code>auto</code>, the first installed runtime in this order is docked. kiro-cli is optional and last: it is used only when nothing else is installed. Set <code>agent.acp_backend</code> to pick one explicitly.</p>
+        <p class="measure">With the harness set to <code>auto</code>, the first installed runtime in this order is docked. The legacy adapter is optional and last: it is used only when nothing else is installed. Set <code>agent.acp_backend</code> to pick one explicitly.</p>
         <ol class="order">
           {harnesses.map((h) => (
             <li>
-              <span class="mono">{h.command}</span>
+              <span class="mono">{h.command || h.name}</span>
               <span class="caption">{h.via}</span>
             </li>
           ))}
         </ol>
       </div>
       <figure class="plate" data-shot>
-        <pre class="terminal"><code><span class="prompt">$ </span>{site.cli} planes{"\n"}{planesLines.map((l, i) => (i === 0 ? <span class="amber">{l}{"\n"}</span> : <span>{l}{"\n"}</span>))}</code></pre>
+        <pre class="terminal" tabindex="0" role="region" aria-label="Harness preference CLI output"><code><span class="prompt">$ </span>{site.cli} planes{"\n"}{planesLines.map((l, i) => (i === 0 ? <span class="amber">{l}{"\n"}</span> : <span>{l}{"\n"}</span>))}</code></pre>
         <figcaption><span class="plate-num">Plate I.</span> <code>{site.cli} planes</code> — CLI · 2026-09-26 · claude docked · one harness selected · the role line is omitted</figcaption>
       </figure>
     </section>
@@ -75,9 +77,9 @@ const verifiedCells = harnesses.reduce((n, h) => n + Object.keys(h.verified).len
       <WardBars align="left" />
       <h2 id="add-h">How a harness gets added</h2>
       <div class="prose measure">
-        <p>One adapter in the runtime registry: the command line that starts the agent over stdio, which protocol family it speaks, a one-line login hint, and the binaries it needs on the path. That is the whole entry. The gateway, the channels and the schedules are shared code. What differs per harness is a short list of capability flags: whether it can share or steer a session, and whether it brings its own sandbox (kiro-cli does, so Warding's own is not layered on top of it).</p>
+        <p>One adapter in the runtime registry: the command line that starts the agent over stdio, which protocol family it speaks, a one-line login hint, and the binaries it needs on the path. That is the whole entry. The gateway, the channels and the schedules are shared code. What differs per harness is a short list of capability flags: whether it can share or steer a session, and whether it brings its own sandbox (the legacy adapter does, so Warding's own is not layered on top of it).</p>
         <p>A harness adapts to the seams the first-class path already runs through. It cannot add a step, a flag or a failure mode to that path, and a harness that cannot fit does not land. What each one can do is then a matter of record, not of the registry: a cell above turns into a check only when a dated row exists on <a href="/verified/">the verification log</a>.</p>
-        <p>{notDockedLine}. If you run one of those, <a href={site.githubRepo} rel="noopener">say so in an issue</a>; the list of runtimes people ask for sets the order. <StatusChip kind="coming" label="Adding one is a small change, not a promise" /></p>
+        <p>{notDockedLine}. If you run one of those, public issue reporting is available; <a href={site.sourceStatus}>check source status</a>. <StatusChip kind="coming" label="Adding one is a small change, not a promise" /></p>
       </div>
     </section>
   </div>
@@ -97,5 +99,5 @@ const verifiedCells = harnesses.reduce((n, h) => n + Object.keys(h.verified).len
   .order li { display: grid; gap: 2px; }
   .order li::marker { font-family: var(--font-clock); color: var(--lamp); }
   .prose { display: grid; gap: 12px; color: var(--fg-2); }
-  @media (max-width: 880px) { .two { grid-template-columns: 1fr; } }
+  @media (max-width: 880px) { .two { grid-template-columns: minmax(0, 1fr); } }
 </style>

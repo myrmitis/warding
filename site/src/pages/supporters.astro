@@ -40,7 +40,7 @@ const opens = supporter?.status === "waitlist";
         <li>You become a Founding Supporter on <a href="/pricing/#supporter">the pricing page</a>{opens ? " (a free waitlist until the tier opens)" : ""}.</li>
         <li>At checkout you choose whether your name appears on this wall. The default is off. The numbered seal badge in your dashboard is yours either way.</li>
         <li>Opted-in names are listed in the order they joined, with the seal number and the month. No photos, no amounts, no company logos.</li>
-        <li>Change your mind later and the line is removed at the next build. Nothing else about you is published.</li>
+        <li>Change your mind later and the line is removed after a reviewed export and manifest update. Nothing else about you is published.</li>
       </ol>
     </section>
     <section aria-labelledby="what-h">
@@ -54,6 +54,7 @@ const opens = supporter?.status === "waitlist";
 </PageLayout>
 
 <style>
+  .wall-head .eyebrow { color: var(--fg-2); }
   .wall { display: grid; gap: 20px; }
   .wall-head { display: flex; align-items: center; gap: 16px; }
   .ledger th, .ledger td { white-space: normal; }

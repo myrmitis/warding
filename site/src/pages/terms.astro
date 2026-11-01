@@ -1,20 +1,20 @@
 ---
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import PageLayout from "../layouts/PageLayout.astro";
 import WardBars from "../components/WardBars.astro";
-import { site, siteHost } from "../data/site";
+import { site } from "../data/site";
 
 /** /terms/ (site-spec §8): a plain-language summary of the licence and the paid items' refund terms. */
 const title = `${site.name} terms`;
 const description = "A plain-language summary: Apache-2.0 software with no warranty, refund terms for setup, pilots and Founding Supporter, and what is not promised.";
-const contact = `hello@${siteHost}`;
-const updated = "2026-10-09";
+const updated = "2026-09-29";
 ---
 <PageLayout endBand={false} title={title} description={description} h1="Terms" lead={`A plain-language summary of the terms, not a contract drafted by a lawyer. Where a checkout or a written scope says more, that document wins. Updated ${updated}.`} breadcrumbs={[{ label: "Terms", href: "/terms/" }]} ogSlug="terms">
   <div class="legal prose measure">
     <section aria-labelledby="lic-h">
       <WardBars align="left" />
       <h2 id="lic-h">The software</h2>
-      <p>{site.name} is free and open source under the <a href="https://www.apache.org/licenses/LICENSE-2.0" rel="noopener">Apache License 2.0</a>.</p>
+      <p>{site.name} is free and open source under the <a href="https://www.apache.org/licenses/LICENSE-2.0" rel="noopener">Apache License 2.0</a>. Required upstream attribution is preserved in <a href={site.links.notice} rel="noopener">NOTICE</a>.</p>
       <p>As the licence says, it comes as is, without warranty. It is unaudited by a third party and maintained by a single owner. Read <a href="/security/#scope">what is enforced where</a> before you let it run unattended.</p>
       <p>Your agent vendor's plan limits and their terms for unattended use apply to anything you run through it, and may change.</p>
     </section>
@@ -32,13 +32,13 @@ const updated = "2026-10-09";
     <section aria-labelledby="site-h">
       <WardBars align="left" />
       <h2 id="site-h">This website</h2>
-      <p>The pages describe the software as it is on the date they were built. Where a capability is unverified or in development, the page says so; the dated record is on <a href="/verified/">/verified</a>. If you find a claim that overstates, <a href={site.githubRepo} rel="noopener">open an issue</a>.</p>
+      <p>The pages describe the software as it is on the date they were built. Where a capability is unverified or in development, the page says so; the dated record is on <a href="/verified/">/verified</a>. If you find a claim that overstates, read the <a href={site.sourceStatus}>source and reporting status</a>.</p>
     </section>
 
     <section aria-labelledby="contact-h">
       <WardBars align="left" />
       <h2 id="contact-h">Contact</h2>
-      <p>{site.company}: <a href={`mailto:${contact}`}>{contact}</a>. Security reports go through <a href={site.links.securityMd} rel="noopener">SECURITY.md</a>, not email.</p>
+      <p>Public contact setup is pending. Read the <a href={site.links.securityMd}>security reporting status</a> before sharing vulnerability details.</p>
     </section>
   </div>
 </PageLayout>

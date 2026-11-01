@@ -1,3 +1,4 @@
+// Website copy revised by Myrmitis on 2026-10-08; inherited legal attribution preserved in NOTICE.
 import type { AgentSource } from "./types";
 
 /**
@@ -44,7 +45,7 @@ export const BEATS: Beat[] = [
   {
     step: 3, time: "02:30", focus: "claude",
     sources: [
-      { ...CLAUDE, name: "claude", running: true, refused: "~/.aws" },
+      { ...CLAUDE, name: "claude", running: true, refused: "~/.gnupg" },
       { ...CRON, running: true },
     ],
   },

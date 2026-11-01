@@ -34,7 +34,7 @@ interface Props {
 }
 const {
   title, description, register = "paper", footerRegister, navWide = false, ogSlug = ogSlugForPath(Astro.url.pathname),
-  ogAlt, jsonLd = [], installHref = "/#install", noindex = false, bodyClass = "",
+  ogAlt, jsonLd = [], installHref = "/quickstart/", noindex = false, bodyClass = "",
 } = Astro.props;
 const scheme = register === "night" ? "dark" : "light";
 const footerWrap = footerRegister && footerRegister !== register ? (footerRegister === "night" ? "vault" : "paper") : "";
