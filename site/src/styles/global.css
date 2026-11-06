@@ -337,7 +337,9 @@ button { font: inherit; color: inherit; }
 
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line);
   font-size: 0.8125rem; line-height: 1.4; font-weight: 500; color: var(--fg-2);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
   white-space: nowrap;
 }
 .chip .lucide { width: 14px; height: 14px; stroke-width: 1.75; }

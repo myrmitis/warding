@@ -640,6 +640,15 @@ class TestArmTimerDuringOnTimer:
                     await svc._timer_task
 
 
+def _pin_now(monkeypatch: pytest.MonkeyPatch, when: datetime) -> None:
+    class _Pinned(datetime):
+        @classmethod
+        def now(cls, tz=None):  # type: ignore[override]
+            return when if tz is None else when.astimezone(tz)
+
+    monkeypatch.setattr("warding.cron.datetime", _Pinned)
+
+
 class TestFormatSchedule:
     @pytest.fixture(autouse=False)
     def _utc_tz(self):
@@ -673,13 +682,15 @@ class TestFormatSchedule:
         assert "Monday through Friday" in result
         assert "10:00 PM" in result
 
-    def test_cron_expr_with_timezone(self) -> None:
+    def test_cron_expr_with_timezone(self, monkeypatch) -> None:
         from warding.cron import CronSchedule, format_schedule
 
+        # Eve of the fall-back. A next-fire lookup shifts 22:00 to 23:00.
+        _pin_now(monkeypatch, datetime(2026, 10, 31, 15, 0, tzinfo=ZoneInfo("America/Los_Angeles")))
         s = CronSchedule(kind="cron", cron_expr="0 22 * * 1-5")
         result = format_schedule(s, tz_name="America/Los_Angeles")
-        # Expression is evaluated in job timezone (LA), so 22:00 = 10 PM local
         assert "10:00 PM" in result
+        assert "11:00 PM" not in result
         assert "PDT" in result or "PST" in result
         assert "Monday through Friday" in result
 
@@ -694,14 +705,16 @@ class TestFormatSchedule:
         result = format_schedule(s, tz_name="")
         assert "Friday" in result
 
-    def test_single_digit_hour_with_timezone(self) -> None:
+    def test_single_digit_hour_with_timezone(self, monkeypatch) -> None:
         from warding.cron import CronSchedule, format_schedule
 
-        # 03:00 in LA timezone = 3 AM local, no date boundary issue
+        # The same eve shifts a next-fire to 4 AM.
+        _pin_now(monkeypatch, datetime(2026, 10, 31, 15, 0, tzinfo=ZoneInfo("America/Los_Angeles")))
         s = CronSchedule(kind="cron", cron_expr="0 3 * * *")
         result = format_schedule(s, tz_name="America/Los_Angeles")
         assert "PDT" in result or "PST" in result
         assert "3:00 AM" in result
+        assert "4:00 AM" not in result
 
     def test_every_secs(self) -> None:
         from warding.cron import CronSchedule, format_schedule
@@ -780,10 +793,12 @@ class TestFormatSchedule:
             "warding.cron.WardingConfig.load",
             staticmethod(lambda: type("C", (), {"timezone": "America/New_York"})()),
         )
+        # Eve of the fall-back. A next-fire lookup shifts 22:00 to 23:00.
+        _pin_now(monkeypatch, datetime(2026, 10, 31, 15, 0, tzinfo=ZoneInfo("America/New_York")))
         s = CronSchedule(kind="cron", cron_expr="0 22 * * 1-5")
         result = format_schedule(s)
-        # Expression is evaluated in job timezone (ET fallback), so 22:00 = 10 PM local
         assert "10:00 PM" in result
+        assert "11:00 PM" not in result
         assert "EDT" in result or "EST" in result
         assert "Monday through Friday" in result
 

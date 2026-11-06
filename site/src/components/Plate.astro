@@ -13,8 +13,6 @@ import { Picture } from "astro:assets";
 import type { ImageMetadata } from "astro";
 
 interface Props {
-  /** Call sites may still pass a plate number. It is not shown. */
-  num?: string;
   title: string;
   caption: string; // e.g. "Dashboard · Schedule calendar · 2026-09-26 · no agent connected"
   note?: string;

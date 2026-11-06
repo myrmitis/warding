@@ -88,20 +88,18 @@ const bento = [
     <div class="stage wrap-wide" data-stage data-step="0">
       <header class="hero-head">
         <h1 id="hero-h1">
-          <span class="h1-copy">
-            <span class="h1-line">{h1Lines[0]}</span>
-            {h1Lines[1] && <span class="h1-line">{h1Lines[1]}</span>}
-          </span>
-          <span class="lamp-time">
-            <svg class="lamp-window" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
-              <rect x="2" y="2" width="28" height="28" fill="none" stroke="var(--fg-2)" stroke-width="2" />
-              <line x1="16" y1="2" x2="16" y2="30" stroke="var(--fg-2)" stroke-width="2" />
-              <line x1="2" y1="16" x2="30" y2="16" stroke="var(--fg-2)" stroke-width="2" />
-              <rect class="lamp-pane" x="17" y="17" width="12" height="12" fill="var(--lamp)" />
-            </svg>
-            <span><span class="clock" data-local-time>--:--</span> your time</span>
-          </span>
+          <span class="h1-line">{h1Lines[0]}</span>
+          {h1Lines[1] && <span class="h1-line">{h1Lines[1]}</span>}
         </h1>
+        <p class="lamp-time">
+          <svg class="lamp-window" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
+            <rect x="2" y="2" width="28" height="28" fill="none" stroke="var(--fg-2)" stroke-width="2" />
+            <line x1="16" y1="2" x2="16" y2="30" stroke="var(--fg-2)" stroke-width="2" />
+            <line x1="2" y1="16" x2="30" y2="16" stroke="var(--fg-2)" stroke-width="2" />
+            <rect class="lamp-pane" x="17" y="17" width="12" height="12" fill="var(--lamp)" />
+          </svg>
+          <span><span class="clock" data-local-time>--:--</span> your time</span>
+        </p>
       </header>
 
       <div class="steps">
@@ -219,7 +217,7 @@ const bento = [
           ) : (
             <>
               <p class="step-body">The morning report is in development. Until it ships, here is the real schedule calendar from the dashboard — no recorded night yet.</p>
-              <Plate num="II" title="The week's schedule" caption="Dashboard · Schedule calendar · 2026-09-26 · no agent connected" note="No recorded night yet: the dots are seeded jobs, not runs." src={calendarShot} alt="The dashboard's schedule calendar: a week grid with jobs marked at 02:00, 03:00, 08:00, 09:00, 15:00 and 21:00 each day." crop={0.125} cropTop={0.16} />
+              <Plate title="The week's schedule" caption="Dashboard · Schedule calendar · 2026-09-26 · no agent connected" note="No recorded night yet: the dots are seeded jobs, not runs." src={calendarShot} alt="The dashboard's schedule calendar: a week grid with jobs marked at 02:00, 03:00, 08:00, 09:00, 15:00 and 21:00 each day." crop={0.125} cropTop={0.16} />
             </>
           )}
         </section>
@@ -324,7 +322,7 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
           <LinkButton href="/security/">Read the charter</LinkButton>
         </footer>
       </CharterSheet>
-      <Plate num="IV" title="The posture page" caption="Dashboard · Settings Security · 2026-09-26 · no agent connected" src={securityShot} alt="The dashboard's Security settings page listing the live posture: process sandbox, tool approval, sensitive path blocking, write-protected paths, denied commands, output redaction and credential patterns." crop={0.5} cropTop={0.48} class="posture-plate" sizes="(min-width: 1200px) 960px, 92vw" />
+      <Plate title="The posture page" caption="Dashboard · Settings Security · 2026-09-26 · no agent connected" src={securityShot} alt="The dashboard's Security settings page listing the live posture: process sandbox, tool approval, sensitive path blocking, write-protected paths, denied commands, output redaction and credential patterns." crop={0.5} cropTop={0.48} class="posture-plate" sizes="(min-width: 1200px) 960px, 92vw" />
     </section>
 
     <!-- 9. Bento -->
@@ -445,15 +443,14 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
     align-items: start; padding-top: 36px; padding-bottom: 96px;
     position: relative; z-index: 1;
   }
-  .hero-head { grid-column: 1 / -1; padding-bottom: 8px; margin-bottom: 8px; }
-  .hero-head h1 {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start;
-    column-gap: 28px; row-gap: 14px;
-    font-size: clamp(2.7rem, 1.05rem + 5.6vw, 6rem); line-height: 0.98; letter-spacing: -0.015em;
+  .hero-head {
+    grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start; column-gap: 28px; row-gap: 14px; padding-bottom: 8px; margin-bottom: 8px;
   }
+  .hero-head h1 { font-size: clamp(2.7rem, 1.05rem + 5.6vw, 6rem); line-height: 0.98; letter-spacing: -0.015em; }
   .h1-line { display: block; }
   .lamp-time {
-    display: inline-flex; align-items: center; gap: 10px; flex: none;
+    display: inline-flex; align-items: center; gap: 10px; margin: 0; flex: none;
     color: var(--lamp); font-family: var(--font-clock); font-size: 22px; line-height: 1;
   }
   .lamp-time svg { flex: none; color: var(--fg-2); }
@@ -508,8 +505,8 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   }
   @media (max-width: 720px) {
     .stage { padding-top: 8px; padding-bottom: 64px; }
-    .hero-head { padding-bottom: 12px; }
-    .hero-head h1 { grid-template-columns: minmax(0, 1fr); font-size: clamp(2.2rem, 1rem + 6.4vw, 3.15rem); }
+    .hero-head { grid-template-columns: minmax(0, 1fr); padding-bottom: 12px; }
+    .hero-head h1 { font-size: clamp(2.2rem, 1rem + 6.4vw, 3.15rem); }
     .lamp-time { font-size: 18px; }
     .lamp-window { width: 26px; height: 26px; }
   }
@@ -521,7 +518,10 @@ aws_access_key_id = <span class="amber">[REDACTED: credential]</span></code></pr
   :global(.world-canvas) { image-rendering: pixelated; display: block; max-width: none; }
   :global(.world-chip) { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; pointer-events: none; }
   :global(.world-chip > *) { pointer-events: auto; }
-  :global(.world-chip .chip) { background: #0b0e14; color: #ece8e1; padding: 4px 8px; white-space: normal; max-width: calc(100% - 112px); }
+  :global(.world-chip .chip) {
+    background: #0b0e14; color: #ece8e1; padding: 4px 8px; border-color: #2a3244; border-radius: 0;
+    white-space: normal; max-width: calc(100% - 112px);
+  }
   :global(.world-controls) { display: flex; gap: 8px; flex: none; }
   :global(.world-count) {
     position: absolute; top: 8px; right: 8px; padding: 2px 8px; font-family: var(--font-clock); font-size: 11px;
