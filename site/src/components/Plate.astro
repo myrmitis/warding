@@ -13,7 +13,6 @@ import { Picture } from "astro:assets";
 import type { ImageMetadata } from "astro";
 
 interface Props {
-  num: string; // "I", "II"
   title: string;
   caption: string; // e.g. "Dashboard · Schedule calendar · 2026-09-26 · no agent connected"
   note?: string;
@@ -30,7 +29,7 @@ interface Props {
   class?: string;
   sizes?: string;
 }
-const { num, title, caption, note = "", src, alt = "", crop = 0, cropTop = 0, cropRight = 0, cropBottom = 0, class: cls = "", sizes = "(min-width: 1200px) 560px, 92vw" } = Astro.props;
+const { title, caption, note = "", src, alt = "", crop = 0, cropTop = 0, cropRight = 0, cropBottom = 0, class: cls = "", sizes = "(min-width: 1200px) 560px, 92vw" } = Astro.props;
 const visibleW = src ? src.width * (1 - crop - cropRight) : 4;
 const visibleH = src ? src.height * (1 - cropTop - cropBottom) : 3;
 const ratio = visibleW / visibleH;
@@ -46,11 +45,11 @@ const style = `--ratio:${ratio.toFixed(4)};--ox:${(-crop * scaleX * 100).toFixed
       </div>
     ) : (
       <div class="plate-placeholder">
-        <p><span class="plate-num">Plate {num}.</span> {title}<br /><span class="caption">Capture pending: this plate will hold a real screenshot with its harness and date in the frame.</span></p>
+        <p>{title}<br /><span class="caption">Capture pending: this plate will hold a real screenshot with its harness and date in the frame.</span></p>
       </div>
     )}
   </div>
-  <figcaption><span class="plate-num">Plate {num}.</span> {title} — {caption}{note && <><br /><span>{note}</span></>}</figcaption>
+  <figcaption>{title} — {caption}{note && <><br /><span>{note}</span></>}</figcaption>
 </figure>
 <style>
   .plate-crop { position: relative; overflow: hidden; aspect-ratio: var(--ratio); background: var(--raised); }

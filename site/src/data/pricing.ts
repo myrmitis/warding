@@ -27,7 +27,6 @@ export interface Offer {
   hiddenWhenUnset?: boolean;
   /** Shown on the homepage preview (four cards). */
   preview: boolean;
-  recommended?: boolean;
   /** Waitlist list name for the WaitlistForm island. */
   list?: string;
 }
@@ -49,7 +48,6 @@ export const offers: Offer[] = [
     cta: site.installOneLiner ? "Copy the install command" : "Copy the quickstart",
     href: "#install",
     preview: true,
-    recommended: true,
   },
   {
     id: "supporter",

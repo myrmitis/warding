@@ -32,7 +32,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Iterator
 from zoneinfo import ZoneInfo
@@ -647,26 +647,27 @@ def _humanize_cron(expr: str, tz_name: str = "") -> str:
     except Exception:
         return expr
 
-    # Timezone-aware display: evaluate the cron expression in the job's
-    # timezone (matching compute_next_run_ts) and display the local time.
+    # Literal minute and hour are wall-clock time in the job zone. croniter's
+    # next instant shifts that hour by the DST offset when the next fire
+    # crosses a transition, so the clock face is the field, not that instant.
     parts = expr.split()
     if tz_name and len(parts) == 5 and parts[0].isdigit() and parts[1].isdigit():
         try:
+            minute = int(parts[0])
+            hour = int(parts[1])
+            if not (0 <= minute <= 59 and 0 <= hour <= 23):
+                return desc
             tz = ZoneInfo(tz_name)
-            # Evaluate in job timezone, same as the scheduler does
-            base = datetime.now(tz)
-            next_local = croniter(expr, base).get_next(datetime).astimezone(tz)
-            local_time = platform_compat.strftime(next_local, "%-I:%M %p %Z")
-            # cron_descriptor produces UTC-based text; replace the time portion
-            utc_base = datetime.now(timezone.utc)
-            next_as_utc = croniter(expr, utc_base).get_next(datetime)
-            utc_time = platform_compat.strftime(next_as_utc, "%-I:%M %p")
-            utc_time_padded = next_as_utc.strftime("%I:%M %p")
-            result = desc.replace(f"At {utc_time}", f"At {local_time}")
+            h12 = hour % 12 or 12
+            ampm = "AM" if hour < 12 else "PM"
+            clock = f"{h12}:{minute:02d} {ampm}"
+            abbrev = datetime.now(tz).tzname() or ""
+            local_time = f"{clock} {abbrev}".strip()
+            clock_padded = f"{h12:02d}:{minute:02d} {ampm}"
+            result = desc.replace(f"At {clock}", f"At {local_time}")
             if result == desc:
-                result = desc.replace(f"At {utc_time_padded}", f"At {local_time}")
+                result = desc.replace(f"At {clock_padded}", f"At {local_time}")
             if result == desc:
-                # Fallback: prepend local time if replacement failed
                 result = f"At {local_time}, {desc.removeprefix('At ')}"
             return result
         except Exception:

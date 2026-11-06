@@ -139,13 +139,10 @@ def supports_pinned_tree_walk() -> bool:
     have to re-list by name, which reintroduces exactly the ancestor swap the pinned
     open just refused.
 
-    Note which stat is probed. ``os.lstat`` is NOT a member of
-    ``os.supports_dir_fd`` even on Linux -- the capability belongs to ``os.stat``, and
-    ``lstat(p, dir_fd=fd)`` is documented as ``stat(p, dir_fd=fd,
-    follow_symlinks=False)``. Probing ``os.lstat`` reports False on a platform that
-    fully supports the walk, which would have made every snapshot on Linux refuse and
-    demand the by-name opt-in. The walk below calls ``os.stat`` with
-    ``follow_symlinks=False`` so the call and the probe are the same function.
+    The walk calls ``os.stat`` with ``follow_symlinks=False``, the form that
+    accepts ``dir_fd``. The probe names ``os.stat`` so it matches that call.
+    Whether ``os.lstat`` also sits in ``os.supports_dir_fd`` depends on the
+    interpreter and is not the signal.
     """
     return supports_pinned_walk() and os.listdir in os.supports_fd and os.stat in os.supports_dir_fd
 
