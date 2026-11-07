@@ -189,11 +189,13 @@ def parse_duration(s: str) -> int | None: ...
 def token_auth_middleware(local_only: bool = True) -> Callable[..., Any]:
 ```
 
-The `local_only` parameter is accepted for backward compatibility but no longer controls loopback trust. Loopback requests (127.0.0.1, ::1, localhost) are **always** trusted — this ensures local processes like `mcp-core`, `warding doctor`, and SSH tunnels work without tokens regardless of bind mode.
+A loopback source is **not** trusted by itself. A local port forwarder (`socat`, `ssh -R`) makes remote traffic arrive from 127.0.0.1, so a request from loopback needs a valid token like any other. Local processes such as `mcp-core` and `warding doctor` use the internal API paths instead. These paths are strict (`internal_paths`, for local processes only) or mixed (`mixed_internal_paths`, for local processes and the browser). On an internal API path, a request from loopback or the dashboard's unix socket passes when its `X-Internal-Secret` header matches the local secret (the data home's `.local_secret` file). `/api/token/local`, `/api/shutdown` and `/api/logout` skip the token gate, and their handlers check loopback and the local secret themselves.
+
+The `local_only` parameter does not grant loopback trust. When it is `False`, a strict path also accepts cookie auth from a non-loopback source, as a mixed path does.
 
 Request flow:
-1. If request is from loopback → pass through (always trusted)
-2. Bypass static assets (`/assets/`, `/static/`, `/logo.png`, `/manifest.json`, `/sw.js`, `/icon-*.png`, `/api/token/local`, `/api/shutdown`, `/api/theme/boot` — a GET-only, secret-free theme-boot endpoint the SPA reads before the token flow completes) plus the liveness/readiness probes (`/api/health`, `/api/live`, `/api/ready` — orchestrators and load balancers carry no auth cookie, so probes must be reachable without a token; remote callers receive only liveness/readiness booleans)
+1. Internal API paths: a request from loopback or the unix socket passes with a matching `X-Internal-Secret`. A non-loopback request to a strict path is denied. A non-loopback request to a mixed path needs a valid cookie. Any other request continues to step 2.
+2. Bypass static assets (`/assets/`, `/static/`, `/logo.png`, `/favicon.svg`, `/manifest.json`, `/sw.js`, `/icon-*.png`, `/api/token/local`, `/api/shutdown`, `/api/theme/boot` — a GET-only, secret-free theme-boot endpoint the SPA reads before the token flow completes) plus the liveness/readiness probes (`/api/health`, `/api/live`, `/api/ready` — orchestrators and load balancers carry no auth cookie, so probes must be reachable without a token; remote callers receive only liveness/readiness booleans)
 3. Extract token from `?token=` query param or `mc_token_{port}` cookie
 4. Validate signature + expiry (link window for query param, session_exp for cookie)
 5. Check IP binding
@@ -306,6 +308,22 @@ Security invariants:
   shell carries no secrets.
 - **Mint preserved** — a valid `?token=` is *not* short-circuited; it flows
   through the normal validate-and-mint exchange (steps 4–7).
+
+##### Root files of the build
+
+A file at the root of `dist/` that the shell names, such as `/favicon.svg`,
+needs two entries:
+
+- **A route.** `routes/realtime.py` serves these files through
+  `handlers.pwa_file`. Without a route, a `GET` falls through to `server.py`'s
+  SPA fallback, and the response is the shell.
+- **A static-file bypass.** The path is in `_BYPASS_EXACT`, or it matches the
+  `/icon-<n>.png` pattern. Without this entry, the SPA shell bypass above
+  answers a request that has no valid token. The route does not run.
+
+`test_shell_declared_favicon_is_the_built_svg` in `test/test_e2e_smoke.py`
+checks both on a real gateway
+([#78](https://github.com/myrmitis/warding/issues/78)).
 
 #### State: in-memory vs. persisted
 

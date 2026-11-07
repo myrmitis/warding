@@ -1594,7 +1594,7 @@ def test_no_get_route_outside_shell_exclusions() -> None:
         return (
             p == "/"  # the SPA shell itself
             or p in bypass_exact  # explicit public files (logo, etc.)
-            or p.startswith("/{")  # pattern route (PWA: manifest/sw/icon/worklet)
+            or p.startswith("/{")  # pattern route (root files of the build)
             or p.startswith(nonshell)  # data/static namespaces (/api/, /v1/, etc.)
             # /apps/ routes: safe when they have a sub-path after {name}/ (real
             # handler) OR when they are aiohttp pattern routes (contain "{" in

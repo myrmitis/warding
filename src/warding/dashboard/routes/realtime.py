@@ -25,8 +25,13 @@ def register(app: web.Application) -> None:
     """Register the realtime routes on *app*."""
     app.router.add_get("/", handlers.index)
     app.router.add_get("/logo.png", handlers.logo)
+    # Root files of the build. Each name needs a route here, because an
+    # unrouted GET falls through to the SPA shell (index.html). Each name also
+    # needs a static-file bypass in token_auth (_BYPASS_EXACT, or the icon
+    # pattern). Without it, a request with no valid token still gets the shell.
     app.router.add_get(
-        "/{name:manifest\\.json|sw\\.js|icon-\\d+\\.png|pcm-worklet\\.js}", handlers.pwa_file
+        "/{name:manifest\\.json|sw\\.js|icon-\\d+\\.png|pcm-worklet\\.js|favicon\\.svg}",
+        handlers.pwa_file,
     )
 
     # WebSocket (multiplexed real-time events)
