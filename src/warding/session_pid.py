@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -232,6 +233,11 @@ def _rewrite_pid_file(path: Path, content: str) -> bool:
 _MANAGED_AGENT_MARKERS: tuple[str, ...] = ("kiro-cli", "claude")
 
 
+#: A sibling name that kiro-cli execs, such as ``kiro-cli-chat``: lowercase
+#: words joined by hyphens, with no file extension.
+_KIRO_SIBLING_SUFFIX = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+
+
 @dataclass(frozen=True)
 class _AgentIdentity:
     """The argv shapes of the agent processes that Warding launches and tracks."""
@@ -239,27 +245,48 @@ class _AgentIdentity:
     #: Executable names, compared with the last path component of an element.
     names: frozenset[str]
     #: kiro-cli is a multi-call binary that execs siblings such as kiro-cli-chat.
-    name_prefixes: tuple[str, ...]
+    sibling_prefix: str
+    #: npm package whose spec the npx launch passes (``<package>@<range>``).
+    npm_package: str
     #: Script paths that Node runs directly, compared as a path suffix.
     entry_suffixes: tuple[str, ...]
+    #: Launch paths that the operator configured, compared as whole paths.
+    override_paths: frozenset[str]
     #: Argument sets that only the KAS launch passes (kas_assets.build_kas_argv).
     signatures: tuple[frozenset[str], ...]
+
+
+def _override_paths(*env_names: str) -> frozenset[str]:
+    """The launch paths that *env_names* configure, as given and as absolute paths.
+
+    The spawn path reads the same variables from the gateway's environment, so
+    a sweep in that gateway compares the path it launched.
+    """
+    paths: set[str] = set()
+    for env_name in env_names:
+        value = os.environ.get(env_name, "")
+        if value:
+            paths.update({value, os.path.abspath(value)})
+    return frozenset(_normalized_path(path) for path in paths)
 
 
 def _agent_identities() -> tuple[_AgentIdentity, _AgentIdentity]:
     """Return the identities of a tracked agent root and of its descendants.
 
-    A root is what acp/client.py and acp/runtime.py spawn and record: kiro-cli,
-    the claude-agent-acp adapter (its executable, its Node entry script, or the
-    npx package spec), or KAS. A descendant of a confirmed root can also be the
-    Claude Code CLI that the adapter starts. That CLI never counts as a root,
-    because Warding never records it, and the name alone also fits the
-    operator's own Claude Code.
+    A root is what acp/client.py and acp/runtime.py spawn and record: kiro-cli
+    (its own name or the ``WARDING_KIRO_BIN`` path), the claude-agent-acp
+    adapter (its executable, the ``CLAUDE_AGENT_ACP_BIN`` path, its Node entry
+    script, or the npx package spec), or KAS. A descendant of a confirmed root
+    can also be the Claude Code CLI that the adapter starts (its name or the
+    ``CLAUDE_CODE_EXECUTABLE`` path). That CLI never counts as a root, because
+    Warding never records it, and the name alone also fits the operator's own
+    Claude Code.
     """
     # Deferred, as in _kill_pid_tree: session_pid -> acp.client -> session -> session_pid.
     from warding.acp.client import (
         _CLAUDE_ACP_PKG_ENTRY,
         CLAUDE_ACP_BIN,
+        CLAUDE_ACP_NPM_PKG,
         CLAUDE_CODE_BIN,
         KIRO_CLI_BIN,
     )
@@ -267,49 +294,77 @@ def _agent_identities() -> tuple[_AgentIdentity, _AgentIdentity]:
 
     root = _AgentIdentity(
         names=frozenset({KIRO_CLI_BIN, CLAUDE_ACP_BIN}),
-        name_prefixes=(f"{KIRO_CLI_BIN}-",),
+        sibling_prefix=f"{KIRO_CLI_BIN}-",
+        npm_package=CLAUDE_ACP_NPM_PKG,
         entry_suffixes=(f"/{_CLAUDE_ACP_PKG_ENTRY.as_posix()}",),
+        override_paths=_override_paths("WARDING_KIRO_BIN", "CLAUDE_AGENT_ACP_BIN"),
         signatures=(frozenset({KAS_TRANSPORT_ARG, KAS_AUTH_ACP_CALLBACK_ARG}),),
     )
-    descendant = replace(root, names=root.names | {CLAUDE_CODE_BIN})
+    descendant = replace(
+        root,
+        names=root.names | {CLAUDE_CODE_BIN},
+        override_paths=root.override_paths | _override_paths("CLAUDE_CODE_EXECUTABLE"),
+    )
     return root, descendant
 
 
-def _argv_element_name(element: str) -> str:
-    """Return the executable name an argv element names.
+def _normalized_path(path: str) -> str:
+    """Return *path* with forward slashes, and without case on Windows."""
+    if platform_compat.IS_WINDOWS:
+        return path.replace("\\", "/").lower()
+    return path
 
-    The name is the last path component. A trailing npm version range is
-    dropped, so the npx spec ``@scope/claude-agent-acp@^1.0`` names
-    ``claude-agent-acp``. Windows compares names without case and without the
-    ``.exe`` suffix.
+
+def _argv_candidates(argv: tuple[str, ...]) -> list[str]:
+    """Return the argv elements that can name an executable, a script or a package.
+
+    An option (``-c``, ``--config=...``) names none, and neither does an element
+    that holds whitespace, such as a ``-c`` payload. The exception is a process
+    that rewrote its title into a single element, such as npm's
+    ``npm exec <spec>``: its words are the candidates.
     """
+    elements = [element for element in argv if element]
+    if len(elements) == 1 and any(char.isspace() for char in elements[0]):
+        elements = elements[0].split()
+    return [e for e in elements if not e.startswith("-") and not any(c.isspace() for c in e)]
+
+
+def _argv_element_name(element: str) -> str:
+    """Return the executable name an argv element names: its last path component.
+
+    Windows compares names without case and without the ``.exe`` suffix.
+    """
+    name = _normalized_path(element).rsplit("/", 1)[-1]
     if platform_compat.IS_WINDOWS:
-        element = element.replace("\\", "/")
-    name = element.rsplit("/", 1)[-1].split("@", 1)[0]
-    if platform_compat.IS_WINDOWS:
-        name = name.lower().removesuffix(".exe")
+        name = name.removesuffix(".exe")
     return name
 
 
 def _argv_matches_identity(argv: tuple[str, ...], identity: _AgentIdentity) -> bool:
-    """Return True when some whole argv element has one of *identity*'s shapes.
+    """Return True when an argv element has one of *identity*'s shapes.
 
     Elements are compared one by one, so a launcher matches whatever argv
     position it holds. That covers the Linux sandbox launcher
     (``python <run>/warding_sandbox_*.py <agent> ...``), ``node <entry script>``
     and the npm title ``npm exec <package spec>``. A path that only passes
     through a directory named like an agent, such as ``~/.claude/worktrees/``,
-    or an argument value such as ``--config=~/.claude/settings.json``, names
-    no agent.
+    an option value such as ``--config=~/.claude/settings.json``, or a word in a
+    ``-c`` payload names no agent.
     """
-    present = set(argv)
-    if any(signature <= present for signature in identity.signatures):
+    if any(signature <= set(argv) for signature in identity.signatures):
         return True
-    for element in argv:
+    for element in _argv_candidates(argv):
+        path = _normalized_path(element)
         name = _argv_element_name(element)
-        if name in identity.names or name.startswith(identity.name_prefixes):
-            return True
-        if element.replace("\\", "/").endswith(identity.entry_suffixes):
+        sibling = name.removeprefix(identity.sibling_prefix)
+        if (
+            name in identity.names
+            or (sibling != name and _KIRO_SIBLING_SUFFIX.fullmatch(sibling) is not None)
+            or element == identity.npm_package
+            or element.startswith(f"{identity.npm_package}@")
+            or path.endswith(identity.entry_suffixes)
+            or path in identity.override_paths
+        ):
             return True
     return False
 

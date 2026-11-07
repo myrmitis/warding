@@ -2033,9 +2033,8 @@ def process_matches(pid: int, needles: tuple[str, ...]) -> bool:
 def process_argv(pid: int) -> tuple[str, ...] | None:
     """Return the argument vector of *pid*, or None when it cannot be read.
 
-    An identity check compares whole elements of this vector, so a path
-    component or an argument value cannot pass for an executable name.
-    Linux: ``/proc/<pid>/cmdline`` split on NUL, one exact element per
+    An identity check compares whole elements of this vector instead of
+    searching the command line for a substring. Linux: ``/proc/<pid>/cmdline`` split on NUL, one exact element per
     argument. macOS: ``ps -ww -o command=`` split on whitespace; ``ps`` joins
     argv with spaces, so an argument that contains a space comes back as
     several elements. Windows: one element, the image name from

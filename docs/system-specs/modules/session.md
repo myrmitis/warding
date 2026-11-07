@@ -1046,38 +1046,59 @@ signal. The check is `session_pid._is_managed_agent_process`
 ([#30](https://github.com/myrmitis/warding/issues/30)).
 
 The check compares whole argv elements. It never searches the command line for
-a substring. So a path through a directory named like an agent, such as
-`~/.claude/worktrees/`, or an argument value, such as
-`--config=~/.claude/settings.json`, names no agent. An element matches by its
-last path component, so a symlink keeps its name. The element can hold any
-argv position.
+a substring. It uses only the elements that can name an executable, a script
+or a package:
 
-| A root matches when an argv element is | Launch it covers |
+1. It skips an option (an element that starts with `-`), such as
+   `--config=~/.claude/settings.json`.
+2. It skips an element that contains whitespace, such as a `-c` payload. A
+   process that rewrote its title into one element, such as npm's
+   `npm exec <spec>`, is the exception: the words of that element count.
+3. It compares the last path component of each remaining element, so a symlink
+   keeps its name, and a path that only passes through a directory named like
+   an agent, such as `~/.claude/worktrees/`, names no agent.
+
+An element can hold any argv position.
+
+| A root matches when a candidate element is | Launch it covers |
 |---|---|
-| A file named `kiro-cli`, or `kiro-cli-` followed by a sibling name | kiro-cli, and siblings that it execs, such as `kiro-cli-chat` |
-| A file named `claude-agent-acp`, or the npm spec `@agentclientprotocol/claude-agent-acp@<range>` | The Claude adapter executable, and the npm title `npm exec <spec>` of the npx launch |
+| A file named `kiro-cli`, or `kiro-cli-` followed by lowercase words joined by hyphens | kiro-cli, and siblings that it execs, such as `kiro-cli-chat` |
+| The path in `WARDING_KIRO_BIN` or `CLAUDE_AGENT_ACP_BIN`, as given or as an absolute path | An operator override with any file name |
+| A file named `claude-agent-acp`, or the npm spec `@agentclientprotocol/claude-agent-acp@<range>` | The Claude adapter executable, and the npm title of the npx launch |
 | A path that ends with `@agentclientprotocol/claude-agent-acp/dist/index.js` | `node <entry script>` |
-| `--transport=stdio` and `--auth=acp-callback`, both present | KAS (`kas_assets.build_kas_argv`) |
+
+KAS matches by its launch arguments instead: both `--transport=stdio` and
+`--auth=acp-callback` are present (`kas_assets.build_kas_argv`).
 
 The Linux sandbox launcher keeps its own argv
 (`python <run>/warding_sandbox_*.py <agent> ...`), so it matches by its agent
-element. A file named `claude`, the Claude Code CLI, is never a root: Warding
-does not record it, and the name also fits the operator's own Claude Code.
-`_kill_pid_tree` accepts it only as a live descendant of a confirmed root.
+element. A file named `claude`, the Claude Code CLI, and the path in
+`CLAUDE_CODE_EXECUTABLE` are never a root: Warding does not record them, and
+the name also fits the operator's own Claude Code. They count in
+`_kill_pid_tree`'s descendant walk, which the sweeps run after they confirm the
+root.
 
 The argv source differs by platform (`platform_compat.process_argv`):
 
 | Platform | Source | Limit |
 |---|---|---|
-| Linux | `/proc/<pid>/cmdline`, split on NUL | Exact elements |
-| macOS | `ps -ww -o command=`, split on whitespace | An argument that contains a space becomes several elements, so a word inside a `-c` payload can match |
-| Windows | The image name from `CreateToolhelp32Snapshot` | One element; Windows compares names without case and without `.exe` |
+| Linux | `/proc/<pid>/cmdline`, split on NUL | None: the elements are exact |
+| macOS | `ps -ww -o command=`, split on whitespace | `ps` joins argv with spaces, so every word is an element. A word inside a `-c` payload can match, and a path that contains a space splits |
+| Windows | The image name from `CreateToolhelp32Snapshot` | One element. Names compare without case and without `.exe`. No test covers this platform's positive path |
 
 The check is one guard of several. A record that carries a start token
 (`gw:pid:token`) also fails on a token mismatch, and on POSIX a PID inside the
-spawn grace is not signalled. An argument that is exactly a launcher name, such as
-`which kiro-cli`, still matches. So does the operator's own kiro-cli. The start
-token is what separates those from a recorded agent.
+spawn grace is not signalled. These still match, and the start token is what
+separates them from a recorded agent:
+
+- A candidate element whose last path component is a launcher name, such as
+  `which kiro-cli` or `du ~/.local/share/kiro-cli`.
+- A process that passes both KAS arguments.
+- The operator's own kiro-cli or claude-agent-acp.
+
+A recorded root that matches none of these shapes is dropped without a signal.
+That covers every other spec-family harness, and an override after a restart
+that changed or removed its variable.
 
 The negative gate of the work-orphan sweep is separate. It keeps the substring
 markers `("kiro-cli", "claude")` on the argv0 basename, so a managed runtime is
@@ -1085,10 +1106,12 @@ never swept as work.
 
 `test_boot_sweep_keeps_only_records_of_agent_launchers` in
 `test/test_e2e_smoke.py` records disposable children in an isolated data home,
-boots the real gateway, and checks which records the boot sweep keeps: path and
-argument decoys are dropped, and every launcher form above stays tracked. It
-runs on Linux in CI. On macOS, run it in a checkout with
-`WARDING_E2E=1 python -m pytest test/test_e2e_smoke.py -k boot_sweep -o addopts= -p no:cacheprovider`.
+boots the real gateway, and checks which records the boot sweep keeps: path,
+option, payload and name decoys are dropped, and every launcher form above
+stays tracked. It runs on Linux in CI. On macOS, run it from a checkout with
+`HOME` pointed at a temporary directory, because some writes do not follow
+`WARDING_HOME`:
+`HOME="$(mktemp -d)" WARDING_E2E=1 python -m pytest test/test_e2e_smoke.py -k boot_sweep -o addopts= -p no:cacheprovider`.
 
 ## Bytecode-Cache GC (periodic sweep hook)
 
