@@ -494,10 +494,13 @@ def test_registries_put_survives_concurrent_trust_revocations(race_gateway):
         ]
         try:
             for round_no in range(_RACE_ROUNDS):
+                # Each round's repo has a different length, so each PUT changes
+                # the file size. The gateway's config cache keys on mtime and
+                # size, and on a coarse clock two writes can share one mtime.
                 rows = [
                     {
                         "name": f"e2e-race-b{round_no:02d}",
-                        "repo": f"E2eRaceAppsB{round_no:02d}",
+                        "repo": f"E2eRaceAppsB{round_no:02d}" + "x" * round_no,
                         "branch": "main",
                     }
                 ]

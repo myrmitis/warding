@@ -499,8 +499,10 @@ different family of writers.
 
 A writer that holds only one lock can interleave with the other family. It then
 writes back an older copy of the file, and the other writer's change is lost.
+`WardingConfig.save()` takes neither lock itself. A caller that also takes no
+lock is serialized by neither.
 
-So an async handler holds both locks. It calls
+So a new async writer must hold both locks. It calls
 `await run_config_write(update_config_locked, path, mutate=...)` from
 `dashboard/chat_utils.py`. That helper takes the asyncio lock on the event loop.
 It runs `update_config_locked()` in a worker thread. It keeps the asyncio lock

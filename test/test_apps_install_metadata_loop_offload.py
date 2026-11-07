@@ -79,8 +79,9 @@ _REGISTRY_INSTALL_POLICY_CALLS = frozenset(
 
 # The blocking filesystem calls that no async frame of routes.py may make
 # directly. A method name matches on any receiver, so a Path method is covered
-# whatever the variable is called. The underscored names are the routes.py
-# helpers that group several of these calls into one worker hop.
+# whatever the variable is called. The underscored names are routes.py helpers,
+# current or removed, that group several of these calls into one worker hop.
+# update_config_locked holds a file lock while it reads and writes config.json.
 _ROUTE_FILESYSTEM_CALLS = frozenset(
     {
         "_ui_file_refusal",
@@ -88,6 +89,7 @@ _ROUTE_FILESYSTEM_CALLS = frozenset(
         "_read_config_object",
         "_write_config_object",
         "_remove_app_workspace",
+        "update_config_locked",
         "get_app",
         "get_app_manifest",
         "app_data_dir",

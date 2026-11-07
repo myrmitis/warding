@@ -3309,10 +3309,46 @@ async def handle_registries(request: web.Request) -> web.Response:
     # handler's config lock).
     from warding.dashboard.chat_utils import run_config_write
 
-    try:
-        await run_config_write(
-            update_config_locked, Path(config_path()), mutate=_replace_registries
+    cfg = Path(config_path())
+    written = False
+
+    def _write() -> None:
+        nonlocal written
+        update_config_locked(cfg, mutate=_replace_registries)
+        written = True
+
+    def _audit_write() -> list[str]:
+        # Called only for a write that reached config.json, so a failed write
+        # logs no trust grant. Returns the newly trusted hosts, in PUT order.
+        hosts: list[str] = []
+        for host, public_repo in newly_trusted:
+            hosts.append(host)
+            sel().log_api_access(
+                caller="dashboard",
+                operation="registries.host_trust_granted",
+                outcome="success",
+                resources=f"host={host} repo={public_repo}",
+            )
+        sel().log_api_access(
+            caller="dashboard",
+            operation="registries.update",
+            outcome="success",
+            resources=(
+                f"count={len(validated)} repos="
+                f"{','.join(_strip_git_target_userinfo(r['repo']) for r in validated)}"
+            ),
         )
+        return hosts
+
+    try:
+        await run_config_write(_write)
+    except asyncio.CancelledError:
+        # A worker thread cannot be cancelled, so ``run_config_write`` lets it
+        # finish before it re-raises, and ``written`` is final here. A write
+        # that landed still changed the trust set, so it is still audited.
+        if written:
+            _audit_write()
+        raise
     except ConfigReadError as exc:
         # The read inside the lock failed, so nothing was written.
         # ``read_config_for_update`` chains the original error: an ``OSError``
@@ -3338,27 +3374,7 @@ async def handle_registries(request: web.Request) -> web.Response:
             status=500,
         )
 
-    # Audit each grant only after the write succeeded, so a failed write
-    # records no trust grant that never reached config.json.
-    newly_trusted_hosts: list[str] = []
-    for host, public_repo in newly_trusted:
-        newly_trusted_hosts.append(host)
-        sel().log_api_access(
-            caller="dashboard",
-            operation="registries.host_trust_granted",
-            outcome="success",
-            resources=f"host={host} repo={public_repo}",
-        )
-
-    sel().log_api_access(
-        caller="dashboard",
-        operation="registries.update",
-        outcome="success",
-        resources=(
-            f"count={len(validated)} repos="
-            f"{','.join(_strip_git_target_userinfo(r['repo']) for r in validated)}"
-        ),
-    )
+    newly_trusted_hosts = _audit_write()
     public_registries = [
         {**row, "repo": _strip_git_target_userinfo(row["repo"])} for row in validated
     ]

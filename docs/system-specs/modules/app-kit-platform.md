@@ -1013,9 +1013,10 @@ dropping it would silently downgrade a registry the operator had marked trusted.
 
 `PUT /api/apps/registries` reads, changes and writes `config.json` in one
 transaction. It holds both config locks, as
-[config.md](config.md#two-config-locks) describes. So no other writer can land
-between its read and its write. A trust revocation that runs at the same time
-stays revoked, and the new registries list stays written.
+[config.md](config.md#two-config-locks) describes. So no writer that holds
+either config lock can land between its read and its write. A trust revocation
+that runs at the same time stays revoked, and the new registries list stays
+written.
 
 Writers: `apps/registry.py` (`_effective_registries`, `_pinned_registries`,
 `_registry_trust_tier`, `_is_owner_designated_repo`, `_owner_tier_confirmed`,
