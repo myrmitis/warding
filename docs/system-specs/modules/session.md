@@ -1031,10 +1031,141 @@ Windows as well as macOS/Linux. The critical correctness reason is that
 **`os.kill(pid, 0)` is NOT a liveness probe on Windows — it terminates the process** —
 so every liveness check uses `platform_compat.pid_exists(pid)` (or the tri-state
 `pid_liveness`) instead, kills use `kill_pid` / `kill_process_tree`, the PID-reuse
-guard reads the parent via `get_ppid`, the managed-agent check uses
-`process_matches(pid, ("kiro-cli","claude"))`, and the PID-file locks use
+guard reads the parent via `get_ppid`, the managed-agent check reads the argv
+through `process_argv` (see [Managed-agent identity](#managed-agent-identity)),
+and the PID-file locks use
 `platform_compat.file_lock` / `acquire_lock` / `try_acquire_lock` (POSIX `flock`
 vs Windows `msvcrt`). On POSIX the behavior is unchanged.
+
+### Managed-agent identity
+
+A tracked-PID sweep checks each recorded PID before it signals that PID. The
+check is `session_pid._is_managed_agent_process`
+([#30](https://github.com/myrmitis/warding/issues/30)). It confirms that the PID
+still runs an agent that Warding launched. If the OS recycled the PID onto an
+unrelated process, the check fails. The sweep then drops the record and sends
+no signal.
+
+This section uses these terms:
+
+- A **root** is a recorded PID: a kiro-cli, claude-agent-acp or KAS process
+  that Warding launched.
+- A **candidate** is an argv element that can name an executable, a script or
+  a package.
+- An **agent name** is `kiro-cli`, a kiro-cli sibling name, or
+  `claude-agent-acp`.
+- An **override path** is the path in `WARDING_KIRO_BIN` or
+  `CLAUDE_AGENT_ACP_BIN`.
+
+#### Candidates
+
+The check compares whole argv elements. It never searches the command line for
+a substring. It selects the candidates in two steps:
+
+1. It skips an option, which is an element that starts with `-`. An example is
+   `--config=~/.claude/settings.json`.
+2. It skips an element that contains whitespace, such as a `-c` payload. Two
+   exceptions apply:
+   - It keeps the absolute path of an existing file. This keeps an agent
+     executable in a directory whose name contains a space.
+   - It splits a process title that fills the whole argv, such as npm's
+     `npm exec <spec>`. Each word of that title is a candidate.
+
+The check then reads the last path component of each candidate. A symlink
+therefore keeps its own name. A path that only passes through a directory named
+like an agent, such as `~/.claude/worktrees/`, names no agent. A candidate can
+hold any argv position.
+
+#### Root shapes
+
+A root matches when one row of this table is true:
+
+| Condition | Launch it covers |
+|---|---|
+| A candidate is named `kiro-cli`, or `kiro-cli-` followed by lowercase words joined by hyphens | kiro-cli, and the siblings that it execs, such as `kiro-cli-chat` |
+| A candidate is named `claude-agent-acp` | The adapter executable |
+| A candidate is the npm spec `@agentclientprotocol/claude-agent-acp@<range>` | The npm title of the npx launch |
+| A candidate path ends with `@agentclientprotocol/claude-agent-acp/dist/index.js` | `node <entry script>` |
+| An element equals an override path | An operator override with any file name |
+| The elements include both `--transport=stdio` and `--auth=acp-callback` | KAS (`kas_assets.build_kas_argv`) |
+
+The override row compares every element, not only the candidates. It accepts
+the path as given, as an absolute path, and as its real path. A node-wrapped
+`CLAUDE_AGENT_ACP_BIN` spawn passes the real path. A relative value resolves
+against the working directory of the sweeping gateway.
+
+The Linux sandbox wrapper keeps its own argv:
+`python <run>/warding_sandbox_*.py <agent> ...`. The agent element in that argv
+matches, so the wrapper needs no row.
+
+#### The Claude Code CLI
+
+The Claude Code CLI is never a root. This applies to a file named `claude` and
+to the path in `CLAUDE_CODE_EXECUTABLE`. Warding never records that CLI. The
+name `claude` also fits the operator's own Claude Code.
+
+The CLI counts only in the descendant walk of `_kill_pid_tree`. The sweeps run
+that walk after they confirm the root.
+
+#### Platform limits
+
+`platform_compat.process_argv` reads the argv from a different source on each
+platform:
+
+| Platform | Source | Limit |
+|---|---|---|
+| Linux | `/proc/<pid>/cmdline`, split on NUL | The elements are exact. A whitespace element must name an existing file. It stops matching when that file moves |
+| macOS | `ps -ww -o command=`, split on whitespace | `ps` joins argv with spaces, so each word is an element. A word in a `-c` payload can match. An override path that contains a space cannot match |
+| Windows | The image name from `CreateToolhelp32Snapshot` | The argv is one element. Names compare without case and without `.exe`. Only the name rows can match. An adapter that runs under `node.exe` does not match. No test covers a positive match |
+
+#### Residual matches
+
+The check is one guard of several. A record with a start token
+(`gw:pid:token`) also fails on a token mismatch. On POSIX, the sweep does not
+signal a PID inside the spawn grace.
+
+These processes still match. The start token is what separates them from a
+recorded agent:
+
+- A process with a candidate whose last path component is an agent name, such
+  as `which kiro-cli` or `du ~/.local/share/kiro-cli`.
+- A process with an element equal to an override path, such as
+  `cat "$WARDING_KIRO_BIN"`.
+- A process that passes both KAS arguments.
+- The operator's own kiro-cli or claude-agent-acp.
+
+#### Roots that match no row
+
+If a recorded root matches no row, the sweep drops it without a signal. These
+roots match no row:
+
+- A root of any other harness.
+- An override root, after a restart that changed or removed its variable.
+- An override root with a relative value, after a restart in another working
+  directory.
+- A root that a platform limit above excludes.
+
+#### Work-orphan sweep
+
+The work-orphan sweep has its own negative gate. That gate keeps the substring
+markers `("kiro-cli", "claude")` on the argv0 basename. The work-orphan sweep
+therefore never sweeps a managed runtime as work.
+
+#### End-to-end test
+
+`test_boot_sweep_keeps_only_records_of_agent_launchers` in
+`test/test_e2e_smoke.py` covers this check. It records disposable children in
+an isolated data home. It then boots the real gateway and reads the records
+that the boot sweep kept. The sweep must drop each record whose process names
+no agent. It must keep each agent launch that the test starts. On Linux, these
+launches include agent executables in a directory whose name contains a space.
+
+CI runs the test on Linux. Some writes do not follow `WARDING_HOME`. To run the
+test locally on Linux or macOS, point `HOME` at a temporary directory:
+
+```bash
+HOME="$(mktemp -d)" WARDING_E2E=1 python -m pytest test/test_e2e_smoke.py -k boot_sweep -o addopts= -p no:cacheprovider
+```
 
 ## Bytecode-Cache GC (periodic sweep hook)
 

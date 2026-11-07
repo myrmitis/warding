@@ -13,15 +13,20 @@ CLI flags.
 
 from __future__ import annotations
 
+import contextlib
 import http.cookiejar
 import json
 import os
+import shutil
+import subprocess
+import sys
 import threading
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import pytest
 
@@ -520,3 +525,296 @@ def test_registries_put_survives_concurrent_trust_revocations(race_gateway):
     assert not lost, f"a concurrent trust revocation restored an older list in rounds {lost}"
     assert _registries(race_gateway) == sent[-1]
     assert _config_on_disk(race_gateway)["registries"] == sent[-1]
+
+
+# --- Managed-agent identity in the boot sweep --------------------------------
+#
+# ``warding gateway`` sweeps ``kiro_session_pids.txt`` at boot, before READY.
+# For each recorded PID that is still alive, it checks that the PID runs an
+# agent that Warding launches, so it never signals a PID that the OS recycled
+# onto an unrelated process. This test records the test's own disposable
+# children in an isolated data home, boots the real gateway on that home, and
+# reads which records the sweep kept. The sweep never signals a child that is
+# younger than its spawn grace, so every child outlives the boot, and the test
+# stops them itself.
+
+#: Above the PID limit of every supported OS, so the recording gateway reads as
+#: dead and the boot sweep handles its records.
+_DEAD_GATEWAY_PID = 2_000_000_000
+_CHILD_SLEEP_SECONDS = "600"
+
+
+@contextlib.contextmanager
+def _gateway_on_home(home: Path, kiro_bin: str) -> Iterator[dict[str, str]]:
+    """Run ``warding gateway`` on an existing data home until READY, then stop it.
+
+    ``spawn_feature_gateway`` seeds a new, empty home, and the boot sweep runs
+    before READY. A record must exist before the boot, so this starts the CLI
+    on a prepared home with the same isolation environment as the harness. It
+    also moves the workspace root and the working directory under the test's
+    directory. *kiro_bin* is the gateway's ``WARDING_KIRO_BIN``. Yields the
+    gateway's environment.
+    """
+    from warding.kiro_prerequisite import FAKE_ACP_TEST_MODE_ENV
+    from warding.testing.harness import DEFAULT_READY_TIMEOUT, parse_ready_line, terminate_pgid
+
+    src = Path(__file__).resolve().parents[1] / "src"
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(src) + os.pathsep + os.environ.get("PYTHONPATH", ""),
+        "WARDING_HOME": str(home),
+        "KIRO_HOME": str(home / "kiro"),
+        "WARDING_WORKSPACE": str(home.parent / "workspace"),
+        "WARDING_KIRO_BIN": kiro_bin,
+        FAKE_ACP_TEST_MODE_ENV: "1",
+        "PYTHONUNBUFFERED": "1",
+        "WARDING_SKIP_MODEL_DOWNLOAD": "1",
+    }
+    timeout = float(os.environ.get("WARDING_HARNESS_READY_TIMEOUT") or DEFAULT_READY_TIMEOUT)
+    cmd = [sys.executable, "-m", "warding", "gateway", "--test-mode", "--approval", "reads"]
+    out_log, err_log = home.parent / "gateway.out", home.parent / "gateway.err"
+    with open(out_log, "wb") as out, open(err_log, "wb") as err:
+        proc = subprocess.Popen(
+            cmd + ["--no-crons"],
+            cwd=home.parent,
+            env=env,
+            stdout=out,
+            stderr=err,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    try:
+        deadline = time.monotonic() + timeout
+        while True:
+            lines = out_log.read_text(encoding="utf-8", errors="replace").splitlines()
+            ready = [line for line in lines if line.startswith("WARDING_READY:")]
+            if ready:
+                parse_ready_line(ready[0])
+                break
+            tail = err_log.read_text(encoding="utf-8", errors="replace")[-2000:]
+            assert proc.poll() is None, f"gateway exited before READY:\n{tail}"
+            assert time.monotonic() < deadline, f"no READY line in time:\n{tail}"
+            time.sleep(0.1)
+        yield env
+    finally:
+        terminate_pgid(proc.pid, wait=proc.wait)
+
+
+def _stop_child(child: subprocess.Popen[bytes]) -> None:
+    """Kill a disposable child and every process in its own process group.
+
+    The child leads a new session, so its group holds only the child and what
+    it forked, such as the ``sleep`` that ``bash -c 'sleep N; :'`` starts.
+    """
+    from warding import platform_compat
+
+    with contextlib.suppress(ProcessLookupError):
+        platform_compat.kill_process_tree(child.pid, platform_compat.SIGKILL)
+    child.wait(timeout=5)
+    if child.stdin is not None:
+        child.stdin.close()
+
+
+def _spawn_child(argv: list[str], visible: str) -> subprocess.Popen[bytes]:
+    """Start a disposable child and wait until an argv element contains *visible*.
+
+    The argv becomes readable only after the child's exec. A probe that runs
+    earlier reads an empty or a pre-exec vector. *visible* holds no space,
+    because macOS reports the argv split on whitespace. The child's stdin is a
+    pipe that stays open, so a child that reads stdin, such as ``cat``, waits.
+    """
+    from warding import platform_compat
+
+    child = subprocess.Popen(
+        argv,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    deadline = time.monotonic() + 10
+    while not any(visible in element for element in platform_compat.process_argv(child.pid) or ()):
+        if time.monotonic() >= deadline:
+            _stop_child(child)
+            raise AssertionError(f"argv of {argv!r} never showed {visible!r}")
+        time.sleep(0.05)
+    return child
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks, bash and exec -a")
+def test_boot_sweep_keeps_only_records_of_agent_launchers(tmp_path: Path) -> None:
+    """The boot sweep keeps a record only when its PID runs an agent launcher.
+
+    These name no agent, so the sweep drops their records: a path through a
+    directory named like an agent (``.claude/worktrees``), an option value, a
+    script name, a ``-c`` payload, a positional word, a file that only starts
+    like a kiro-cli sibling, an npm spec of another scope with a version range,
+    and the Claude Code CLI on its own. The launcher forms that this test starts
+    stay tracked: kiro-cli and its exec'd siblings, the ``WARDING_KIRO_BIN``
+    path and its real path, the claude-agent-acp adapter as an executable, as a
+    Node entry script and as an npm title, the Linux sandbox launcher, and KAS.
+    On Linux, the test also starts launchers in a directory whose name holds a
+    space.
+    """
+    from warding import platform_compat
+    from warding.session_pid import SWEEP_SPAWN_GRACE_SECONDS
+
+    sleep_bin, bash = shutil.which("sleep"), shutil.which("bash")
+    assert sleep_bin and bash
+    tools = tmp_path / "tools"
+
+    def link(rel: str) -> str:
+        path = tools / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.symlink_to(sleep_bin)
+        return str(path)
+
+    def titled(title: str) -> tuple[list[str], str]:
+        # One argv element that holds spaces, as npm's title rewrite leaves it.
+        # ``cat`` takes no argument and waits on the open stdin pipe.
+        return [bash, "-c", 'exec -a "$0" cat', title], title.rsplit(" ", 1)[-1]
+
+    launcher = tools / "run" / "warding_sandbox_1_e2e.py"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text(f"import time\ntime.sleep({_CHILD_SLEEP_SECONDS})\n", encoding="utf-8")
+    entry = tools / "lib/node_modules/@agentclientprotocol/claude-agent-acp/dist/index.js"
+    kas = tools / "kas/1.0/node_modules/@kiro/agent/dist/server/acp-server.js"
+    idle = f"sleep {_CHILD_SLEEP_SECONDS}; :"  # the trailing ':' stops bash exec'ing sleep
+    decoy_path = link(".claude/worktrees/wt/bin/sleep")
+    claude_cli = link("bin/claude")
+    kiro = link("bin/kiro-cli")
+    kiro_chat = link("bin/kiro-cli-chat")
+    adapter = link("bin/claude-agent-acp")
+    # name: (argv, an element that shows once the child has exec'd)
+    unmanaged = {
+        "plain sleep": ([sleep_bin, _CHILD_SLEEP_SECONDS], sleep_bin),
+        "path under .claude/worktrees": ([decoy_path, _CHILD_SLEEP_SECONDS], decoy_path),
+        "option value naming .claude": (
+            [bash, "-c", idle, "sh", f"--config={tools}/.claude/settings.json"],
+            f"--config={tools}/.claude/settings.json",
+        ),
+        "option value naming a kiro-cli file": (
+            [bash, "-c", idle, "sh", f"--log={tools}/kiro-cli-debug.log"],
+            f"--log={tools}/kiro-cli-debug.log",
+        ),
+        "script named myclaude.sh": ([bash, "-c", idle, "myclaude.sh"], "myclaude.sh"),
+        "file kiro-cli-chat.log": (
+            [bash, "-c", idle, "sh", f"{tools}/kiro-cli-chat.log"],
+            f"{tools}/kiro-cli-chat.log",
+        ),
+        "-c payload naming claude, .claude and kiro-cli": (
+            [bash, "-c", f"{idle} claude {tools}/.claude/notes --log={tools}/kiro-cli.log"],
+            f"--log={tools}/kiro-cli.log",
+        ),
+        "positional word claude": ([bash, "-c", idle, "sh", "claude"], "claude"),
+        "npm title of another scope": titled("npm exec @example/claude-agent-acp@0.5.0"),
+        "Claude Code CLI named claude": ([claude_cli, _CHILD_SLEEP_SECONDS], claude_cli),
+    }
+    home = tmp_path / "home"
+    home.mkdir()
+    # The gateway's WARDING_KIRO_BIN: the packaged fake backend under another
+    # name. On Linux its directory name holds a space, which the argv keeps.
+    # On macOS ps splits argv on whitespace, so a spaced path cannot match there.
+    from warding.testing import fake_acp_backend
+
+    override_dir = tools / ("kiro tools" if sys.platform == "linux" else "kiro-tools")
+    override_dir.mkdir(parents=True)
+    (override_dir / "fake-kiro").symlink_to(fake_acp_backend.__file__)
+    override = str(override_dir / "fake-kiro")
+    # Only an element equal to the whole override path names it.
+    unmanaged["option value naming the override path"] = (
+        [bash, "-c", idle, "sh", f"--kiro={override}"],
+        "--kiro=",
+    )
+    if sys.platform == "linux":
+        # macOS splits this payload into words, and one word equals the path.
+        unmanaged["-c payload naming the override path"] = (
+            [bash, "-c", f"{idle} {override}"],
+            "fake-kiro",
+        )
+    managed = {
+        "kiro-cli": ([kiro, _CHILD_SLEEP_SECONDS], kiro),
+        "kiro-cli-chat": ([kiro_chat, _CHILD_SLEEP_SECONDS], kiro_chat),
+        "WARDING_KIRO_BIN path": ([sys.executable, str(launcher), override], "fake-kiro"),
+        "claude-agent-acp": ([adapter, _CHILD_SLEEP_SECONDS], adapter),
+        "sandbox launcher": ([sys.executable, str(launcher), kiro, "acp"], str(launcher)),
+        "node adapter entry": ([sys.executable, str(launcher), str(entry)], str(entry)),
+        "npm title": titled("npm exec @agentclientprotocol/claude-agent-acp@^0.60.0"),
+        "KAS": (
+            [
+                sys.executable,
+                str(launcher),
+                "--experimental-wasm-modules",
+                str(kas),
+                "--transport=stdio",
+                "--auth=acp-callback",
+            ],
+            str(kas),
+        ),
+    }
+    # The override's real path: the form that a node-wrapped CLAUDE_AGENT_ACP_BIN
+    # spawn passes. Every override variable resolves the same way.
+    real_override = os.path.realpath(override)
+    if sys.platform == "linux" or not any(char.isspace() for char in real_override):
+        managed["real path of the override"] = (
+            [sys.executable, str(launcher), real_override],
+            real_override,
+        )
+    if sys.platform == "linux":
+        # The argv keeps a path with a space whole. Such an element counts only
+        # as the absolute path of an existing file, so a payload that starts
+        # with an absolute path and ends in a launcher path names no agent.
+        spaced_kiro = link("My Tools/kiro-cli")
+        spaced_entry = tools / "My Project/node_modules/@agentclientprotocol"
+        spaced_entry = spaced_entry / "claude-agent-acp/dist/index.js"
+        spaced_entry.parent.mkdir(parents=True)
+        spaced_entry.write_text("", encoding="utf-8")
+        managed["kiro-cli in a spaced directory"] = (
+            [spaced_kiro, _CHILD_SLEEP_SECONDS],
+            spaced_kiro,
+        )
+        managed["node adapter entry in a spaced directory"] = (
+            [sys.executable, str(launcher), str(spaced_entry)],
+            str(spaced_entry),
+        )
+        for name, path in {"kiro-cli": spaced_kiro, "adapter entry": str(spaced_entry)}.items():
+            unmanaged[f"-c payload ending in a spaced {name} path"] = (
+                [bash, "-c", f"{sleep_bin} {_CHILD_SLEEP_SECONDS}; : {path}"],
+                f"; : {path}",
+            )
+    children: dict[str, subprocess.Popen[bytes]] = {}
+    started = time.monotonic()
+    try:
+        for name, (argv, visible) in {**unmanaged, **managed}.items():
+            children[name] = _spawn_child(argv, visible)
+        records = []
+        for child in children.values():
+            token = platform_compat.get_process_start_id(child.pid)
+            suffix = f":{token}" if token else ""
+            records.append(f"{_DEAD_GATEWAY_PID}:{child.pid}{suffix}")
+        (home / "kiro_session_pids.txt").write_text("\n".join(records) + "\n", encoding="utf-8")
+
+        with _gateway_on_home(home, override) as env:
+            assert env["WARDING_KIRO_BIN"] == override
+            kept_pids = set()
+            for line in (home / "kiro_session_pids.txt").read_text(encoding="utf-8").split():
+                gateway, _, rest = line.partition(":")
+                if gateway == str(_DEAD_GATEWAY_PID):
+                    kept_pids.add(int(rest.split(":", 1)[0]))
+            kept = {name for name, child in children.items() if child.pid in kept_pids}
+        elapsed = time.monotonic() - started
+        # Past the grace, the sweep may signal a managed child, which is not the
+        # case under test; report that as the run being too slow.
+        assert elapsed < SWEEP_SPAWN_GRACE_SECONDS, f"the run took {elapsed:.0f} s"
+
+        assert not kept & set(unmanaged), f"records of non-agents survived: {kept & set(unmanaged)}"
+        assert (
+            set(managed) <= kept
+        ), f"records of agent launchers were dropped: {set(managed) - kept}"
+        signalled = [name for name, child in children.items() if child.poll() is not None]
+        assert (
+            not signalled
+        ), f"the boot sweep signalled a child inside its spawn grace: {signalled}"
+    finally:
+        for child in children.values():
+            _stop_child(child)

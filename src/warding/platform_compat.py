@@ -1996,11 +1996,14 @@ def close_process_handle(handle: int) -> None:
 def process_matches(pid: int, needles: tuple[str, ...]) -> bool:
     """Return True iff *pid*'s command line / image name contains any *needle*.
 
-    Used to guard against PID recycling before killing a tracked process.
-    Linux: ``/proc/<pid>/cmdline``. macOS: ``ps -o command=``.
-    Windows: the image name from ``CreateToolhelp32Snapshot`` (full command
-    line is not cheaply available; the ``.exe`` name suffices for matching
-    ``kiro-cli`` / ``claude``). Returns False on any failure.
+    A substring test over the whole command line, paths and argument values
+    included. It suits counting processes by a distinctive module name; it is
+    not an identity check before a kill, because any path or argument that
+    contains a needle matches. For identity, compare elements of
+    :func:`process_argv`. Linux: ``/proc/<pid>/cmdline``. macOS:
+    ``ps -o command=``. Windows: the image name from
+    ``CreateToolhelp32Snapshot`` (the full command line is not cheaply
+    available). Returns False on any failure.
     """
     try:
         if sys.platform == "linux":
@@ -2025,6 +2028,51 @@ def process_matches(pid: int, needles: tuple[str, ...]) -> bool:
     except Exception:
         return False
     return False
+
+
+def process_argv(pid: int) -> tuple[str, ...] | None:
+    """Return the argument vector of *pid*, or None when it cannot be read.
+
+    An identity check compares whole elements of this vector instead of
+    searching the command line for a substring.
+
+    - Linux: ``/proc/<pid>/cmdline`` split on NUL, one exact element per
+      argument.
+    - macOS: ``ps -ww -o command=`` split on whitespace. ``ps`` joins argv with
+      spaces, so an argument that contains a space comes back as several
+      elements.
+    - Windows: one element, the image name from ``CreateToolhelp32Snapshot``.
+      The full command line is not cheaply available.
+
+    An empty vector (a zombie or a kernel thread) and any failure answer None.
+    """
+    if type(pid) is not int or pid <= 0:
+        return None
+    try:
+        if sys.platform == "linux":
+            raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+            parts = raw.split(b"\0")
+            if parts and parts[-1] == b"":
+                parts.pop()  # trailing NUL terminator
+            argv = tuple(os.fsdecode(p) for p in parts)
+        elif sys.platform == "darwin":
+            ps_bin = trusted_system_bin("ps")
+            if ps_bin is None:
+                return None
+            out = subprocess.check_output(
+                [ps_bin, "-ww", "-o", "command=", "-p", str(pid)],
+                stderr=subprocess.DEVNULL,
+                timeout=2,
+            )
+            argv = tuple(out.decode(errors="replace").split())
+        elif IS_WINDOWS:
+            name = _win_process_image_name(pid)
+            argv = (name,) if name else ()
+        else:
+            return None
+    except Exception:
+        return None
+    return argv or None
 
 
 def _win_process_image_name(pid: int) -> str | None:

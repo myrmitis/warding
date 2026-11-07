@@ -1036,6 +1036,10 @@ BENIGN_SPAWNS: frozenset[str] = frozenset(
         # forwarder pid, and cannot route through the sandbox helper because
         # sandbox imports platform_compat.
         "platform_compat.py::process_argv_matches_exact",
+        # Same class again: macOS ``ps -ww -o command= -p <pid>`` with an
+        # int-guarded pid, read for the argv elements that the managed-agent
+        # identity check compares before a tracked-PID sweep signals a PID.
+        "platform_compat.py::process_argv",
         # The single icacls chokepoint shared by restrict_to_owner (file shape)
         # and restrict_dir_to_owner (directory shape, inheritable grants). Both
         # public helpers delegate here, so this one entry covers the owner-only
