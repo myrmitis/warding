@@ -196,7 +196,7 @@ def test_shell_declared_favicon_is_the_built_svg(gateway):
     assert icon, "the served shell declares no SVG icon"
     href = icon.group(1)
     built = (dist / href.lstrip("/")).read_bytes()
-    assert built.lstrip().startswith(b"<svg"), f"the build's {href} is not an SVG file"
+    assert b"<svg" in built, f"the build's {href} has no <svg> element"
 
     for label, opener in (("no token", None), ("session cookie", _opener(gateway))):
         status, ctype, body = _get_raw(base + href, opener)

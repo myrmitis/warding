@@ -13,7 +13,7 @@ model, no credentials, no network, no cost.
 
 | File | What it covers |
 |---|---|
-| `test/test_e2e_smoke.py` | Gateway boot and HTTP-level smoke checks, including concurrent `config.json` writers (registries PUT against trust revocation), the boot sweep's managed-agent identity check, and the public files that the dashboard shell names. The favicon test reads the staged `dist/` build. Without a build it skips, or it fails when `WARDING_E2E_REQUIRE` is set. |
+| `test/test_e2e_smoke.py` | Gateway boot and HTTP-level smoke checks. They include concurrent `config.json` writers (registries PUT against trust revocation), the boot sweep's managed-agent identity check, and the shell's public files. `test_shell_declared_favicon_is_the_built_svg` reads the staged `dist/` build. If no build is staged and `WARDING_E2E_REQUIRE` is set, the test fails. Otherwise it skips. |
 | `test/test_playwright_e2e.py` | The dashboard browser suite, folded in so one command is the whole gate. |
 
 ## What the command sets up
@@ -128,6 +128,10 @@ Playwright CLI, a Node >= 18) is not present in a python-only checkout. So
 
 `.github/workflows/ci.yml`'s `e2e` job sets `WARDING_E2E_REQUIRE: "1"`. Set it
 on any job you expect to actually exercise the browser.
+
+The smoke file's `test_shell_declared_favicon_is_the_built_svg` obeys the same
+marker. It needs the staged `dist/` build, so a job that sets the marker must
+stage that build first.
 
 ## The darkening floor
 

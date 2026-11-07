@@ -433,9 +433,9 @@ _BYPASS_PREFIXES = (
 _BYPASS_EXACT = {
     "/logo.png",
     # The icon that the shell's <link rel="icon"> declares. A browser can fetch
-    # it before a session exists, and without this entry that request gets the
-    # SPA shell instead of the image. Same exposure class as /logo.png: one
-    # public, static file from the build.
+    # it before a session exists. Without this entry, that request gets the SPA
+    # shell instead of the image. Same exposure class as /logo.png: one public,
+    # static file from the build.
     "/favicon.svg",
     "/manifest.json",
     "/sw.js",

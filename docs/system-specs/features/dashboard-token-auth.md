@@ -315,9 +315,9 @@ needs two entries:
 - **A route.** `routes/realtime.py` serves these files through
   `handlers.pwa_file`. Without a route, a `GET` falls through to `server.py`'s
   SPA fallback, and the response is the shell.
-- **An auth bypass.** The path is in `_BYPASS_EXACT`, or it matches the
-  `/icon-<n>.png` pattern. Without a bypass, a request with no valid token gets
-  the shell from the bypass above, and the route does not run.
+- **A static-file bypass.** The path is in `_BYPASS_EXACT`, or it matches the
+  `/icon-<n>.png` pattern. Without this entry, the SPA shell bypass above
+  answers a request that has no valid token. The route does not run.
 
 `test_shell_declared_favicon_is_the_built_svg` in `test/test_e2e_smoke.py`
 checks both on a real gateway
