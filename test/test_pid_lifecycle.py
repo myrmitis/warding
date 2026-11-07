@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import signal
 import subprocess
 import sys
+import time
 from collections import deque
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -960,28 +962,39 @@ class TestLinuxPidAge:
 
 
 class TestIsManagedAgentProcess:
-    def test_a_process_without_an_agent_marker_is_not_managed(self) -> None:
-        """A live process whose command line has no agent marker is not managed.
+    def test_a_process_without_an_agent_marker_is_not_managed(self, tmp_path: Path) -> None:
+        """A live process that runs no agent launcher is not managed.
 
-        The probe matches markers anywhere in the whole command line, path
-        included. The test runner is the wrong subject: an xdist worker starts
-        from an absolute interpreter path, and a checkout below a ``.claude``
-        directory puts the ``claude`` marker in it. The child below has a command
-        line the test controls, and a second child proves the probe can answer
-        True, so the False answer is not a probe that always fails.
+        The check compares whole argv elements with the launcher names. The test
+        runner is the wrong subject: its interpreter path is outside the test's
+        control. The children below have an argv the test controls. A second
+        child runs a symlink named ``kiro-cli``, a supported launcher name, so
+        the probe can answer True and the False answer is not a probe that
+        always fails.
         """
-        from warding.session_pid import _MANAGED_AGENT_MARKERS, _is_managed_agent_process
+        from warding.session_pid import _is_managed_agent_process
 
         if platform_compat.IS_WINDOWS:
-            # The Windows probe matches the image name, which never holds a path.
+            # The Windows probe reads the image name, which never holds a path.
             assert _is_managed_agent_process(os.getpid()) is False
             return
-        marked_code = f"import time; time.sleep(30)  # {_MANAGED_AGENT_MARKERS[0]}"
+        sleep_bin = shutil.which("sleep")
+        assert sleep_bin is not None
+        launcher = tmp_path / "bin" / "kiro-cli"
+        launcher.parent.mkdir()
+        launcher.symlink_to(sleep_bin)
         children: list[subprocess.Popen[bytes]] = []
         try:
             children.append(subprocess.Popen(["sleep", "30"]))
-            children.append(subprocess.Popen([sys.executable, "-c", marked_code]))
+            children.append(subprocess.Popen([str(launcher), "30"]))
             plain, marked = children
+            # The argv becomes readable only after the child's exec. Probing
+            # earlier reads an empty vector, which answers False for both.
+            for child, argv0 in ((plain, "sleep"), (marked, str(launcher))):
+                deadline = time.monotonic() + 10
+                while (platform_compat.process_argv(child.pid) or ("",))[0] != argv0:
+                    assert time.monotonic() < deadline, f"argv of {argv0} never became readable"
+                    time.sleep(0.05)
             assert _is_managed_agent_process(marked.pid) is True
             assert _is_managed_agent_process(plain.pid) is False
         finally:

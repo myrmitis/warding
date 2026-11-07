@@ -494,7 +494,8 @@ Warding runs on macOS, Linux (x86_64 and ARM), and Windows (native). `fcntl`,
 | Kill a process | `kill_pid(pid, sig)` | `os.kill(pid, sig)` |
 | Kill a tree | `kill_process_tree(pid, sig)` | `os.killpg(os.getpgid(pid), sig)` |
 | Parent PID | `get_ppid(pid)` | `/proc` read / libproc |
-| Match process cmdline | `process_matches(pid, needles)` | `/proc/<pid>/cmdline` / `ps` |
+| Match process cmdline (substring count, never an identity check) | `process_matches(pid, needles)` | `/proc/<pid>/cmdline` / `ps` |
+| Process argv for an identity check before a signal | `process_argv(pid)`, compared element by element | a substring of the cmdline (any path or argument value matches) |
 | Process start time (PID-reuse guard) | `process_start_time(pid)` | `/proc/<pid>/stat` / `ps -o lstart=` (both answer `None` on Windows, so the guard silently never confirms) |
 | Signals | `platform_compat.SIGKILL` / `SIGTERM` | `signal.SIGKILL` (undefined on Windows) |
 | Spawn isolation | `start_new_session=IS_POSIX` + `creationflags=CREATE_NEW_PROCESS_GROUP` | bare `start_new_session=True` |
