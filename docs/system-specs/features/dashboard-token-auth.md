@@ -193,7 +193,7 @@ The `local_only` parameter is accepted for backward compatibility but no longer 
 
 Request flow:
 1. If request is from loopback → pass through (always trusted)
-2. Bypass static assets (`/assets/`, `/static/`, `/logo.png`, `/manifest.json`, `/sw.js`, `/icon-*.png`, `/api/token/local`, `/api/shutdown`, `/api/theme/boot` — a GET-only, secret-free theme-boot endpoint the SPA reads before the token flow completes) plus the liveness/readiness probes (`/api/health`, `/api/live`, `/api/ready` — orchestrators and load balancers carry no auth cookie, so probes must be reachable without a token; remote callers receive only liveness/readiness booleans)
+2. Bypass static assets (`/assets/`, `/static/`, `/logo.png`, `/favicon.svg`, `/manifest.json`, `/sw.js`, `/icon-*.png`, `/api/token/local`, `/api/shutdown`, `/api/theme/boot` — a GET-only, secret-free theme-boot endpoint the SPA reads before the token flow completes) plus the liveness/readiness probes (`/api/health`, `/api/live`, `/api/ready` — orchestrators and load balancers carry no auth cookie, so probes must be reachable without a token; remote callers receive only liveness/readiness booleans)
 3. Extract token from `?token=` query param or `mc_token_{port}` cookie
 4. Validate signature + expiry (link window for query param, session_exp for cookie)
 5. Check IP binding
@@ -306,6 +306,22 @@ Security invariants:
   shell carries no secrets.
 - **Mint preserved** — a valid `?token=` is *not* short-circuited; it flows
   through the normal validate-and-mint exchange (steps 4–7).
+
+##### Root files of the build
+
+A file at the root of `dist/` that the shell names, such as `/favicon.svg`,
+needs two entries:
+
+- **A route.** `routes/realtime.py` serves these files through
+  `handlers.pwa_file`. Without a route, a `GET` falls through to `server.py`'s
+  SPA fallback, and the response is the shell.
+- **An auth bypass.** The path is in `_BYPASS_EXACT`, or it matches the
+  `/icon-<n>.png` pattern. Without a bypass, a request with no valid token gets
+  the shell from the bypass above, and the route does not run.
+
+`test_shell_declared_favicon_is_the_built_svg` in `test/test_e2e_smoke.py`
+checks both on a real gateway
+([#78](https://github.com/myrmitis/warding/issues/78)).
 
 #### State: in-memory vs. persisted
 

@@ -219,9 +219,9 @@ def _resource_pattern(resource: Any) -> re.Pattern[str] | None:
 
     Read from ``get_info()`` rather than rebuilt from ``canonical``: canonical
     DROPS a pattern's inner regex, rendering
-    ``/{name:manifest\\.json|sw\\.js|icon-\\d+\\.png|pcm-worklet\\.js}`` as bare
-    ``/{name}``. Reconstructing from that turns a four-file allowlist into a
-    catch-all and reports shadowing that cannot happen.
+    ``/{name:manifest\\.json|sw\\.js|icon-\\d+\\.png|pcm-worklet\\.js|favicon\\.svg}`` as
+    bare ``/{name}``. Reconstructing from that turns a fixed allowlist of names
+    into a catch-all and reports shadowing that cannot happen.
     """
     info = resource.get_info()
     pattern = info.get("pattern")

@@ -17,6 +17,7 @@ import contextlib
 import http.cookiejar
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -144,6 +145,79 @@ def test_memory_workspace_exists(gateway):
     workspace_dir = gateway.home / "workspace" / "memory"
     assert workspace_dir.is_dir()
     assert (workspace_dir / "preferences.md").is_file()
+
+
+# --- Public files of the dashboard shell ---
+
+
+def _get_raw(
+    url: str, opener: urllib.request.OpenerDirector | None = None
+) -> tuple[int, str, bytes]:
+    """GET *url*, and return its status, media type and body.
+
+    The media type is the Content-Type without parameters. With no *opener*,
+    the request carries no token and no cookie. An error status is returned,
+    not raised.
+    """
+    req = urllib.request.Request(url)
+    try:
+        with (opener or urllib.request.build_opener()).open(req, timeout=10) as resp:
+            ctype, body, status = resp.headers.get("Content-Type", ""), resp.read(), resp.status
+    except urllib.error.HTTPError as exc:
+        ctype, body, status = exc.headers.get("Content-Type", ""), exc.read(), exc.code
+    return status, ctype.split(";")[0].strip(), body
+
+
+def test_shell_declared_favicon_is_the_built_svg(gateway):
+    """The icon that the served shell declares comes back as the built SVG file.
+
+    A browser can fetch the icon before it has a session, so the test asks once
+    with no token and once with the session cookie. The test also checks the
+    paths around the icon. An ordinary SPA navigation still gets the shell. The
+    PNG icon, the manifest and the entry script keep their own files. A data
+    route without a token is still denied.
+    """
+    import warding
+
+    dist = Path(warding.__file__).resolve().parent / "static" / "dist"
+    if not (dist / "index.html").is_file():
+        # The CI gate stages the build first and sets WARDING_E2E_REQUIRE, so
+        # there a missing build fails. A local run without a build skips.
+        msg = f"no built dashboard at {dist}: build website/ and copy its dist/ there"
+        if os.environ.get("WARDING_E2E_REQUIRE"):
+            pytest.fail(msg)
+        pytest.skip(msg)
+
+    base = f"http://localhost:{gateway.port}"
+    status, ctype, body = _get_raw(f"{base}/")
+    assert (status, ctype) == (200, "text/html")
+    shell = body.decode("utf-8")
+    icon = re.search(r'<link rel="icon" href="(/[^"]+)" type="image/svg\+xml"', shell)
+    assert icon, "the served shell declares no SVG icon"
+    href = icon.group(1)
+    built = (dist / href.lstrip("/")).read_bytes()
+    assert built.lstrip().startswith(b"<svg"), f"the build's {href} is not an SVG file"
+
+    for label, opener in (("no token", None), ("session cookie", _opener(gateway))):
+        status, ctype, body = _get_raw(base + href, opener)
+        assert (status, ctype) == (200, "image/svg+xml"), f"{href} with {label}: {status} {ctype}"
+        assert body == built, f"{href} with {label} is not the built file"
+        status, ctype, body = _get_raw(f"{base}/chat", opener)
+        assert (status, ctype) == (200, "text/html"), f"/chat with {label}: {status} {ctype}"
+        assert body.decode("utf-8") == shell, f"/chat with {label} is not the shell"
+
+    script = re.search(r'<script type="module" crossorigin src="(/assets/[^"]+)"', shell)
+    assert script, "the served shell names no entry script"
+    for path in ("/manifest.json", script.group(1)):
+        status, ctype, body = _get_raw(base + path)
+        assert status == 200 and ctype != "text/html", f"{path}: {status} {ctype}"
+        assert body == (dist / path.lstrip("/")).read_bytes(), f"{path} is not the built file"
+    status, ctype, body = _get_raw(f"{base}/logo.png")
+    assert (status, ctype) == (200, "image/png"), f"/logo.png: {status} {ctype}"
+    assert body.startswith(b"\x89PNG\r\n\x1a\n"), "/logo.png is not a PNG file"
+
+    status, ctype, _ = _get_raw(f"{base}/api/status")
+    assert (status, ctype) == (403, "application/json"), f"/api/status: {status} {ctype}"
 
 
 # --- API round-trip tests ---

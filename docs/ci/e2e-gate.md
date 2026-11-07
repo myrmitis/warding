@@ -13,7 +13,7 @@ model, no credentials, no network, no cost.
 
 | File | What it covers |
 |---|---|
-| `test/test_e2e_smoke.py` | Gateway boot and HTTP-level smoke checks, including concurrent `config.json` writers (registries PUT against trust revocation) and the boot sweep's managed-agent identity check. |
+| `test/test_e2e_smoke.py` | Gateway boot and HTTP-level smoke checks, including concurrent `config.json` writers (registries PUT against trust revocation), the boot sweep's managed-agent identity check, and the public files that the dashboard shell names. The favicon test reads the staged `dist/` build. Without a build it skips, or it fails when `WARDING_E2E_REQUIRE` is set. |
 | `test/test_playwright_e2e.py` | The dashboard browser suite, folded in so one command is the whole gate. |
 
 ## What the command sets up
