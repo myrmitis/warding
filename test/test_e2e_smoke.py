@@ -23,9 +23,11 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -144,6 +146,116 @@ def test_memory_workspace_exists(gateway):
     workspace_dir = gateway.home / "workspace" / "memory"
     assert workspace_dir.is_dir()
     assert (workspace_dir / "preferences.md").is_file()
+
+
+# --- Public files of the dashboard shell ---
+
+
+def _get_raw(
+    url: str, opener: urllib.request.OpenerDirector | None = None
+) -> tuple[int, str, bytes]:
+    """GET *url*, and return its status, media type and body.
+
+    The media type is the Content-Type without parameters. With no *opener*,
+    the request carries no token and no cookie. An error status is returned,
+    not raised.
+    """
+    req = urllib.request.Request(url)
+    try:
+        with (opener or urllib.request.build_opener()).open(req, timeout=10) as resp:
+            ctype, body, status = resp.headers.get("Content-Type", ""), resp.read(), resp.status
+    except urllib.error.HTTPError as exc:
+        ctype, body, status = exc.headers.get("Content-Type", ""), exc.read(), exc.code
+    return status, ctype.split(";")[0].strip(), body
+
+
+class _ShellRefs(HTMLParser):
+    """Collect the icon links and module scripts that a shell document names.
+
+    The parser reads attributes by name, so their order and quoting do not
+    matter.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.icons: list[dict[str, str]] = []
+        self.module_scripts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attr = {name: value or "" for name, value in attrs}
+        if tag == "link" and "icon" in attr.get("rel", "").lower().split():
+            self.icons.append(attr)
+        elif tag == "script" and attr.get("type", "").lower() == "module" and attr.get("src"):
+            self.module_scripts.append(attr["src"])
+
+
+def _built_file(dist: Path, url: str) -> bytes:
+    """Return the bytes of the build file that the root-relative *url* names."""
+    parts = urllib.parse.urlsplit(url)
+    assert not parts.scheme and not parts.netloc, f"{url!r} is not a root-relative URL"
+    assert parts.path.startswith("/"), f"{url!r} is not a root-relative URL"
+    return (dist / parts.path.lstrip("/")).read_bytes()
+
+
+def test_shell_declared_favicon_is_the_built_svg(gateway):
+    """The icon that the served shell declares comes back as the built SVG file.
+
+    A browser can fetch the icon before it has a session, so the test asks once
+    with no token and once with the session cookie. The test also checks the
+    paths around the icon. An ordinary SPA navigation still gets the shell. The
+    PNG icon, the manifest and the entry script keep their own files. A data
+    route without a token is still denied.
+    """
+    import warding
+
+    dist = Path(warding.__file__).resolve().parent / "static" / "dist"
+    if not (dist / "index.html").is_file():
+        # The CI gate stages the build first and sets WARDING_E2E_REQUIRE, so
+        # there a missing build fails. A local run without a build skips.
+        msg = f"no built dashboard at {dist}: build website/ and copy its dist/ there"
+        if os.environ.get("WARDING_E2E_REQUIRE"):
+            pytest.fail(msg)
+        pytest.skip(msg)
+
+    base = f"http://localhost:{gateway.port}"
+    status, ctype, body = _get_raw(f"{base}/")
+    assert (status, ctype) == (200, "text/html")
+    shell = body.decode("utf-8")
+    refs = _ShellRefs()
+    refs.feed(shell)
+    refs.close()
+    svg_icons = [
+        i.get("href", "") for i in refs.icons if i.get("type", "").lower() == "image/svg+xml"
+    ]
+    assert svg_icons, "the served shell declares no SVG icon"
+    entry_scripts = [src for src in refs.module_scripts if src.startswith("/assets/")]
+    assert entry_scripts, "the served shell names no entry script"
+    openers = (("no token", None), ("session cookie", _opener(gateway)))
+
+    for href in svg_icons:
+        built = _built_file(dist, href)
+        assert b"<svg" in built, f"the build's {href} has no <svg> element"
+        for label, opener in openers:
+            status, ctype, body = _get_raw(base + href, opener)
+            got = f"{href} with {label}: {status} {ctype}"
+            assert (status, ctype) == (200, "image/svg+xml"), got
+            assert body == built, f"{href} with {label} is not the built file"
+
+    for label, opener in openers:
+        status, ctype, body = _get_raw(f"{base}/chat", opener)
+        assert (status, ctype) == (200, "text/html"), f"/chat with {label}: {status} {ctype}"
+        assert body.decode("utf-8") == shell, f"/chat with {label} is not the shell"
+
+    for path in ("/manifest.json", *entry_scripts):
+        status, ctype, body = _get_raw(base + path)
+        assert status == 200 and ctype != "text/html", f"{path}: {status} {ctype}"
+        assert body == _built_file(dist, path), f"{path} is not the built file"
+    status, ctype, body = _get_raw(f"{base}/logo.png")
+    assert (status, ctype) == (200, "image/png"), f"/logo.png: {status} {ctype}"
+    assert body.startswith(b"\x89PNG\r\n\x1a\n"), "/logo.png is not a PNG file"
+
+    status, ctype, _ = _get_raw(f"{base}/api/status")
+    assert (status, ctype) == (403, "application/json"), f"/api/status: {status} {ctype}"
 
 
 # --- API round-trip tests ---

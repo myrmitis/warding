@@ -469,9 +469,9 @@ Owner command in `handler.py` that generates a time-limited token URL for dashbo
 
 `token_auth_middleware(local_only)` in `token_auth.py` — aiohttp middleware in the explicit middleware chain:
 
-- **Auth required when**: not local-only (i.e. bound to all interfaces)
-- **Loopback trusted when**: local-only mode (SSH tunnel access)
-- **Bypassed for**: static assets (`/assets/`, `/static/`, `/logo.png`, `/manifest.json`, `/sw.js`, `/icon-*.png`)
+- **Auth required**: on every request, in local-only and remote bind modes alike. A loopback source is not exempt, because a local port forwarder makes remote traffic arrive from 127.0.0.1.
+- **Local processes**: they use the internal API paths with a loopback source and the `X-Internal-Secret` header. See [the middleware factory](../features/dashboard-token-auth.md#middleware-factory).
+- **Bypassed for**: static assets (`/assets/`, `/static/`, `/logo.png`, `/favicon.svg`, `/manifest.json`, `/sw.js`, `/icon-*.png`)
 - **Token sources**: `?token=` query param (first use) or `mc_token_{port}` cookie (subsequent requests)
 - **First query-param use**: binds token to client IP, marks consumed, sets `HttpOnly; SameSite=Strict; Path=/` cookie
 - **Cookie use**: validates token + IP binding, allows repeated access
