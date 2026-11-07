@@ -521,7 +521,12 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ matrix.python-version }}
+          # The 3.12 leg runs CPython 3.12.15. From 3.12.16, os.lstat is in
+          # os.supports_dir_fd, and the tree-walk capability probe test in
+          # test/test_pinned_staging.py asserts as a stdlib fact that it is
+          # not. Remove this pin when the owner decides that test; the
+          # backend-test row of docs/ci/ci-and-reviews.md tracks the decision.
+          python-version: ${{ matrix.python-version == '3.12' && '3.12.15' || matrix.python-version }}
 
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
@@ -763,11 +768,15 @@ jobs:
         # was standing in for.
 
   # macOS gateway line. Until this job existed macOS had ZERO pytest coverage in
-  # CI -- the macos-14 runners appear only in build.yml, build-desktop.yml and
-  # sign-and-notarize.yml, all of which merely build and notarize the desktop
-  # app. That left the macOS-only identity primitives (LOCAL_PEERPID for the
-  # peer pid, libproc for the process start id) verified by nothing, on the
-  # platform several maintainers develop on.
+  # CI -- the other macOS runners appear only in build.yml, build-desktop.yml,
+  # sign-and-notarize.yml and ota-test.yml, which build, notarize or
+  # update-swap the desktop app and run no pytest. That left the macOS-only
+  # identity primitives (LOCAL_PEERPID for the peer pid, libproc for the
+  # process start id) verified by nothing, on the platform several maintainers
+  # develop on.
+  #
+  # The runner is macos-15, the label build.yml, build-desktop.yml and
+  # sign-and-notarize.yml use. GitHub no longer accepts the macos-14 label.
   #
   # Deliberately SCOPED, not the full suite: a full macOS run would need its own
   # exclusion burn-down first (the Windows line needed 23 file exclusions plus
@@ -780,7 +789,7 @@ jobs:
   # about 4 seconds, so the job's wall time is essentially dependency install.
   backend-test-macos:
     name: Gateway Tests (macOS)
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
