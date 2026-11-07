@@ -16,8 +16,12 @@ from __future__ import annotations
 import http.cookiejar
 import json
 import os
+import threading
 import time
+import urllib.error
 import urllib.request
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -325,3 +329,194 @@ def test_chat_tool_call_renders(acp_gateway):
 
     reply = _await_assistant_reply(acp_gateway, slot)
     assert "pong from the fake ACP backend" in json.dumps(reply)
+
+
+# --- Concurrent config.json writers ------------------------------------------
+#
+# ``PUT /api/apps/registries`` and ``DELETE /api/security/trusted-apps/{name}``
+# each rewrite the whole ``config.json``. Each one must read and write the file
+# as one transaction. Otherwise a change that lands between its read and its
+# write is lost when it writes back its older copy. These tests run both
+# endpoints at the same time over HTTP. Then they check that every change is
+# still in the API and on disk.
+
+_RACE_GRANTS = 16  # trust grants revoked while registries PUTs run
+_RACE_ROUNDS = 16  # registries PUTs sent while trust revocations run
+_RACE_WRITERS = 4  # threads that keep the other endpoint busy
+_RACE_MAX_WRITES = 1000  # per-thread cap, so a stuck request cannot loop forever
+_RACE_TIMEOUT = 120.0  # seconds to wait for one side of a race to finish
+
+
+@pytest.fixture(scope="module")
+def race_gateway():
+    """A separate gateway for the concurrent-writer tests.
+
+    These tests replace the registries list and edit the trust grants. They use
+    their own data home, so the shared ``gateway`` keeps its state.
+    """
+    from warding.testing import fake_acp_backend
+    from warding.testing.harness import spawn_feature_gateway
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("WARDING_KIRO_BIN", str(fake_acp_backend.__file__))
+        with spawn_feature_gateway(fixture="minimal", approval="reads") as handle:
+            yield handle
+
+
+def _api_call(gateway, method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
+    """Send one request with the session cookie, and return its status and JSON body.
+
+    An error status is returned, not raised, so that a worker thread can report it.
+    """
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(f"http://localhost:{gateway.port}{path}", data=data, method=method)
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
+    try:
+        with _opener(gateway).open(req, timeout=30) as resp:
+            return resp.status, json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", "replace")
+        try:
+            return exc.code, json.loads(raw)
+        except ValueError:
+            return exc.code, {"body": raw}
+
+
+def _repeat_until(stop: threading.Event, call: Callable[[], tuple[int, dict]]) -> list[int]:
+    """Send *call* again and again until *stop* is set, and return every status.
+
+    The first request goes out even when *stop* is already set.
+    """
+    statuses: list[int] = []
+    while len(statuses) < _RACE_MAX_WRITES:
+        statuses.append(call()[0])
+        if stop.is_set():
+            break
+    return statuses
+
+
+def _stored_grants(gateway) -> set[str]:
+    """Every trust grant that ``config.json`` holds, effective or not."""
+    status, body = _api_call(gateway, "GET", "/api/security/trusted-apps")
+    assert status == 200, body
+    return set(body["apps"]) | set(body["ineffective"])
+
+
+def _registries(gateway) -> list[dict]:
+    """The operator registries that ``GET /api/apps/registries`` reports."""
+    status, body = _api_call(gateway, "GET", "/api/apps/registries")
+    assert status == 200, body
+    return body["registries"]
+
+
+def _config_on_disk(gateway) -> dict:
+    return json.loads((gateway.home / "config.json").read_text(encoding="utf-8"))
+
+
+def _seed_trust_grants(gateway, names: list[str]) -> None:
+    """Add *names* to ``agent.apps_trusted``, as an operator edits ``config.json``.
+
+    No app with these names is installed. So a revocation removes the grant and
+    stops no app code. The edit replaces the file with one rename.
+    """
+    path = gateway.home / "config.json"
+    data = _config_on_disk(gateway)
+    agent = data.setdefault("agent", {})
+    agent["apps_trusted"] = sorted(set(agent.get("apps_trusted") or []) | set(names))
+    staged = path.with_name(path.name + ".e2e-seed")
+    staged.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    os.replace(staged, path)
+
+
+def _as_stored(rows: list[dict]) -> list[dict]:
+    """*rows* as the registries API stores them: an operator row has the index tier."""
+    return [{**row, "trust": "index"} for row in rows]
+
+
+def test_trust_revocation_survives_concurrent_registries_puts(race_gateway):
+    """A registries PUT that runs during a trust revocation must not restore the grant.
+
+    The PUTs continue until every revocation has returned. A lost revocation
+    stays lost, because each later PUT copies the restored grant forward.
+    """
+    names = [f"e2e-revoke-{i:02d}" for i in range(_RACE_GRANTS)]
+    rows = [{"name": "e2e-race-a", "repo": "E2eRaceAppsA", "branch": "main"}]
+    _opener(race_gateway)  # Mint the session cookie before the threads share it.
+    _seed_trust_grants(race_gateway, names)
+    assert set(names) <= _stored_grants(race_gateway), "the gateway did not load the seed"
+
+    def put() -> tuple[int, dict]:
+        return _api_call(race_gateway, "PUT", "/api/apps/registries", {"registries": rows})
+
+    def revoke(name: str) -> tuple[int, dict]:
+        return _api_call(race_gateway, "DELETE", f"/api/security/trusted-apps/{name}")
+
+    stop = threading.Event()
+    with ThreadPoolExecutor(max_workers=_RACE_WRITERS + _RACE_GRANTS) as pool:
+        putters = [pool.submit(_repeat_until, stop, put) for _ in range(_RACE_WRITERS)]
+        try:
+            revokes = list(pool.map(revoke, names, timeout=_RACE_TIMEOUT))
+        finally:
+            stop.set()
+        put_statuses = [s for f in putters for s in f.result(timeout=_RACE_TIMEOUT)]
+
+    assert [status for status, _ in revokes] == [200] * len(names), revokes
+    assert set(put_statuses) == {200}, put_statuses
+    restored = sorted(set(names) & _stored_grants(race_gateway))
+    assert not restored, f"a concurrent registries PUT restored revoked grants: {restored}"
+    on_disk = _config_on_disk(race_gateway)
+    assert not set(names) & set(on_disk.get("agent", {}).get("apps_trusted") or [])
+    assert _registries(race_gateway) == _as_stored(rows)
+    assert on_disk["registries"] == _as_stored(rows)
+
+
+def test_registries_put_survives_concurrent_trust_revocations(race_gateway):
+    """A trust revocation that runs during a registries PUT must not restore the old list.
+
+    A revocation rewrites ``config.json`` even for a name that holds no grant.
+    The revocations continue while the PUTs run one at a time. Each PUT sends a
+    new list, and a GET after each PUT must return that list.
+    """
+    _opener(race_gateway)  # Mint the session cookie before the threads share it.
+
+    def revoke(index: int) -> tuple[int, dict]:
+        path = f"/api/security/trusted-apps/e2e-absent-{index}"
+        return _api_call(race_gateway, "DELETE", path)
+
+    stop = threading.Event()
+    sent: list[list[dict]] = []
+    seen: list[list[dict]] = []
+    put_statuses: list[int] = []
+    with ThreadPoolExecutor(max_workers=_RACE_WRITERS) as pool:
+        revokers = [
+            pool.submit(_repeat_until, stop, lambda i=i: revoke(i)) for i in range(_RACE_WRITERS)
+        ]
+        try:
+            for round_no in range(_RACE_ROUNDS):
+                # Each round's repo has a different length, so each PUT changes
+                # the file size. The gateway's config cache keys on mtime and
+                # size, and on a coarse clock two writes can share one mtime.
+                rows = [
+                    {
+                        "name": f"e2e-race-b{round_no:02d}",
+                        "repo": f"E2eRaceAppsB{round_no:02d}" + "x" * round_no,
+                        "branch": "main",
+                    }
+                ]
+                status, _ = _api_call(
+                    race_gateway, "PUT", "/api/apps/registries", {"registries": rows}
+                )
+                put_statuses.append(status)
+                sent.append(_as_stored(rows))
+                seen.append(_registries(race_gateway))
+        finally:
+            stop.set()
+        revoke_statuses = [s for f in revokers for s in f.result(timeout=_RACE_TIMEOUT)]
+
+    assert put_statuses == [200] * _RACE_ROUNDS, put_statuses
+    assert set(revoke_statuses) == {200}, revoke_statuses
+    lost = [round_no for round_no, (want, got) in enumerate(zip(sent, seen)) if want != got]
+    assert not lost, f"a concurrent trust revocation restored an older list in rounds {lost}"
+    assert _registries(race_gateway) == sent[-1]
+    assert _config_on_disk(race_gateway)["registries"] == sent[-1]
