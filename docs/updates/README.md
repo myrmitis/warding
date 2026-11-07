@@ -1,6 +1,6 @@
 # Source update receipts — myrmitis/warding
 
-The repository-scoped `.github/workflows/documentation-receipts.yml` writes an immutable receipt after each default-branch push when Actions and token permissions allow it. Receipts link the Git revision and changed paths; they do **not** prove CI, deployment, customer acceptance or commercial outcomes. Browse dated folders and [docs/HUB.md](../HUB.md). Report workflow failures instead of bypassing branch protection.
+From 2026-10-28, the repository-scoped `.github/workflows/documentation-receipts.yml` wrote an immutable receipt after each default-branch push. The owner retired that workflow in every repository on 2026-10-30 (laqaer/portfolio-ops D28), so no new receipts are written here. The existing receipts stay unchanged. Receipts link the Git revision and changed paths; they do **not** prove CI, deployment, customer acceptance or commercial outcomes. Browse dated folders and [docs/HUB.md](../HUB.md).
 
 | Month | Receipts |
 |---|---|
