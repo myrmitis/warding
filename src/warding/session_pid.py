@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -18,6 +19,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from warding import platform_compat
@@ -221,17 +223,188 @@ def _rewrite_pid_file(path: Path, content: str) -> bool:
         return False
 
 
-# Basenames of agent runtimes whose lifecycle Warding manages through PID-file
-# tracking (kiro_pids.txt / kiro_session_pids.txt). Used to re-validate tracked
-# PIDs before a kill, and as a NEGATIVE gate in the work-orphan sweep: these
+# Substrings of the agent runtime names whose lifecycle Warding manages through
+# PID-file tracking (kiro_pids.txt / kiro_session_pids.txt). This is only the
+# NEGATIVE gate of the work-orphan sweep, applied to the argv0 basename: these
 # runtimes are reclaimed by their own tracked-PID sweep, never by the
-# marker-based work sweep (see _is_sweepable_orphan_work).
+# marker-based work sweep (see _is_sweepable_orphan_work). The identity check
+# before a kill is _is_managed_agent_process, which compares whole argv
+# elements instead.
 _MANAGED_AGENT_MARKERS: tuple[str, ...] = ("kiro-cli", "claude")
 
 
-def _is_managed_agent_process(pid: int) -> bool:
-    """Check if a PID belongs to an agent process managed by Warding (guards against PID recycling)."""
-    return platform_compat.process_matches(pid, _MANAGED_AGENT_MARKERS)
+#: A sibling name that kiro-cli execs, such as ``kiro-cli-chat``: lowercase
+#: words joined by hyphens, with no file extension.
+_KIRO_SIBLING_SUFFIX = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+
+
+@dataclass(frozen=True)
+class _AgentIdentity:
+    """The argv shapes of the agent processes that Warding launches and tracks."""
+
+    #: Executable names, compared with the last path component of an element.
+    names: frozenset[str]
+    #: kiro-cli is a multi-call binary that execs siblings such as kiro-cli-chat.
+    sibling_prefix: str
+    #: npm package whose spec the npx launch passes (``<package>@<range>``).
+    npm_package: str
+    #: Script paths that Node runs directly, compared as a path suffix.
+    entry_suffixes: tuple[str, ...]
+    #: Launch paths that the operator configured, compared as whole paths.
+    override_paths: frozenset[str]
+    #: Argument sets that only the KAS launch passes (kas_assets.build_kas_argv).
+    signatures: tuple[frozenset[str], ...]
+
+
+def _override_paths(*env_names: str) -> frozenset[str]:
+    """Return the launch paths that *env_names* configure.
+
+    Each path counts as given, as an absolute path and as its real path. The
+    spawn reads the same variables from the gateway's environment, so a sweep
+    in that gateway compares the path that it launched. A node-wrapped
+    ``CLAUDE_AGENT_ACP_BIN`` launches its real path. A relative value resolves
+    against the gateway's working directory.
+    """
+    paths: set[str] = set()
+    for env_name in env_names:
+        value = os.environ.get(env_name, "")
+        if value:
+            paths.update({value, os.path.abspath(value), os.path.realpath(value)})
+    return frozenset(_normalized_path(path) for path in paths)
+
+
+def _agent_identities() -> tuple[_AgentIdentity, _AgentIdentity]:
+    """Return the identities of a tracked agent root and of its descendants.
+
+    A root is what acp/client.py and acp/runtime.py spawn and record: kiro-cli
+    (its own name or the ``WARDING_KIRO_BIN`` path), the claude-agent-acp
+    adapter (its executable, the ``CLAUDE_AGENT_ACP_BIN`` path, its Node entry
+    script, or the npx package spec), or KAS. A descendant of a confirmed root
+    can also be the Claude Code CLI that the adapter starts (its name or the
+    ``CLAUDE_CODE_EXECUTABLE`` path). That CLI never counts as a root, because
+    Warding never records it, and the name alone also fits the operator's own
+    Claude Code.
+    """
+    # Deferred, as in _kill_pid_tree: session_pid -> acp.client -> session -> session_pid.
+    from warding.acp.client import (
+        _CLAUDE_ACP_PKG_ENTRY,
+        CLAUDE_ACP_BIN,
+        CLAUDE_ACP_NPM_PKG,
+        CLAUDE_CODE_BIN,
+        KIRO_CLI_BIN,
+    )
+    from warding.acp.kas_assets import KAS_AUTH_ACP_CALLBACK_ARG, KAS_TRANSPORT_ARG
+
+    root = _AgentIdentity(
+        names=frozenset({KIRO_CLI_BIN, CLAUDE_ACP_BIN}),
+        sibling_prefix=f"{KIRO_CLI_BIN}-",
+        npm_package=CLAUDE_ACP_NPM_PKG,
+        entry_suffixes=(f"/{_CLAUDE_ACP_PKG_ENTRY.as_posix()}",),
+        override_paths=_override_paths("WARDING_KIRO_BIN", "CLAUDE_AGENT_ACP_BIN"),
+        signatures=(frozenset({KAS_TRANSPORT_ARG, KAS_AUTH_ACP_CALLBACK_ARG}),),
+    )
+    descendant = replace(
+        root,
+        names=root.names | {CLAUDE_CODE_BIN},
+        override_paths=root.override_paths | _override_paths("CLAUDE_CODE_EXECUTABLE"),
+    )
+    return root, descendant
+
+
+def _normalized_path(path: str) -> str:
+    """Return *path* with forward slashes, and without case on Windows."""
+    if platform_compat.IS_WINDOWS:
+        return path.replace("\\", "/").lower()
+    return path
+
+
+def _holds_space(element: str) -> bool:
+    return any(char.isspace() for char in element)
+
+
+def _is_file_path(element: str) -> bool:
+    """Return True when *element* is the absolute path of an existing file."""
+    return os.path.isabs(element) and os.path.isfile(element)
+
+
+def _argv_candidates(argv: tuple[str, ...]) -> list[str]:
+    """Return the argv elements that can name an executable, a script or a package.
+
+    An option (``-c``, ``--config=...``) names none. An element that holds
+    whitespace, such as a ``-c`` payload, names none either, unless it is the
+    absolute path of an existing file. That keeps a launcher in a directory
+    whose name holds a space. A process that rewrote its title into one
+    element, such as npm's ``npm exec <spec>``, is the other exception: its
+    words are the candidates.
+    """
+    elements = [element for element in argv if element]
+    if len(elements) == 1 and _holds_space(elements[0]) and not _is_file_path(elements[0]):
+        elements = elements[0].split()
+    return [
+        element
+        for element in elements
+        if not element.startswith("-") and (not _holds_space(element) or _is_file_path(element))
+    ]
+
+
+def _argv_element_name(element: str) -> str:
+    """Return the executable name an argv element names: its last path component.
+
+    Windows compares names without case and without the ``.exe`` suffix.
+    """
+    name = _normalized_path(element).rsplit("/", 1)[-1]
+    if platform_compat.IS_WINDOWS:
+        name = name.removesuffix(".exe")
+    return name
+
+
+def _argv_matches_identity(argv: tuple[str, ...], identity: _AgentIdentity) -> bool:
+    """Return True when an argv element has one of *identity*'s shapes.
+
+    Elements are compared one by one, so a launcher matches whatever argv
+    position it holds. That covers the Linux sandbox launcher
+    (``python <run>/warding_sandbox_*.py <agent> ...``), ``node <entry script>``
+    and the npm title ``npm exec <package spec>``. A path that only passes
+    through a directory named like an agent, such as ``~/.claude/worktrees/``,
+    or an option value such as ``--config=~/.claude/settings.json`` names no
+    agent. On Linux, a word in a ``-c`` payload names no agent either. On macOS
+    ``ps`` splits the payload into words, so one of them can match.
+
+    The override paths are compared with every element, before the candidate
+    filter. Only an element equal to a whole configured path matches.
+    """
+    if any(signature <= set(argv) for signature in identity.signatures):
+        return True
+    if any(_normalized_path(element) in identity.override_paths for element in argv if element):
+        return True
+    for element in _argv_candidates(argv):
+        path = _normalized_path(element)
+        name = _argv_element_name(element)
+        sibling = name.removeprefix(identity.sibling_prefix)
+        if (
+            name in identity.names
+            or (sibling != name and _KIRO_SIBLING_SUFFIX.fullmatch(sibling) is not None)
+            or element == identity.npm_package
+            or element.startswith(f"{identity.npm_package}@")
+            or path.endswith(identity.entry_suffixes)
+        ):
+            return True
+    return False
+
+
+def _is_managed_agent_process(pid: int, *, descendant: bool = False) -> bool:
+    """Return True when *pid* runs an agent process that Warding launches.
+
+    The tracked-PID sweeps call this before they signal a recorded PID, to skip
+    a PID the OS has recycled onto an unrelated process. With *descendant*,
+    *pid* is a live descendant of a confirmed root, and the Claude Code CLI
+    also counts (see :func:`_agent_identities`).
+    """
+    argv = platform_compat.process_argv(pid)
+    if argv is None:
+        return False
+    root, child = _agent_identities()
+    return _argv_matches_identity(argv, child if descendant else root)
 
 
 def _pid_gone_or_unmanaged(pid: int) -> bool:
@@ -313,7 +486,7 @@ def _kill_pid_tree(pid: int) -> tuple[int, bool]:
 
         children = _get_child_pids(pid)
         for cpid in reversed(children):
-            if cpid <= 0 or not _is_managed_agent_process(cpid):
+            if cpid <= 0 or not _is_managed_agent_process(cpid, descendant=True):
                 continue
             try:
                 platform_compat.kill_pid(cpid, platform_compat.SIGKILL)
@@ -853,7 +1026,7 @@ def cleanup_orphaned_session_roots() -> int:
             continue  # can't signal — skip
 
         # Child is alive. Guard against PID reuse: verify it's still a
-        # managed agent process (kiro-cli/claude in cmdline).
+        # managed agent root (see _is_managed_agent_process).
         if not _is_managed_agent_process(child_pid):
             # PID was recycled by an unrelated process — prune entry
             entries_to_remove.add(stripped)
@@ -1639,8 +1812,8 @@ def kill_orphan_mcps(pids: list[int]) -> int:
                     # Candidate already passed UID + orphan-ppid + positive MCP
                     # marker + two-phase active-PID re-verify + cmdline re-check.
                     # Direct os.kill of the confirmed-orphan PID only — NOT a tree
-                    # walk. _kill_pid_tree is gated by kiro-cli/claude markers that
-                    # MCP processes don't carry. If this orphan shares a pgid (not
+                    # walk. _kill_pid_tree is gated by the managed-agent identity
+                    # check, which MCP processes do not pass. If this orphan shares a pgid (not
                     # its own group leader) and has children, those children that
                     # carry an MCP marker are reclaimed on a subsequent sweep; any
                     # without a marker were never sweep candidates to begin with.
@@ -1721,7 +1894,8 @@ def _kill_orphan_work_tree(pid: int, cmdline: bytes, age_seconds: float, budget:
     """SIGKILL a confirmed work-class orphan and its WHOLE subtree, leaf-first.
 
     Deliberately NOT :func:`_kill_pid_tree`: that helper only reaps
-    descendants that are themselves managed agent runtimes (kiro-cli/claude),
+    descendants that are themselves managed agent runtimes (see
+    :func:`_is_managed_agent_process`),
     which is correct for tracked agent PIDs but wrong here — every descendant
     of a marked work orphan inherited the ``WARDING_SPAWNED`` environment
     and is sweepable (an orphaned pytest's own python/shim children are
