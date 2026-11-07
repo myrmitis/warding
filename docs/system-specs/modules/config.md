@@ -507,9 +507,9 @@ It runs `update_config_locked()` in a worker thread. It keeps the asyncio lock
 until the worker finishes, also when the request is cancelled.
 
 `PUT /api/apps/registries` uses this pattern
-([#65](https://github.com/myrmitis/warding/issues/65)). Two black-box tests in
-`test/test_e2e_smoke.py` send registries PUTs and trust revocations to a real
-gateway at the same time. `test_trust_revocation_survives_concurrent_registries_puts`
+([#65](https://github.com/myrmitis/warding/issues/65)). Two end-to-end tests in
+`test/test_e2e_smoke.py` use only HTTP. They send registries PUTs and trust
+revocations to a real gateway at the same time. `test_trust_revocation_survives_concurrent_registries_puts`
 checks that no revoked grant comes back. `test_registries_put_survives_concurrent_trust_revocations`
 checks that no older registries list comes back.
 

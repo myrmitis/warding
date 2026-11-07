@@ -15,6 +15,6 @@ This is the stable index for this owner-controlled repository. Existing source d
 | Change and release evidence | [Commits](https://github.com/myrmitis/warding/commits), [Actions](https://github.com/myrmitis/warding/actions), [releases](https://github.com/myrmitis/warding/releases) |
 | Source receipts | [docs/updates](updates/README.md) |
 | Portfolio-wide index | [Portfolio hub](https://github.com/laqaer/portfolio-ops/tree/main/docs/hub) |
-| Config write locks: registries PUT ([#65](https://github.com/myrmitis/warding/issues/65)) | Rule: [two config locks](system-specs/modules/config.md#two-config-locks). Verification: the concurrent-writer tests in `test/test_e2e_smoke.py`. This is a source fix. An installed gateway changes only after its own update. |
+| Config write locks: registries PUT ([#65](https://github.com/myrmitis/warding/issues/65), PR [#70](https://github.com/myrmitis/warding/pull/70)) | Rule: [two config locks](system-specs/modules/config.md#two-config-locks). Verification: the concurrent-writer tests in `test/test_e2e_smoke.py`. This is a source fix. An installed gateway changes only after its own update. |
 
 For each material change, update the affected canonical document and link the issue, PR, revision and verification. Distinguish implemented, merged, deployed, verified and released. Follow the [shared documentation standard](https://github.com/laqaer/agent-config/blob/main/docs/documentation-hub.md).
