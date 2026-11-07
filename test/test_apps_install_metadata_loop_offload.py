@@ -51,6 +51,7 @@ import warding.apps.hooks_integration as hooks_mod
 import warding.apps.manager as manager_mod
 import warding.apps.registry as registry_mod
 import warding.apps.routes as routes_mod
+import warding.config.loader as loader_mod
 from warding.apps.bridges import RegistrationResult
 from warding.apps.manager import APP_MANIFEST_FILENAME, AppResult
 
@@ -628,18 +629,21 @@ async def test_handle_registries_put_reads_and_writes_the_config_off_the_loop_th
     write_threads: list[threading.Thread] = []
     cfg = tmp_path / "config.json"
     cfg.write_text(json.dumps({"registries": []}), encoding="utf-8")
+    # The handler reads and writes through update_config_locked. That helper
+    # checks the file with exists(), reads it with read_text(), creates its
+    # directory with mkdir(), and writes through the loader's atomic_write.
     monkeypatch.setattr(
-        routes_mod, "Path", _recording_path_class(calls, ("is_file", "read_text", "mkdir"))
+        routes_mod, "Path", _recording_path_class(calls, ("exists", "read_text", "mkdir"))
     )
     monkeypatch.setattr(routes_mod, "config_path", lambda: cfg)
-    monkeypatch.setattr(routes_mod, "atomic_write", _spy(write_threads, routes_mod.atomic_write))
+    monkeypatch.setattr(loader_mod, "atomic_write", _spy(write_threads, loader_mod.atomic_write))
 
     resp = await routes_mod.handle_registries(
         _json_post("/api/apps/registries", {"registries": []})
     )
 
     assert resp.status == 200
-    assert {"is_file", "read_text", "mkdir"} <= {name for name, _ in calls}
+    assert {"exists", "read_text", "mkdir"} <= {name for name, _ in calls}
     assert write_threads, "config.json was never written"
     assert loop_thread not in write_threads, "config.json was written on the event loop thread"
     on_loop = _on_loop(calls, loop_thread)

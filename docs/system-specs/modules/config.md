@@ -487,6 +487,32 @@ overwrites a corrupt `config.local.json` rather than failing closed — the user
 typed an explicit command and sees the result on stdout. Pinned by
 `test_config_overlay.py::TestCliConfigSetLocal`.
 
+#### Two config locks
+
+Two locks serialize a `config.json` read-modify-write. Each lock covers a
+different family of writers.
+
+| Lock | Who takes it | What it serializes against |
+|---|---|---|
+| The sidecar file lock on `<path>.lock` | `update_config_locked()` | Every writer, in any process, that also calls `update_config_locked()`. |
+| `_get_config_lock()`, an in-process asyncio lock | Gateway handlers | Other gateway handlers. Some hold only this lock: the trusted-apps grant and revoke endpoints, and the app uninstall. |
+
+A writer that holds only one lock can interleave with the other family. It then
+writes back an older copy of the file, and the other writer's change is lost.
+
+So an async handler holds both locks. It calls
+`await run_config_write(update_config_locked, path, mutate=...)` from
+`dashboard/chat_utils.py`. That helper takes the asyncio lock on the event loop.
+It runs `update_config_locked()` in a worker thread. It keeps the asyncio lock
+until the worker finishes, also when the request is cancelled.
+
+`PUT /api/apps/registries` uses this pattern
+([#65](https://github.com/myrmitis/warding/issues/65)). Two black-box tests in
+`test/test_e2e_smoke.py` send registries PUTs and trust revocations to a real
+gateway at the same time. `test_trust_revocation_survives_concurrent_registries_puts`
+checks that no revoked grant comes back. `test_registries_put_survives_concurrent_trust_revocations`
+checks that no older registries list comes back.
+
 ### `config_dir() -> Path`
 Returns `~/.warding/`. Overridden by `WARDING_HOME` env var (refuses system
 directories like `/`, `/usr`, `/System`, `/etc`). There is no other location and

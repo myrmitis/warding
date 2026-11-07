@@ -13,7 +13,7 @@ model, no credentials, no network, no cost.
 
 | File | What it covers |
 |---|---|
-| `test/test_e2e_smoke.py` | Gateway boot and HTTP-level smoke checks. |
+| `test/test_e2e_smoke.py` | Gateway boot and HTTP-level smoke checks, including concurrent `config.json` writers (registries PUT against trust revocation). |
 | `test/test_playwright_e2e.py` | The dashboard browser suite, folded in so one command is the whole gate. |
 
 ## What the command sets up

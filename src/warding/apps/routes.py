@@ -112,7 +112,6 @@ from warding.apps.registry import (
 from warding.apps.spawn_sdk import build_spawn_impl
 from warding.apps.teardown import teardown_app_runtime
 from warding.apps.version import check_min_version as _check_min_version_str
-from warding.atomic_write import atomic_write
 from warding.config.loader import (
     ConfigReadError,
     WardingConfig,
@@ -3137,24 +3136,6 @@ async def handle_migrate_cleanup(request: web.Request) -> web.Response:
     return web.json_response(result.to_dict())
 
 
-def _read_config_object(cfg: Path) -> Any:
-    """Parse *cfg*, or return ``{}`` when it does not exist.
-
-    Raises what the read and the parse raise. Blocking filesystem work: an
-    async caller runs it in a worker thread.
-    """
-    return json.loads(cfg.read_text(encoding="utf-8")) if cfg.is_file() else {}
-
-
-def _write_config_object(cfg: Path, data: Any) -> None:
-    """Write *data* to *cfg* atomically, so a crash cannot corrupt it.
-
-    Blocking filesystem work: an async caller runs it in a worker thread.
-    """
-    cfg.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(cfg, json.dumps(data, indent=2) + "\n")
-
-
 async def handle_registries(request: web.Request) -> web.Response:
     """GET/PUT /api/apps/registries — manage external federated registries."""
     if request.method == "GET":
@@ -3284,29 +3265,6 @@ async def handle_registries(request: web.Request) -> web.Response:
             )
         validated.append({"name": name, "repo": repo, "branch": branch, "trust": trust})
 
-    # Update config file (atomic write to prevent corruption on crash)
-    cfg = Path(config_path())
-    try:
-        data = await asyncio.to_thread(_read_config_object, cfg)
-    except json.JSONDecodeError:
-        sel().log_api_access(
-            caller="dashboard",
-            operation="registries.update",
-            outcome="failed",
-            resources="config.json malformed",
-        )
-        return web.json_response(
-            {"error": "config.json is malformed — fix it before updating registries"},
-            status=500,
-        )
-    except OSError as exc:
-        sel().log_api_access(
-            caller="dashboard",
-            operation="registries.update",
-            outcome="failed",
-            resources=f"config read error: {exc}",
-        )
-        return web.json_response({"error": f"cannot read config: {exc}"}, status=500)
     # Detect hosts this PUT newly introduces to the registry trust set. A
     # configured registry host is fed into the loosened-sandbox / SSH-clone
     # trust set (see registry._configured_registry_hosts) AND its apps become
@@ -3317,29 +3275,80 @@ async def handle_registries(request: web.Request) -> web.Response:
     # event so incident response can always establish when/how a host entered
     # the trust set. Compare against the PRIOR on-disk config, not the freshly
     # validated list, so re-saving an unchanged list emits nothing.
-    # ``data.get("registries") or []`` (not ``data.get("registries", [])``):
-    # a config carrying an explicit ``"registries": null`` loads fine elsewhere
-    # via the same ``or []`` idiom, so iterating the bare ``.get`` default would
-    # attempt to loop over ``None`` and turn this repair-PUT into an HTTP 500,
-    # blocking the only dashboard path that could fix the malformed value.
-    prior = data.get("registries") or []
-    prior_hosts = {
-        h for r in prior if isinstance(r, dict) and (h := _git_url_host(str(r.get("repo", ""))))
-    }
-    newly_trusted_hosts: list[str] = []
-    for r in validated:
-        host = _git_url_host(r["repo"])
-        if host and host not in prior_hosts and host not in newly_trusted_hosts:
-            newly_trusted_hosts.append(host)
+    newly_trusted: list[tuple[str, str]] = []  # (host, public repo), in PUT order
+
+    def _replace_registries(data: dict) -> dict:
+        # ``data.get("registries") or []`` (not ``data.get("registries", [])``):
+        # a config carrying an explicit ``"registries": null`` loads fine
+        # elsewhere via the same ``or []`` idiom, so iterating the bare ``.get``
+        # default would attempt to loop over ``None`` and turn this repair-PUT
+        # into an HTTP 500, blocking the only dashboard path that could fix the
+        # malformed value.
+        prior = data.get("registries") or []
+        prior_hosts = {
+            h for r in prior if isinstance(r, dict) and (h := _git_url_host(str(r.get("repo", ""))))
+        }
+        seen_hosts: set[str] = set()
+        for r in validated:
+            host = _git_url_host(r["repo"])
+            if host and host not in prior_hosts and host not in seen_hosts:
+                seen_hosts.add(host)
+                newly_trusted.append((host, _strip_git_target_userinfo(r["repo"])))
+        data["registries"] = validated
+        return data
+
+    # One transaction for the read, the host diff and the write. The PUT
+    # replaces the whole file, so a writer that lands between its read and its
+    # write would be lost: a concurrent trust revocation would come back.
+    # ``run_config_write`` takes the in-process config lock, which the
+    # trusted-apps and uninstall writers hold for their own read-modify-write.
+    # In a worker thread it then runs ``update_config_locked``, which holds the
+    # sidecar file lock against writers in other processes. Either lock alone
+    # leaves one family of writers free to interleave. The deferred import keeps
+    # ``apps`` from depending on ``dashboard`` at load time (see the uninstall
+    # handler's config lock).
+    from warding.dashboard.chat_utils import run_config_write
+
+    try:
+        await run_config_write(
+            update_config_locked, Path(config_path()), mutate=_replace_registries
+        )
+    except ConfigReadError as exc:
+        # The read inside the lock failed, so nothing was written.
+        # ``read_config_for_update`` chains the original error: an ``OSError``
+        # is a read failure, and anything else (bad JSON, bad UTF-8, a top level
+        # that is not an object) means the file is malformed.
+        cause = exc.__cause__
+        if isinstance(cause, OSError):
             sel().log_api_access(
                 caller="dashboard",
-                operation="registries.host_trust_granted",
-                outcome="success",
-                resources=f"host={host} repo={_strip_git_target_userinfo(r['repo'])}",
+                operation="registries.update",
+                outcome="failed",
+                resources=f"config read error: {cause}",
             )
+            return web.json_response({"error": f"cannot read config: {cause}"}, status=500)
+        sel().log_api_access(
+            caller="dashboard",
+            operation="registries.update",
+            outcome="failed",
+            resources="config.json malformed",
+        )
+        return web.json_response(
+            {"error": "config.json is malformed — fix it before updating registries"},
+            status=500,
+        )
 
-    data["registries"] = validated
-    await asyncio.to_thread(_write_config_object, cfg, data)
+    # Audit each grant only after the write succeeded, so a failed write
+    # records no trust grant that never reached config.json.
+    newly_trusted_hosts: list[str] = []
+    for host, public_repo in newly_trusted:
+        newly_trusted_hosts.append(host)
+        sel().log_api_access(
+            caller="dashboard",
+            operation="registries.host_trust_granted",
+            outcome="success",
+            resources=f"host={host} repo={public_repo}",
+        )
 
     sel().log_api_access(
         caller="dashboard",
