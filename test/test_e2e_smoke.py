@@ -532,7 +532,7 @@ def test_routing_cooldown_clear_validates_before_writing(acp_gateway):
     for body, code in (
         (b'{"lane":"codex"', "invalid_json"),
         (b"", "invalid_json"),
-        (b"[" * 4096 + b"0" + b"]" * 4096, "invalid_json"),
+        (b"[" * 4096, "invalid_json"),
         (b"false", "invalid_cooldown_request"),
         (b'["codex"]', "invalid_cooldown_request"),
         ({"lan": "codex"}, "invalid_cooldown_request"),

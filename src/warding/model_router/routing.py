@@ -280,9 +280,9 @@ async def apply_role_model(client: Any, role: str) -> str:
 
 def load_role_pins() -> dict[str, str]:
     """Read the operator's role pins. An unavailable config leaves them unset."""
-    from warding.config.loader import WardingConfig
-
     try:
+        from warding.config.loader import WardingConfig
+
         return WardingConfig.load().agent.role_models
     except Exception:
         logger.info("model-router plan using empty pins")
