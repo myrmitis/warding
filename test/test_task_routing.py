@@ -66,7 +66,7 @@ async def test_a_step_takes_the_best_lane_for_its_kind_and_keeps_it(router: Any)
     first = await route.pick()
     assert first.harness == "codex"
     assert (await route.pick()).id == first.id  # sticky across attempts
-    assert router.ledger.snapshot()["codex"].count_since(0) == 2  # one dispatch per attempt
+    assert router.usage_snapshot()["codex"].count_since(0) == 2  # one dispatch per attempt
     review = await StepRoute("review", router=router).pick()
     assert review.harness == "claude"
 
@@ -85,7 +85,7 @@ async def test_sticky_retry_refuses_a_lane_at_its_daily_cap(tmp_path: Path) -> N
         await route.pick()
     assert error.value.code == "daily_cap"
     assert route.lane is first
-    assert router.ledger.snapshot()[first.id].count_since(0) == 1
+    assert router.usage_snapshot()[first.id].count_since(0) == 1
 
 
 @pytest.mark.asyncio
@@ -115,7 +115,7 @@ async def test_parallel_steps_reserve_usage_before_the_next_choice(
     monkeypatch.setattr(router, "resolve", slow_resolve)
     lanes = await asyncio.gather(*(StepRoute("implement", router=router).pick() for _ in range(2)))
     assert {lane.id for lane in lanes} == {"codex", "claude"}
-    assert all(usage.count_since(0) == 1 for usage in router.ledger.snapshot().values())
+    assert all(usage.count_since(0) == 1 for usage in router.usage_snapshot().values())
 
 
 @pytest.mark.asyncio
@@ -126,7 +126,7 @@ async def test_a_limit_before_any_tool_is_a_free_move(router: Any) -> None:
     assert route.lane is None
     moved = await route.pick()
     assert moved.harness == "claude"
-    assert router.ledger.snapshot()["codex"].cooldown_reason == "usage_limit"
+    assert router.usage_snapshot()["codex"].cooldown_reason == "usage_limit"
 
 
 @pytest.mark.asyncio
@@ -146,7 +146,7 @@ async def test_an_ordinary_failure_stays_on_the_lane(router: Any) -> None:
     lane = await route.pick()
     assert await route.failed(ValueError("tests still red"), tool_ran=False) is False
     assert route.lane is lane
-    assert not router.ledger.snapshot()["codex"].cooling(time.time())
+    assert not router.usage_snapshot()["codex"].cooling(time.time())
 
 
 @pytest.mark.asyncio
@@ -187,7 +187,7 @@ def _limit_elsewhere(home: Path, lane: str = "codex") -> None:
 
 
 def _assert_still_limited(router: Any, lane: str = "codex") -> None:
-    usage = router.ledger.snapshot()[lane]
+    usage = router.usage_snapshot()[lane]
     assert usage.cooldown_reason == "usage_limit"
     assert usage.cooling(time.time() + 3600)
     assert (usage.ok, usage.failed) == (1, 1), "the older run still counts as a completed run"
@@ -201,7 +201,7 @@ async def test_an_older_steps_success_keeps_the_limit_a_newer_step_hit(tmp_path:
     assert (await older.pick()).id == "codex"
     assert (await newer.pick()).id == "codex"
     assert await newer.failed(RuntimeError(_USAGE_LIMIT), tool_ran=False)
-    assert router.ledger.snapshot()["codex"].cooldown_reason == "usage_limit"
+    assert router.usage_snapshot()["codex"].cooldown_reason == "usage_limit"
     await older.succeeded()
     _assert_still_limited(router)
 
@@ -218,7 +218,7 @@ async def test_a_sticky_retry_dispatched_after_a_limit_clears_it_on_success(
     # The retry stays on its lane and is a new dispatch, made after the limit.
     assert (await route.pick()).id == "codex"
     await route.succeeded()
-    usage = router.ledger.snapshot()["codex"]
+    usage = router.usage_snapshot()["codex"]
     assert (usage.cooldown_reason, usage.cooldown_until, usage.ok) == ("", 0.0, 1)
     assert usage.harness == "codex"
 
@@ -244,7 +244,7 @@ async def test_a_step_success_on_a_re_pointed_lane_keeps_the_new_harnesss_sign_i
     # nothing about the codex sign-in.
     assert (await route.pick()).harness == "claude"
     await route.succeeded()
-    usage = router.ledger.snapshot()["pro"]
+    usage = router.usage_snapshot()["pro"]
     assert (usage.cooldown_reason, usage.harness, usage.ok) == ("auth", "codex", 1)
 
 
@@ -356,7 +356,7 @@ async def test_a_limited_step_moves_agents_without_spending_an_attempt(
     assert [o["acp_backend_override"] for o in sessions.opened] == ["codex", "claude"]
     assert task.harness == "claude"
     assert task.attempts == 1
-    usage = router.ledger.snapshot()
+    usage = router.usage_snapshot()
     assert usage["codex"].cooldown_reason == "usage_limit"
     assert usage["claude"].ok == 1
 
@@ -387,7 +387,7 @@ async def test_a_limit_notice_reply_is_a_lane_failure_not_a_result(
     assert [o["acp_backend_override"] for o in sessions.opened] == ["codex", "claude"]
     assert task.attempts == 1
     assert task.result == "done"
-    usage = router.ledger.snapshot()
+    usage = router.usage_snapshot()
     assert usage["codex"].cooldown_reason == failure
     assert usage["codex"].ok == 0
 
@@ -403,7 +403,7 @@ async def test_unsupported_codex_model_fails_task_without_quota_cooldown(
     sessions = _sessions([_Client(reply=_CODEX_400) for _ in range(MAX_RETRIES)])
     assert await _execute(_run(task, route_steps=True), task, sessions) is False
     assert all(o["acp_backend_override"] == "codex" for o in sessions.opened)
-    usage = router.ledger.snapshot()["codex"]
+    usage = router.usage_snapshot()["codex"]
     assert (usage.ok, usage.failed, usage.limited) == (0, MAX_RETRIES, 0)
     assert usage.cooldown_until == 0
 
@@ -419,7 +419,7 @@ async def test_exhausting_all_lanes_cannot_pass_a_limit_notice(
     assert [o["acp_backend_override"] for o in sessions.opened] == ["codex", "claude"]
     assert task.result != _USAGE_LIMIT
     assert task.attempts == 0  # Both pre-tool lane failures were free moves.
-    assert all(usage.ok == 0 for usage in router.ledger.snapshot().values())
+    assert all(usage.ok == 0 for usage in router.usage_snapshot().values())
 
 
 @pytest.mark.asyncio
@@ -433,7 +433,7 @@ async def test_a_notice_after_tool_use_is_the_steps_result(
     sessions = _sessions([_Client(tool=True, reply=reply)])
     assert await _execute(_run(task, route_steps=True), task, sessions) is True
     assert [o["acp_backend_override"] for o in sessions.opened] == ["codex"]
-    assert router.ledger.snapshot()["codex"].ok == 1
+    assert router.usage_snapshot()["codex"].ok == 1
 
 
 @pytest.mark.asyncio
@@ -448,7 +448,7 @@ async def test_unrouted_runs_pass_no_override(router: Any, monkeypatch) -> None:
         assert await _execute(_run(task, route_steps=route_steps), task, sessions) is True
         assert sessions.opened == [{"agent": None, "cwd": None}]
         assert task.harness == ""
-    assert router.ledger.snapshot() == {}
+    assert router.usage_snapshot() == {}
 
 
 @pytest.mark.asyncio
@@ -480,7 +480,7 @@ async def test_failed_self_review_keeps_the_execution_lane_and_accounting(
         # Another turn can change lane headroom during the review. A new route
         # would now pick Claude, while this step's live provider remains Codex.
         if fallback:
-            router.ledger.clear_cooldown()
+            router.clear_cooldown()
         else:
             router.record_failure("codex", exc=RuntimeError(_USAGE_LIMIT))
         return False
@@ -511,7 +511,7 @@ async def test_failed_self_review_keeps_the_execution_lane_and_accounting(
         expected,
     ]
     assert task.harness == ("" if fallback else "codex")
-    usage = router.ledger.snapshot()
+    usage = router.usage_snapshot()
     assert usage["codex"].ok == (0 if fallback else 2)
     if fallback:
         assert usage["claude"].ok == 0
@@ -566,7 +566,7 @@ async def test_a_routed_review_moves_lanes_after_a_lane_failure(
     assert await task_executor.self_review(_review_run(task), task, sessions, "") is False
     assert [kw["acp_backend_override"] for _key, kw in opened] == ["codex", "claude"]
     assert task.error == "Self-review: typo"
-    usage = router.ledger.snapshot()
+    usage = router.usage_snapshot()
     assert usage["codex"].cooldown_reason == "usage_limit"
     assert usage["claude"].ok == 1
     # Every session the review opened is released.
@@ -584,7 +584,7 @@ async def test_a_routed_review_treats_a_notice_reply_as_a_lane_failure(
     sessions, opened = _review_sessions()
     assert await task_executor.self_review(_review_run(task), task, sessions, "") is True
     assert [kw["acp_backend_override"] for _key, kw in opened] == ["codex", "claude"]
-    assert router.ledger.snapshot()["codex"].ok == 0
+    assert router.usage_snapshot()["codex"].ok == 0
 
 
 @pytest.mark.asyncio
@@ -597,7 +597,7 @@ async def test_provider_request_error_cannot_be_counted_as_a_successful_review(
     # Review failures stay non-blocking for the task, but are failed dispatches.
     assert await task_executor.self_review(_review_run(task), task, sessions, "") is True
     assert [kw["acp_backend_override"] for _key, kw in opened] == ["codex"]
-    usage = router.ledger.snapshot()["codex"]
+    usage = router.usage_snapshot()["codex"]
     assert (usage.ok, usage.failed, usage.limited) == (0, 1, 0)
 
 
@@ -643,7 +643,7 @@ async def test_process_recovery_respects_lane_retry_cost(
     assert await _execute(_run(task, route_steps=True), task, sessions) is True
     assert [o["acp_backend_override"] for o in sessions.opened] == ["codex", expected_harness]
     assert task.attempts == expected_attempts
-    assert router.ledger.snapshot()[expected_harness].ok == 1
+    assert router.usage_snapshot()[expected_harness].ok == 1
 
 
 @pytest.mark.asyncio
@@ -667,7 +667,7 @@ async def test_free_lane_moves_do_not_spend_the_process_recovery_budget(
     assert len(sessions.opened) == 4
     assert len({opened["acp_backend_override"] for opened in sessions.opened}) == 4
     assert task.attempts == 1
-    usage = router.ledger.snapshot()
+    usage = router.usage_snapshot()
     assert len(usage) == 4
     assert sum(lane.ok for lane in usage.values()) == 1
 
@@ -695,7 +695,7 @@ async def test_daily_cap_refusal_is_terminal_and_records_no_dispatch_failure(
     assert task.attempts == 1
     assert task.harness == "codex"
     assert "daily dispatch cap" in task.error
-    assert router.ledger.snapshot()["codex"].count_since(0) == 1
+    assert router.usage_snapshot()["codex"].count_since(0) == 1
     assert failures.call_count == 1
     assert sessions.record_failure.await_count == 1
     assert sessions.reset.await_count == 1
@@ -738,7 +738,7 @@ async def test_review_retry_daily_cap_preserves_the_attempt_that_ran(
     assert len(sessions.opened) == 1
     assert task.attempts == 1
     assert task.harness == "codex"
-    usage = router.ledger.snapshot()["codex"]
+    usage = router.usage_snapshot()["codex"]
     assert usage.count_since(0) == 1
     assert usage.ok == 1
     assert usage.failed == 0
@@ -771,7 +771,7 @@ async def test_review_does_not_replay_tools_after_a_lane_failure(
     assert await task_executor.self_review(_review_run(task), task, sessions, "") is tool
     harnesses = [kw["acp_backend_override"] for kw in sessions.opened]
     assert harnesses == (["codex"] if tool else ["codex", "claude"])
-    assert router.ledger.snapshot()["codex"].cooldown_reason == "usage_limit"
+    assert router.usage_snapshot()["codex"].cooldown_reason == "usage_limit"
 
 
 @pytest.mark.parametrize("cooling", [False, True])
@@ -786,7 +786,7 @@ async def test_fresh_step_cannot_bypass_a_daily_cap(tmp_path: Path, cooling: boo
     with pytest.raises(service.RoutingError) as error:
         await StepRoute("implement", router=router).pick()
     assert error.value.code == "daily_cap"
-    assert router.ledger.snapshot()["codex"].count_since(0) == 1
+    assert router.usage_snapshot()["codex"].count_since(0) == 1
 
 
 @pytest.mark.parametrize(
@@ -904,7 +904,7 @@ async def test_automatic_test_failure_records_a_failed_attempt_on_the_sticky_lan
     )
     assert task.attempts == 2
     assert [kw["acp_backend_override"] for kw in sessions.opened] == ["codex", "codex"]
-    usage = router.ledger.snapshot()["codex"]
+    usage = router.usage_snapshot()["codex"]
     assert (usage.ok, usage.failed, usage.count_since(0)) == (1, 1, 2)
     assert not usage.cooling(time.time())
 
@@ -1030,7 +1030,7 @@ async def test_a_restored_route_keeps_its_lane_when_headroom_would_move_it(route
     assert route.binding == ("codex", "")
     assert (await route.pick()).id == "codex"  # sticky from then on
     # Each resumed attempt is a real dispatch and is accounted to its lane.
-    assert router.ledger.snapshot()["codex"].count_since(0) == 32
+    assert router.usage_snapshot()["codex"].count_since(0) == 32
 
 
 @pytest.mark.asyncio
@@ -1083,9 +1083,9 @@ async def test_a_restored_route_refuses_a_lane_that_cannot_take_its_step_back(
     assert error.value.code == LANE_UNAVAILABLE
     # Fail closed: nothing was dispatched, least of all to the other harness.
     assert route.lane is None
-    assert "claude" not in router.ledger.snapshot()
-    assert router.ledger.snapshot().get("codex") is None or all(
-        usage.count_since(0) == 0 for usage in router.ledger.snapshot().values()
+    assert "claude" not in router.usage_snapshot()
+    assert router.usage_snapshot().get("codex") is None or all(
+        usage.count_since(0) == 0 for usage in router.usage_snapshot().values()
     )
 
 
@@ -1097,7 +1097,7 @@ async def test_a_restored_route_refuses_an_uninstalled_harness(tmp_path: Path) -
     route = StepRoute("implement", router=router, restore=LaneBinding("codex", "", "codex"))
     with pytest.raises(service.RoutingError, match="no codex harness installed"):
         await route.pick()
-    assert router.ledger.snapshot() == {}
+    assert router.usage_snapshot() == {}
 
 
 @pytest.mark.asyncio
@@ -1113,8 +1113,8 @@ async def test_a_restored_route_still_obeys_the_daily_cap(tmp_path: Path) -> Non
     with pytest.raises(service.RoutingError) as error:
         await route.pick()
     assert error.value.code == "daily_cap"
-    assert router.ledger.snapshot()["codex"].count_since(0) == 1
-    assert "claude" not in router.ledger.snapshot()
+    assert router.usage_snapshot()["codex"].count_since(0) == 1
+    assert "claude" not in router.usage_snapshot()
 
 
 @pytest.mark.asyncio
@@ -1126,7 +1126,7 @@ async def test_a_restored_configured_agent_fallback_does_not_cross_to_a_recovere
     )
     assert await route.pick() is None
     assert route.binding == (CONFIGURED_AGENT_LANE, "")
-    assert router.ledger.snapshot() == {}  # Both lanes were free to take it.
+    assert router.usage_snapshot() == {}  # Both lanes were free to take it.
     assert await route.failed(RuntimeError(_USAGE_LIMIT), tool_ran=False) is False
 
 
@@ -1224,7 +1224,7 @@ async def test_a_paused_step_resumes_on_the_lane_and_model_it_was_dispatched_on(
         ("codex", "gpt-x")
     ]
     assert resumed.harness == "codex"
-    assert router.ledger.snapshot()["claude"].count_since(0) == 1  # only the premise check
+    assert router.usage_snapshot()["claude"].count_since(0) == 1  # only the premise check
 
 
 @pytest.mark.asyncio
@@ -1259,11 +1259,11 @@ async def test_a_resume_that_cannot_return_to_its_lane_waits_instead_of_crossing
     assert "codex" in task.error and "resting" in task.error
     assert sessions.opened == []
     assert task.lane_id == "codex"  # Still bound: the lane is expected back.
-    assert "claude" not in router.ledger.snapshot()
+    assert "claude" not in router.usage_snapshot()
     sessions.reset.assert_not_awaited()  # Refusal is not a provider failure.
 
     # Once the lane recovers the same step goes back to it.
-    router.ledger.clear_cooldown()
+    router.clear_cooldown()
     assert await _execute_with(run, task, sessions) is True
     assert [o["acp_backend_override"] for o in sessions.opened] == ["codex"]
 
@@ -1286,13 +1286,13 @@ async def test_a_configured_agent_fallback_stays_on_the_configured_agent_when_re
         await _execute_with(run, task, sessions, _task_persist(task, saved, sessions))
     assert saved == [(CONFIGURED_AGENT_LANE, "", 0)]
 
-    router.ledger.clear_cooldown()  # Both lanes are back, but the step is in flight.
+    router.clear_cooldown()  # Both lanes are back, but the step is in flight.
     resumed = _sessions([_Client()])
     assert await _execute_with(run, task, resumed) is True
     assert resumed.opened == [{"agent": None, "cwd": None}]
     assert task.harness == ""
-    assert router.ledger.snapshot().get("claude") is None or not any(
-        u.count_since(0) for u in router.ledger.snapshot().values()
+    assert router.usage_snapshot().get("claude") is None or not any(
+        u.count_since(0) for u in router.usage_snapshot().values()
     )
 
 

@@ -7,7 +7,7 @@ import json
 import sys
 
 from warding.model_router.probe import RouterStatus, probe_status
-from warding.model_router.routing import annotated_catalog, build_plan
+from warding.model_router.routing import annotated_catalog, build_plan, load_role_pins
 
 
 def run_router_command(args: argparse.Namespace) -> None:
@@ -61,15 +61,7 @@ def _print_catalog(*, provider: str, cost_class: str) -> None:
 
 
 def _print_plan(advertised_raw: str) -> None:
-    advertised = [part.strip() for part in advertised_raw.split(",") if part.strip()]
-    pins: dict[str, str] = {}
-    try:
-        from warding.config.loader import WardingConfig
-
-        pins = dict(WardingConfig.load().agent.role_models)
-    except Exception:
-        pins = {}
-    plan = build_plan(pins=pins, advertised=advertised)
+    plan = build_plan(pins=load_role_pins(), advertised=advertised_raw.split(","))
     print("model-router plan: orchestration → planning → execution → subagent")
     for row in plan.roles:
         print(

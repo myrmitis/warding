@@ -374,6 +374,8 @@ Format:
 
 ## Testing policy: E2E over unit
 
+E2E: pytest + Playwright — `python setup.py test_e2e`.
+
 Owner policy (2026-10-16, shared in `~/.agents/AGENTS.md`): do not add unit or
 integration tests on your own initiative, and no TDD unless asked. Prove a
 change by driving the product the way a user does.

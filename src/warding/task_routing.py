@@ -176,7 +176,7 @@ class StepRoute:
                 # Refuse a capped retry without moving its provider attribution.
                 current = router.settings().lane(self.lane.id) or self.lane
                 if current.daily_limit > 0:
-                    usage = router.ledger.snapshot().get(self.lane.id)
+                    usage = router.usage_snapshot().get(self.lane.id)
                     if (
                         usage is not None
                         and usage.count_since(time.time() - DAILY_LIMIT_WINDOW_SECS)
@@ -206,7 +206,7 @@ class StepRoute:
             elif lane.harness not in router.installed():
                 problem = f"has no {lane.harness} harness installed"
             else:
-                usage = router.ledger.snapshot().get(lane.id)
+                usage = router.usage_snapshot().get(lane.id)
                 if usage is not None and usage.cooling(time.time()):
                     problem = f"is resting after {usage.cooldown_reason or 'a limit'}"
         except Exception as exc:
@@ -237,7 +237,7 @@ class StepRoute:
             except RoutingError as exc:
                 # A cooldown can mask the cap in the scoring exclusion reason.
                 # Inspect the actual budget before permitting initial fallback.
-                usage = router.ledger.snapshot()
+                usage = router.usage_snapshot()
                 capped = capped or bool(
                     exc.decision
                     and any(

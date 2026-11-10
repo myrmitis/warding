@@ -161,7 +161,7 @@ def test_route_run_fails_over_when_the_reply_is_a_usage_limit_notice(
     # Only the first hop carries the routing reason.
     assert "[route] max (Claude Code) · implement\n" in err
     assert limited.shut and rescuer.shut
-    usage = router.ledger.snapshot()
+    usage = router.usage_snapshot()
     assert usage["pro"].cooldown_reason == FAILURE_USAGE_LIMIT
     assert usage["max"].ok == 1
 
@@ -185,7 +185,7 @@ def test_route_run_success_keeps_a_limit_recorded_while_its_harness_shut_down(
     made = _providers(monkeypatch, _SlowExit(_reply("done")))
     assert _run_exit_code(_parse("run", "build it", "--no-prompt", "--harness", "pro")) == 0
     assert [lane for lane, _ in made] == ["pro"]
-    usage = router.ledger.snapshot()["pro"]
+    usage = router.usage_snapshot()["pro"]
     assert usage.cooldown_reason == FAILURE_USAGE_LIMIT
     assert (usage.ok, usage.failed, usage.harness) == (1, 1, "codex")
 
@@ -205,7 +205,7 @@ def test_route_run_does_not_move_once_the_turn_produced_output(
 
     captured = capsys.readouterr()
     assert captured.out.startswith("half done")
-    assert router.ledger.snapshot()["pro"].cooldown_reason == FAILURE_RATE_LIMIT
+    assert router.usage_snapshot()["pro"].cooldown_reason == FAILURE_RATE_LIMIT
     # The work already ran on pro: moving would run the prompt a second time.
     assert [lane for lane, _ in made] == ["pro"]
     assert code == 1 and "[route] pro failed (rate_limit)" in captured.err
@@ -271,7 +271,7 @@ def test_route_run_backs_off_codex_provider_429_and_routes_to_next_lane(
     made = _providers(monkeypatch, _FakeProvider(_reply(reply)), _FakeProvider(_reply("pong")))
     assert _run_exit_code(_parse("run", "Reply pong", "--no-prompt")) == 0
     assert [lane for lane, _ in made] == ["pro", "max"]
-    usage = router.ledger.snapshot()
+    usage = router.usage_snapshot()
     assert (usage["pro"].ok, usage["pro"].failed, usage["pro"].limited) == (0, 1, 1)
     assert usage["pro"].cooldown_reason == FAILURE_RATE_LIMIT
     assert usage["max"].ok == 1
@@ -286,7 +286,7 @@ def test_pinned_codex_provider_errors_exit_nonzero_and_are_not_successes(
     made = _providers(monkeypatch, _FakeProvider(_reply(reply)))
     assert _run_exit_code(_parse("run", "x", "--harness", "pro", "--no-prompt")) == 1
     assert [lane for lane, _ in made] == ["pro"]
-    usage = router.ledger.snapshot()["pro"]
+    usage = router.usage_snapshot()["pro"]
     assert (usage.ok, usage.failed) == (0, 1)
     assert usage.cooldown_reason == (FAILURE_RATE_LIMIT if reply == _CODEX_429 else "")
     assert usage.limited == (1 if reply == _CODEX_429 else 0)
@@ -300,7 +300,7 @@ def test_unsupported_inherited_codex_model_error_is_not_a_transient_lane_failure
     made = _providers(monkeypatch, _FakeProvider(_reply(_CODEX_400)))
     assert _run_exit_code(_parse("run", "x", "--no-prompt")) == 1
     assert [lane for lane, _ in made] == ["pro"]
-    assert router.ledger.snapshot()["pro"].cooldown_until == 0
+    assert router.usage_snapshot()["pro"].cooldown_until == 0
 
 
 @pytest.mark.parametrize("approved", [False, True])
@@ -332,7 +332,7 @@ def test_route_run_error_discussion_remains_a_success(monkeypatch, reply) -> Non
     made = _providers(monkeypatch, _FakeProvider(_reply(reply)))
     assert _run_exit_code(_parse("run", "x", "--no-prompt")) == 0
     assert [lane for lane, _ in made] == ["pro"]
-    assert router.ledger.snapshot()["pro"].ok == 1
+    assert router.usage_snapshot()["pro"].ok == 1
 
 
 @pytest.mark.parametrize("permission_first", [False, True])
@@ -354,8 +354,8 @@ def test_denied_pending_tool_does_not_hide_a_codex_provider_failure(
     made = _providers(monkeypatch, failed, _FakeProvider(_reply("pong")))
     assert _run_exit_code(_parse("run", "x", "--no-prompt")) == 0
     assert [lane for lane, _ in made] == ["pro", "max"]
-    assert router.ledger.snapshot()["pro"].cooldown_reason == FAILURE_RATE_LIMIT
-    assert router.ledger.snapshot()["pro"].ok == 0
+    assert router.usage_snapshot()["pro"].cooldown_reason == FAILURE_RATE_LIMIT
+    assert router.usage_snapshot()["pro"].ok == 0
 
 
 @pytest.mark.parametrize("activity", ["text", "approved", "child", "idless"])

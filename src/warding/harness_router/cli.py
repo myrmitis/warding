@@ -117,7 +117,7 @@ def run_route_command(args: argparse.Namespace) -> None:
     elif action == "init":
         _init(router, force=args.force, all_harnesses=args.all_harnesses)
     elif action == "clear":
-        cleared = router.ledger.clear_cooldown(args.lane or None)
+        cleared = router.clear_cooldown(args.lane or None)
         print("cleared: " + (", ".join(cleared) if cleared else "nothing was resting"))
     else:
         print(f"unknown route action: {action}", file=sys.stderr)
@@ -402,7 +402,7 @@ async def _check(router: HarnessRouter, lane_ids: list[str]) -> int:
             # another harness, or a record naming none, stays "auth unverified".
             # Read after the probe, which can take minutes: a routed run that ended
             # meanwhile has already changed the answer.
-            used = router.ledger.snapshot().get(lane.id)
+            used = router.usage_snapshot().get(lane.id)
             if (
                 used is not None
                 and used.cooldown_reason == FAILURE_AUTH

@@ -17,28 +17,28 @@ from warding.harness_router import api
 @pytest.mark.parametrize("lane", [" CODEX ", "", "bad/id"])
 async def test_clear_cooldown_normalizes_valid_ids_and_rejects_invalid_ids(monkeypatch, lane):
     router = MagicMock()
-    router.ledger.clear_cooldown.return_value = ["codex"]
+    router.clear_cooldown.return_value = ["codex"]
     monkeypatch.setattr(api, "get_router", lambda: router)
     request = SimpleNamespace(json=AsyncMock(return_value={"lane": lane}))
     response = await api.api_clear_cooldown(request)
-    if lane == "bad/id":
+    if lane != " CODEX ":
         assert response.status == 400 and json.loads(response.body)["code"] == "invalid_lane"
-        router.ledger.clear_cooldown.assert_not_called()
+        router.clear_cooldown.assert_not_called()
     else:
         assert json.loads(response.body) == {"code": "ok", "cleared": ["codex"]}
-        router.ledger.clear_cooldown.assert_called_once_with("codex" if lane.strip() else None)
+        router.clear_cooldown.assert_called_once_with("codex")
 
 
 @pytest.mark.asyncio
-async def test_clear_invalid_json_uses_documented_all_lane_default(monkeypatch):
+async def test_clear_invalid_json_rejects_the_request(monkeypatch):
     router = MagicMock()
-    router.ledger.clear_cooldown.return_value = []
+    router.clear_cooldown.return_value = []
     monkeypatch.setattr(api, "get_router", lambda: router)
     response = await api.api_clear_cooldown(
         SimpleNamespace(json=AsyncMock(side_effect=ValueError("json")))
     )
-    assert response.status == 200
-    router.ledger.clear_cooldown.assert_called_once_with(None)
+    assert response.status == 400 and json.loads(response.body)["code"] == "invalid_json"
+    router.clear_cooldown.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -27,11 +27,11 @@ class _Client:
 
 @pytest.fixture(autouse=True)
 def no_real_pins(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(routing, "_load_pins", lambda: {})
+    monkeypatch.setattr(routing, "load_role_pins", lambda: {})
 
 
 def _pin(monkeypatch: pytest.MonkeyPatch, model_id: str) -> None:
-    monkeypatch.setattr(routing, "_load_pins", lambda: {"planning": model_id})
+    monkeypatch.setattr(routing, "load_role_pins", lambda: {"planning": model_id})
 
 
 @pytest.mark.asyncio

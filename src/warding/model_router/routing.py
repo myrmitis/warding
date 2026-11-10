@@ -241,7 +241,7 @@ async def apply_role_model(client: Any, role: str) -> str:
     """
     if role not in ROUTE_ROLE_KEYS:
         return DEFAULT_MODEL
-    pins = _load_pins()
+    pins = load_role_pins()
     advertised = _advertised_from_client(client)
     wire = resolve_wire_id(role, pins=pins, advertised=advertised)
     if not wire or wire == DEFAULT_MODEL:
@@ -278,12 +278,14 @@ async def apply_role_model(client: Any, role: str) -> str:
     return wire
 
 
-def _load_pins() -> dict[str, str]:
+def load_role_pins() -> dict[str, str]:
+    """Read the operator's role pins. An unavailable config leaves them unset."""
     try:
         from warding.config.loader import WardingConfig
 
-        return dict(WardingConfig.load().agent.role_models)
+        return WardingConfig.load().agent.role_models
     except Exception:
+        logger.info("model-router plan using empty pins")
         return {}
 
 
