@@ -64,26 +64,32 @@ def test_wait_tool_posts_keepalive_periodically():
     """wait() should POST /api/session-keepalive at least once while sleeping."""
     import time as _time
 
+    from warding import mcp_core
     from warding.mcp_core import _call_tool
 
-    with patch("warding.mcp_core._post") as mock_post, patch.object(
-        _time, "sleep", return_value=None
-    ):
+    # Fake monotonic: first three calls return t=0 so the loop fires a
+    # keepalive on the first iteration; subsequent calls jump past the
+    # deadline so the loop exits cleanly. Any extra monotonic() calls
+    # from refactors fall through to a large value, still causing a
+    # clean exit.
+    times = iter([0.0, 0.0, 0.0])
+    _final = [1000.0]
+
+    def _fake_monotonic() -> float:
+        return next(times, _final[0])
+
+    # The fake clock replaces mcp_core.time, the binding the tool reads, and
+    # never the shared time module: another thread in this worker that reads
+    # the clock meanwhile (CI's hang-diagnostics watcher ticks every second)
+    # would otherwise consume a scripted reading and end the wait before its
+    # first keepalive. Every other attribute passes through to the real module.
+    clock = MagicMock(wraps=_time)
+    clock.monotonic.side_effect = _fake_monotonic
+    clock.sleep.return_value = None
+
+    with patch("warding.mcp_core._post") as mock_post, patch.object(mcp_core, "time", clock):
         mock_post.return_value = {}
+        _call_tool("wait", {"seconds": 60, "reason": "test"})
 
-        # Fake monotonic: first three calls return t=0 so the loop fires a
-        # keepalive on the first iteration; subsequent calls jump past the
-        # deadline so the loop exits cleanly. Any extra monotonic() calls
-        # from refactors fall through to a large value, still causing a
-        # clean exit.
-        times = iter([0.0, 0.0, 0.0])
-        _final = [1000.0]
-
-        def _fake_monotonic() -> float:
-            return next(times, _final[0])
-
-        with patch.object(_time, "monotonic", side_effect=_fake_monotonic):
-            _call_tool("wait", {"seconds": 60, "reason": "test"})
-
-        paths = [c.args[0] for c in mock_post.call_args_list]
-        assert "/api/session-keepalive" in paths
+    paths = [c.args[0] for c in mock_post.call_args_list]
+    assert "/api/session-keepalive" in paths
