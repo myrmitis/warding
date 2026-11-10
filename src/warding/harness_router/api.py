@@ -55,12 +55,25 @@ async def api_clear_cooldown(request: web.Request) -> web.Response:
     """POST /api/routing/cooldown/clear {lane?} — lift a lane's rest early."""
     try:
         body = await request.json()
-    except Exception:
-        body = {}
-    lane = str((body or {}).get("lane") or "").strip().lower() or None
-    if lane is not None and not LANE_ID_PATTERN.match(lane):
-        return web.json_response({"error": "invalid lane id", "code": "invalid_lane"}, status=400)
-    cleared = await asyncio.to_thread(get_router().ledger.clear_cooldown, lane)
+    except (ValueError, LookupError, RecursionError):
+        return web.json_response({"error": "invalid JSON", "code": "invalid_json"}, status=400)
+    if not isinstance(body, dict) or body.keys() - {"lane"}:
+        return web.json_response(
+            {
+                "error": "expected an object with an optional lane",
+                "code": "invalid_cooldown_request",
+            },
+            status=400,
+        )
+    lane = None
+    if "lane" in body:
+        raw_lane = body["lane"]
+        lane = raw_lane.strip().lower() if isinstance(raw_lane, str) else ""
+        if not LANE_ID_PATTERN.fullmatch(lane):
+            return web.json_response(
+                {"error": "invalid lane id", "code": "invalid_lane"}, status=400
+            )
+    cleared = await asyncio.to_thread(get_router().clear_cooldown, lane)
     logger.info("routing cooldown cleared: %s", ",".join(cleared) or "-")
     return web.json_response({"code": "ok", "cleared": cleared})
 

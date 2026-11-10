@@ -44,7 +44,12 @@ from warding.harness_router.lanes import (
     load_settings,
     routing_path,
 )
-from warding.harness_router.ledger import LEDGER_DIRNAME, UNRECORDED_DISPATCH, UsageLedger
+from warding.harness_router.ledger import (
+    LEDGER_DIRNAME,
+    UNRECORDED_DISPATCH,
+    LaneUsage,
+    UsageLedger,
+)
 from warding.harness_router.limits import (
     FAILURE_OTHER,
     LANE_FAILURES,
@@ -119,9 +124,13 @@ class HarnessRouter:
         self._installed: tuple[str, ...] = ()
         self._installed_at = 0.0
 
-    @property
-    def ledger(self) -> UsageLedger:
-        return self._ledger
+    def usage_snapshot(self) -> dict[str, LaneUsage]:
+        """Read a detached snapshot of current lane usage."""
+        return self._ledger.snapshot()
+
+    def clear_cooldown(self, lane_id: str | None = None) -> list[str]:
+        """Lift the cooldown on one lane or all lanes."""
+        return self._ledger.clear_cooldown(lane_id)
 
     @property
     def home(self) -> Path | None:

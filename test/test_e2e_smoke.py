@@ -480,12 +480,14 @@ def race_gateway():
             yield handle
 
 
-def _api_call(gateway, method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
+def _api_call(
+    gateway, method: str, path: str, body: dict | bytes | None = None
+) -> tuple[int, dict]:
     """Send one request with the session cookie, and return its status and JSON body.
 
     An error status is returned, not raised, so that a worker thread can report it.
     """
-    data = None if body is None else json.dumps(body).encode()
+    data = body if isinstance(body, bytes) or body is None else json.dumps(body).encode()
     req = urllib.request.Request(f"http://localhost:{gateway.port}{path}", data=data, method=method)
     if data is not None:
         req.add_header("Content-Type", "application/json")
@@ -498,6 +500,54 @@ def _api_call(gateway, method: str, path: str, body: dict | None = None) -> tupl
             return exc.code, json.loads(raw)
         except ValueError:
             return exc.code, {"body": raw}
+
+
+def test_routing_cooldown_clear_validates_before_writing(acp_gateway):
+    route = "/api/routing/cooldown/clear"
+    lanes = {"codex", "claude"}
+    (acp_gateway.home / "routing.json").write_text(
+        json.dumps({"lanes": [{"id": lane, "harness": lane} for lane in sorted(lanes)]}),
+        encoding="utf-8",
+    )
+    ledger = acp_gateway.home / "routing" / "ledger.json"
+    ledger.parent.mkdir(exist_ok=True)
+    ledger.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "lanes": {
+                    lane: {"cooldown_until": time.time() + 600, "cooldown_reason": "usage_limit"}
+                    for lane in lanes
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def resting_lanes() -> set[str]:
+        status = _api_get(acp_gateway, "/api/routing/status")
+        return {row["id"] for row in status["lanes"] if row["cooldown_until"]}
+
+    assert resting_lanes() == lanes
+    for body, code in (
+        (b'{"lane":"codex"', "invalid_json"),
+        (b"", "invalid_json"),
+        (b"[" * 4096 + b"0" + b"]" * 4096, "invalid_json"),
+        (b"false", "invalid_cooldown_request"),
+        (b'["codex"]', "invalid_cooldown_request"),
+        ({"lan": "codex"}, "invalid_cooldown_request"),
+        ({"lane": False}, "invalid_lane"),
+        ({"lane": " "}, "invalid_lane"),
+        ({"lane": "bad/id"}, "invalid_lane"),
+    ):
+        status, response = _api_call(acp_gateway, "POST", route, body)
+        assert (status, response.get("code")) == (400, code)
+        assert resting_lanes() == lanes
+
+    assert _api_post(acp_gateway, route, {"lane": " CODEX "})["cleared"] == ["codex"]
+    assert resting_lanes() == {"claude"}
+    assert _api_post(acp_gateway, route, {})["cleared"] == ["claude"]
+    assert resting_lanes() == set()
 
 
 def _repeat_until(stop: threading.Event, call: Callable[[], tuple[int, dict]]) -> list[int]:

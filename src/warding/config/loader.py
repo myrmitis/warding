@@ -2005,13 +2005,9 @@ class AgentConfig:
                 clamped,
             )
             self.soft_stop_budget_secs = clamped
-        # Keep only known role keys, each normalized ("auto"/non-str -> "").
-        # Defensive for directly-constructed instances; the load() path already
-        # feeds coerced input.
+        # Normalize role settings for both file loading and direct construction.
         self.role_models = coerce_role_models(self.role_models)
         self.role_efforts = coerce_role_efforts(self.role_efforts)
-        # Same defensive coercion for the throttle-fallback model: normalize to
-        # ""/"auto"/acp id, so consumers can trust the stored shape.
         self.fallback_model = coerce_fallback_model(self.fallback_model)
 
     def resolve_model(self, role: str) -> str:
@@ -7022,9 +7018,9 @@ class WardingConfig:
                 approval_mode=agent_data.get("approval_mode", "auto"),
                 streaming=agent_data.get("streaming", True),
                 model=agent_data.get("model", DEFAULT_MODEL),
-                role_models=coerce_role_models(agent_data.get("role_models")),
-                role_efforts=coerce_role_efforts(agent_data.get("role_efforts")),
-                fallback_model=coerce_fallback_model(agent_data.get("fallback_model", "auto")),
+                role_models=agent_data.get("role_models", {}),
+                role_efforts=agent_data.get("role_efforts", {}),
+                fallback_model=agent_data.get("fallback_model", "auto"),
                 reasoning_effort=agent_data.get("reasoning_effort", ""),
                 provider=agent_data.get("provider", "acp"),
                 mcp_registry_mode=_safe_bool(agent_data.get("mcp_registry_mode", False), False),

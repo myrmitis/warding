@@ -76,11 +76,11 @@ def test_other_dispatches_and_unknown_action(router, monkeypatch, capsys):
     pick.assert_called_once_with(router, "test", prefer="codex", as_json=True)
     cli.run_route_command(argparse.Namespace(route_action="init", force=False, all_harnesses=True))
     initialize.assert_called_once_with(router, force=False, all_harnesses=True)
-    router.ledger.clear_cooldown.return_value = ["codex"]
+    router.clear_cooldown.return_value = ["codex"]
     cli.run_route_command(argparse.Namespace(route_action="clear", lane="codex"))
-    router.ledger.clear_cooldown.assert_called_once_with("codex")
+    router.clear_cooldown.assert_called_once_with("codex")
     assert "cleared: codex" in capsys.readouterr().out
-    router.ledger.clear_cooldown.return_value = []
+    router.clear_cooldown.return_value = []
     cli.run_route_command(argparse.Namespace(route_action="clear", lane=""))
     assert "nothing was resting" in capsys.readouterr().out
     with pytest.raises(SystemExit) as caught:

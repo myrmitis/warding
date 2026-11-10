@@ -8,7 +8,7 @@ import logging
 from aiohttp import web
 
 from warding.model_router.probe import probe_status
-from warding.model_router.routing import annotated_catalog, build_plan
+from warding.model_router.routing import annotated_catalog, build_plan, load_role_pins
 
 logger = logging.getLogger(__name__)
 
@@ -30,21 +30,9 @@ async def api_catalog(request: web.Request) -> web.Response:
 
 async def api_plan(request: web.Request) -> web.Response:
     """GET /api/model-router/plan — role DAG + token-efficient picks."""
-    advertised = _query_ids(request.rel_url.query.get("advertised"))
-    pins: dict[str, str] = {}
-    try:
-        from warding.config.loader import WardingConfig
-
-        pins = dict(WardingConfig.load().agent.role_models)
-    except Exception:
-        logger.info("model-router plan using empty pins")
+    advertised = request.rel_url.query.get("advertised", "").split(",")
+    pins = await asyncio.to_thread(load_role_pins)
     plan = build_plan(pins=pins, advertised=advertised)
     payload = plan.to_dict()
     payload["sidecar"] = (await asyncio.to_thread(probe_status)).to_dict()
     return web.json_response(payload)
-
-
-def _query_ids(raw: str | None) -> list[str]:
-    if not raw:
-        return []
-    return [part.strip() for part in raw.split(",") if part.strip()]

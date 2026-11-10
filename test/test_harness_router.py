@@ -27,7 +27,12 @@ from warding.harness_router.lanes import (
     parse_settings,
     template_document,
 )
-from warding.harness_router.ledger import RETENTION_SECS, UNRECORDED_DISPATCH, UsageLedger
+from warding.harness_router.ledger import (
+    RETENTION_SECS,
+    UNRECORDED_DISPATCH,
+    LaneUsage,
+    UsageLedger,
+)
 from warding.harness_router.router import (
     DECISION_DISABLED,
     DECISION_NO_LANE,
@@ -288,10 +293,7 @@ def _hit_limit(ledger: UsageLedger, lane: str = "codex") -> None:
     )
 
 
-def _assert_still_limited(
-    ledger: UsageLedger, *, ok: int = 1, lane: str = "codex", harness: str | None = "codex"
-) -> None:
-    usage = ledger.snapshot()[lane]
+def _assert_still_limited(usage: LaneUsage, *, ok: int = 1, harness: str | None = "codex") -> None:
     assert usage.cooldown_reason == limits.FAILURE_USAGE_LIMIT
     assert usage.cooling(time.time() + 3600)
     if harness is not None:
@@ -305,10 +307,10 @@ def test_an_older_dispatchs_success_keeps_the_limit_a_newer_dispatch_hit(tmp_pat
     older = router.record_dispatch("codex", "implement")
     router.record_dispatch("codex", "implement")
     router.record_failure("codex", text=_LIMIT_3H, harness="codex")
-    assert router.ledger.snapshot()["codex"].cooldown_reason == limits.FAILURE_USAGE_LIMIT
+    assert router.usage_snapshot()["codex"].cooldown_reason == limits.FAILURE_USAGE_LIMIT
     router.record_success("codex", harness="codex", dispatch_seq=older)
-    _assert_still_limited(router.ledger)
-    assert router.ledger.snapshot()["codex"].failed == 1
+    _assert_still_limited(router.usage_snapshot()["codex"])
+    assert router.usage_snapshot()["codex"].failed == 1
 
 
 def test_a_failure_landing_after_a_dispatch_began_survives_that_dispatchs_success(
@@ -320,7 +322,7 @@ def test_a_failure_landing_after_a_dispatch_began_survives_that_dispatchs_succes
     newer = router.record_dispatch("codex", "implement")
     router.record_failure("codex", text=_LIMIT_3H, harness="codex")
     router.record_success("codex", harness="codex", dispatch_seq=newer)
-    _assert_still_limited(router.ledger)
+    _assert_still_limited(router.usage_snapshot()["codex"])
 
 
 def test_a_dispatch_made_after_the_failure_clears_it_on_success(tmp_path: Path) -> None:
@@ -330,9 +332,9 @@ def test_a_dispatch_made_after_the_failure_clears_it_on_success(tmp_path: Path) 
     later = router.record_dispatch("codex", "implement")
     assert later > older
     router.record_success("codex", harness="codex", dispatch_seq=older)
-    _assert_still_limited(router.ledger)
+    _assert_still_limited(router.usage_snapshot()["codex"])
     router.record_success("codex", harness="codex", dispatch_seq=later)
-    usage = router.ledger.snapshot()["codex"]
+    usage = router.usage_snapshot()["codex"]
     assert (usage.cooldown_reason, usage.cooldown_until, usage.ok) == ("", 0.0, 2)
     assert usage.harness == "codex"
 
@@ -346,7 +348,7 @@ def test_a_second_limit_on_a_resting_lane_is_news_to_a_run_dispatched_between_th
     between = ledger.record_dispatch("codex", "implement")
     _hit_limit(ledger)
     ledger.record_outcome("codex", ok=True, harness="codex", dispatch_seq=between)
-    _assert_still_limited(ledger)
+    _assert_still_limited(ledger.snapshot()["codex"])
 
 
 def test_a_success_that_presents_no_ticket_clears_as_before(tmp_path: Path) -> None:
@@ -355,7 +357,7 @@ def test_a_success_that_presents_no_ticket_clears_as_before(tmp_path: Path) -> N
     router.record_dispatch("codex", "implement")
     router.record_failure("codex", text=_LIMIT_3H, harness="codex")
     router.record_success("codex", harness="codex")
-    usage = router.ledger.snapshot()["codex"]
+    usage = router.usage_snapshot()["codex"]
     assert (usage.cooldown_reason, usage.cooldown_until, usage.ok) == ("", 0.0, 1)
 
 
@@ -372,7 +374,7 @@ def test_a_dispatch_the_ledger_could_not_record_clears_nothing(tmp_path: Path) -
     assert ticket == UNRECORDED_DISPATCH == 0
     _hit_limit(UsageLedger(tmp_path / "routing"))
     router.record_success("codex", harness="codex", dispatch_seq=ticket)
-    _assert_still_limited(router.ledger)
+    _assert_still_limited(router.usage_snapshot()["codex"])
 
 
 def test_dispatch_order_is_read_from_the_shared_file_not_from_either_ledger_object(
@@ -382,7 +384,7 @@ def test_dispatch_order_is_read_from_the_shared_file_not_from_either_ledger_obje
     older = mine.record_dispatch("codex", "implement")
     _hit_limit(theirs)
     mine.record_outcome("codex", ok=True, harness="codex", dispatch_seq=older)
-    _assert_still_limited(mine)
+    _assert_still_limited(mine.snapshot()["codex"])
     later = theirs.record_dispatch("codex", "implement")
     mine.record_outcome("codex", ok=True, harness="codex", dispatch_seq=later)
     assert mine.snapshot()["codex"].cooldown_reason == ""
@@ -404,7 +406,7 @@ def test_a_limit_recorded_while_a_success_waits_for_the_ledger_lock_survives_it(
 
     monkeypatch.setattr(ledger, "_locked", contended_lock)
     ledger.record_outcome("codex", ok=True, harness="codex", dispatch_seq=older)
-    _assert_still_limited(ledger)
+    _assert_still_limited(ledger.snapshot()["codex"])
 
 
 def test_a_limit_another_process_records_survives_an_older_dispatchs_success(
@@ -439,7 +441,7 @@ def test_a_limit_another_process_records_survives_an_older_dispatchs_success(
     )
     assert proc.returncode == 0, proc.stderr
     ledger.record_outcome("codex", ok=True, harness="codex", dispatch_seq=older)
-    _assert_still_limited(ledger)
+    _assert_still_limited(ledger.snapshot()["codex"])
     assert ledger.snapshot()["codex"].count_since(0) == 2
 
 
@@ -483,7 +485,7 @@ def test_a_ticket_issued_before_the_lanes_history_was_lost_clears_nothing_after(
         # lane's sequence past the outstanding ticket.
         later = ledger.record_dispatch("codex", "implement")
     ledger.record_outcome("codex", ok=True, harness="codex", dispatch_seq=older)
-    _assert_still_limited(ledger)
+    _assert_still_limited(ledger.snapshot()["codex"])
     if then_dispatch:
         ledger.record_outcome("codex", ok=True, harness="codex", dispatch_seq=later)
         assert ledger.snapshot()["codex"].cooldown_reason == ""
@@ -505,7 +507,7 @@ def test_dispatches_after_a_reset_do_not_promote_a_ticket_from_before_it(tmp_pat
     for _ in range(60):
         ledger.record_dispatch("codex", "implement")
     ledger.record_outcome("codex", ok=True, harness="codex", dispatch_seq=older)
-    _assert_still_limited(ledger)
+    _assert_still_limited(ledger.snapshot()["codex"])
 
 
 @pytest.mark.parametrize(("stamped", "clears"), [(-1, True), (0, False)])
@@ -1066,7 +1068,7 @@ async def test_routed_subagent_fails_over_after_a_usage_limit(
     assert manager.ran_on[0] == "codex" and manager.ran_on[1] != "codex"
     assert info.lane == info.harness == manager.ran_on[1]
     assert manager.teardowns == 1
-    usage = router.ledger.snapshot()
+    usage = router.usage_snapshot()
     assert usage["codex"].cooldown_reason == "usage_limit"
     assert usage[info.lane].ok == 1
     # Each outcome names the harness that produced it.
@@ -1095,7 +1097,7 @@ async def test_a_stalled_opencode_run_fails_over(
     )
     await SubagentManager._run_accounted(_bind(manager), info, "subagent:a5")
     assert manager.ran_on[0] == "opencode" and manager.ran_on[1] != "opencode"
-    assert router.ledger.snapshot()["opencode"].cooldown_reason == "rate_limit"
+    assert router.usage_snapshot()["opencode"].cooldown_reason == "rate_limit"
 
 
 @pytest.mark.asyncio
@@ -1112,7 +1114,7 @@ async def test_pinned_subagent_does_not_move(
     with pytest.raises(RuntimeError):
         await SubagentManager._run_accounted(_bind(manager), info, "subagent:a2")
     assert manager.ran_on == ["codex"]
-    assert router.ledger.snapshot()["codex"].cooling(time.time())
+    assert router.usage_snapshot()["codex"].cooling(time.time())
 
 
 @pytest.mark.asyncio
@@ -1129,7 +1131,7 @@ async def test_task_failure_is_not_a_lane_failure(
     with pytest.raises(ValueError):
         await SubagentManager._run_accounted(_bind(manager), info, "subagent:a3")
     assert manager.ran_on == ["codex"]
-    assert not router.ledger.snapshot()["codex"].cooling(time.time())
+    assert not router.usage_snapshot()["codex"].cooling(time.time())
 
 
 @pytest.mark.asyncio
@@ -1169,7 +1171,7 @@ async def test_a_subagent_success_keeps_a_limit_recorded_while_it_finished(
         id="a6", task="t", harness="codex", lane="codex", route_kind="implement", routed=True
     )
     await SubagentManager._run_accounted(_bind(_Finishing([None])), info, "subagent:a6")
-    _assert_still_limited(router.ledger)
+    _assert_still_limited(router.usage_snapshot()["codex"])
 
 
 @pytest.mark.asyncio
@@ -1225,8 +1227,10 @@ async def test_a_task_step_and_a_subagent_on_one_lane_keep_each_others_newer_lim
 
     await asyncio.wait_for(asyncio.gather(task_step(), subagent()), timeout=30)
     # A step's failure does not name its harness yet; the success must not touch it either way.
-    _assert_still_limited(router.ledger, harness="codex" if limited == "subagent" else None)
-    assert router.ledger.snapshot()["codex"].failed == 1
+    _assert_still_limited(
+        router.usage_snapshot()["codex"], harness="codex" if limited == "subagent" else None
+    )
+    assert router.usage_snapshot()["codex"].failed == 1
 
 
 # ── connecting harnesses ──
@@ -1437,7 +1441,7 @@ async def test_route_check_reports_needs_login_after_a_routed_run_failed_sign_in
 
     router = _check_router(tmp_path, monkeypatch)
     # A real prompt on the claude lane failed sign-in long enough ago that its rest is over.
-    router.ledger.record_outcome(
+    UsageLedger(tmp_path / "routing").record_outcome(
         "max",
         ok=False,
         failure=limits.FAILURE_AUTH,
@@ -1455,7 +1459,7 @@ async def test_route_check_reports_needs_login_after_a_routed_run_failed_sign_in
 
     # A later successful prompt clears the failed sign-in; the probe alone still shows
     # only that the harness starts.
-    router.ledger.record_outcome("max", ok=True, harness="claude")
+    UsageLedger(tmp_path / "routing").record_outcome("max", ok=True, harness="claude")
     code = await cli._check(router, [])
     lines = _check_lines(capsys.readouterr().out)
     assert "auth unverified" in lines["max"]
@@ -1498,7 +1502,7 @@ async def test_a_late_success_from_a_replaced_harness_keeps_the_new_harnesss_sig
     # Lane "pro" now runs codex; a run started while it still ran claude is in flight.
     router.record_failure("pro", text="Authentication required", harness="codex")
     router.record_success("pro", harness="claude")
-    used = router.ledger.snapshot()["pro"]
+    used = router.usage_snapshot()["pro"]
     assert (used.harness, used.cooldown_reason) == ("codex", limits.FAILURE_AUTH)
     assert used.ok == 1, "the stale run still counts as a completed run"
     code = await cli._check(router, [])
@@ -1508,7 +1512,7 @@ async def test_a_late_success_from_a_replaced_harness_keeps_the_new_harnesss_sig
 
     # A success on the lane's current harness proves it works, whatever was recorded.
     router.record_success("pro", harness="codex")
-    used = router.ledger.snapshot()["pro"]
+    used = router.usage_snapshot()["pro"]
     assert (used.harness, used.cooldown_reason, used.cooldown_until) == ("codex", "", 0.0)
 
 
@@ -1519,7 +1523,7 @@ async def test_a_success_on_the_current_harness_clears_a_failure_the_old_harness
     router = _check_router(tmp_path, monkeypatch)
     router.record_failure("pro", text="Authentication required", harness="claude")
     router.record_success("pro", harness="codex")
-    used = router.ledger.snapshot()["pro"]
+    used = router.usage_snapshot()["pro"]
     assert (used.harness, used.cooldown_reason, used.cooldown_until) == ("codex", "", 0.0)
 
 
@@ -1539,7 +1543,7 @@ def test_a_success_reads_the_lanes_harness_only_while_the_ledger_lock_is_held(
     router = _check_router(tmp_path, monkeypatch)
     router.record_failure("pro", text="Authentication required", harness="codex")
     held = {"now": False, "asked": []}
-    real_locked = router.ledger._locked
+    real_locked = router._ledger._locked
 
     @contextlib.contextmanager
     def watched_lock() -> Any:
@@ -1556,11 +1560,11 @@ def test_a_success_reads_the_lanes_harness_only_while_the_ledger_lock_is_held(
         held["asked"].append(held["now"])
         return real_settings()
 
-    monkeypatch.setattr(router.ledger, "_locked", watched_lock)
+    monkeypatch.setattr(router._ledger, "_locked", watched_lock)
     monkeypatch.setattr(router, "settings", watched_settings)
     router.record_success("pro", harness="claude")
     assert held["asked"] == [True], "a mapping read before the lock could be reassigned meanwhile"
-    assert router.ledger.snapshot()["pro"].cooldown_reason == limits.FAILURE_AUTH
+    assert router.usage_snapshot()["pro"].cooldown_reason == limits.FAILURE_AUTH
 
 
 def test_the_ledger_resolves_a_callable_current_harness_when_it_records(tmp_path: Path) -> None:
@@ -1585,7 +1589,7 @@ def test_a_success_still_records_when_the_lane_mapping_cannot_be_read(
 
     monkeypatch.setattr(router, "settings", broken_settings)
     router.record_success("pro", harness="claude")
-    used = router.ledger.snapshot()["pro"]
+    used = router.usage_snapshot()["pro"]
     # With no mapping to compare against the success applies as it did before the guard.
     assert (used.ok, used.harness, used.cooldown_reason) == (1, "claude", "")
 
@@ -1599,9 +1603,11 @@ async def test_route_check_ignores_a_sign_in_failure_recorded_for_another_harnes
     router = _check_router(tmp_path, monkeypatch)
     # Lane "pro" ran claude before routing.json pointed it at codex.
     router.record_failure("pro", text="Authentication required", harness="claude")
-    assert router.ledger.snapshot()["pro"].harness == "claude"
+    assert router.usage_snapshot()["pro"].harness == "claude"
     # A record that names no harness cannot say which sign-in failed.
-    router.ledger.record_outcome("max", ok=False, failure=limits.FAILURE_AUTH, text="run /login")
+    UsageLedger(tmp_path / "routing").record_outcome(
+        "max", ok=False, failure=limits.FAILURE_AUTH, text="run /login"
+    )
     code = await cli._check(router, [])
     lines = _check_lines(capsys.readouterr().out)
     assert "auth unverified" in lines["pro"] and "auth unverified" in lines["max"]
@@ -1619,7 +1625,7 @@ async def test_route_check_keeps_auth_failure_attribution_after_an_ordinary_task
     from warding.harness_router import cli
 
     router = _check_router(tmp_path, monkeypatch)
-    router.ledger.record_outcome(
+    UsageLedger(tmp_path / "routing").record_outcome(
         "pro",
         ok=False,
         failure=limits.FAILURE_AUTH,
@@ -1627,11 +1633,11 @@ async def test_route_check_keeps_auth_failure_attribution_after_an_ordinary_task
         harness=auth_harness,
         now=time.time() - 2 * 3600,
     )
-    before = router.ledger.snapshot()["pro"]
+    before = router.usage_snapshot()["pro"]
     assert router.record_failure("pro", text="ordinary task failed", harness="codex") == (
         limits.FAILURE_OTHER
     )
-    usage = router.ledger.snapshot()["pro"]
+    usage = router.usage_snapshot()["pro"]
     assert usage.cooldown_reason == limits.FAILURE_AUTH
     assert usage.cooldown_until == before.cooldown_until
     assert usage.harness == auth_harness

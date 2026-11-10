@@ -36,6 +36,9 @@ This cut exposes **health**, the **namespaced model catalog**, and a
 **role DAG** (orchestration → planning → execution). `warding up` starts
 the catalog listener before the compose banner.
 
+The CLI, dashboard and runtime read role pins through the same config loader.
+The dashboard reads config in a worker thread.
+
 `available_models` on ACP clients is a **method**. Role apply calls it;
 treating the bound method as a list left every unpinned role on `"auto"`.
 

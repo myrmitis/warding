@@ -476,11 +476,13 @@ gate.
 | MCP `spawn_run(harness, harnesses[], kind, kinds[])` | Routed or pinned dispatch |
 | `GET /api/routing/status` | Same payload as `route status --json` |
 | `GET /api/routing/decide?kind=&role=&prefer=&exclude=` | One decision; "no lane" is a 200 with `code: no_lane` |
-| `POST /api/routing/cooldown/clear {lane?}` | Lift a cooldown |
+| `POST /api/routing/cooldown/clear {lane?}` | Clear one lane with `{"lane":"codex"}` or all lanes with `{}`. Invalid input returns `400` and leaves cooldowns intact. |
 | `GET /api/routing/harnesses` | Every connectable agent: installed, last probe, setup commands, its lane, picks per kind, and the `chat` block (the chat harness and its choices) |
 | `POST /api/routing/harnesses/{harness}/check` | Probe one agent now (one at a time per agent) and record the result |
 | `PUT /api/routing/settings` | Change routing.json switches (`route_tasks`); `400` `invalid_settings_edit` on an unknown field or non-boolean value. Same materialize/refuse rules as the lane edit |
 | `PUT /api/routing/harnesses/{harness}/lane` | Edit that agent's lane (`enabled`, `billing`, `weight`, `window_limit`, `daily_limit`, `model`) in `routing.json`; `400` `invalid_lane_edit` on a bad value. A missing file is materialized from the detected lanes; a broken one is refused, never overwritten |
+
+The router owns the usage ledger. Callers clear cooldowns or read a detached usage snapshot through the router.
 
 `/api/routing` is a mixed internal path (MCP secret or dashboard cookie).
 Handlers do their file I/O off the event loop.

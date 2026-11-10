@@ -2166,6 +2166,6 @@ class TestRoutedCodexProviderErrors:
             else:
                 await manager._run_accounted(info, "subagent:codex-error")
         assert opened == (["codex", "claude"] if failure == "rate_limit" else ["codex"])
-        usage = router.ledger.snapshot()["codex"]
+        usage = router.usage_snapshot()["codex"]
         assert (usage.ok, usage.failed) == ((0, 1) if failure else (1, 0))
         assert usage.cooldown_reason == ("rate_limit" if failure == "rate_limit" else "")
