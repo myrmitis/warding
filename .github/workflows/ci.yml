@@ -1678,7 +1678,8 @@ jobs:
 
   e2e:
     name: E2E (stub ACP backend, offline)
-    runs-on: ubuntu-latest
+    # Playwright 1.58.2 cannot install Chromium on Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     # The frontend build, the render gate (head and base) and the smoke and
     # Playwright suites run back to back: about 16 minutes on a 4-vCPU runner,
     # and longer on 2-vCPU private-repository runners.
@@ -1744,7 +1745,7 @@ jobs:
       #
       # `--with-deps` is dropped rather than retried because it buys nothing this
       # gate asserts on. Every shared library Chromium needs is already on the
-      # ubuntu-latest image (the apt log reports libnss3, libx11-6, libxcb1,
+      # ubuntu-24.04 image (the apt log reports libnss3, libx11-6, libxcb1,
       # libasound2 and libxkbcommon0 as `already the newest version`); the only
       # packages it newly installs are 9 CJK/Thai/Cyrillic font packages. The suite
       # has no pixel comparison (no toHaveScreenshot / toMatchSnapshot anywhere

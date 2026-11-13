@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useReducedMotion } from 'framer-motion'
+import { useImeGuard } from '../../../hooks/useImeGuard'
 import { RefreshCw, Waypoints } from 'lucide-react'
 import { useIssueRadar } from '../context'
 import { issueRadarApi, type DepsResponse } from '../api'
@@ -96,6 +97,7 @@ export default function GraphView() {
   const [view, setView] = useState<SubView>('frontier')
   const [root, setRoot] = useState<number | null>(null)
   const [jump, setJump] = useState('')
+  const jumpIme = useImeGuard()
   // FRONTIER: which waiting row a jump asked to reveal, and whether the full
   // waiting list is expanded. A jump to a row beyond WAITING_CAP force-expands
   // so the target is actually in the DOM to scroll to. `seq` bumps on every
@@ -236,7 +238,7 @@ export default function GraphView() {
               list="ir-graph-open-items"
               value={jump}
               onChange={(e) => setJump(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') onJump((e.target as HTMLInputElement).value) }}
+              {...jumpIme.bindEnter<HTMLInputElement>({ onEnter: () => onJump(jump) })}
               placeholder={i18nT('apps.issueRadar.views.graphView.jump_placeholder')}
               aria-label={i18nT('apps.issueRadar.views.graphView.jump_label')}
               className="w-40 md:w-52 bg-card border border-border-strong text-text px-2.5 py-1 rounded-sm text-[11px] focus:outline-none focus:border-accent"

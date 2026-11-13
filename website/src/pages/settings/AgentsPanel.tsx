@@ -18,6 +18,7 @@ import {
 import { addTab as addDockTerminal } from '../../hooks/useBottomTerminal'
 import { onTerminalReady, sendToTerminalSession, useTerminalEnabled } from '../../utils/terminalRegistry'
 import { copyToClipboard } from '../../utils/clipboard'
+import { useImeGuard } from '../../hooks/useImeGuard'
 import { parseErrorCode } from '../../utils/errorReport'
 import { fmtNumber, fmtRelative, fmtTime } from '../../i18n/format'
 import { i18nT } from '../../i18n/t'
@@ -179,6 +180,7 @@ function NumberField({ label, description, value, min, step, onCommit, disabled 
   disabled?: boolean
 }) {
   const [draft, setDraft] = useState(String(value))
+  const ime = useImeGuard()
   useEffect(() => { setDraft(String(value)) }, [value])
   const commit = () => {
     const parsed = Number(draft)
@@ -194,8 +196,7 @@ function NumberField({ label, description, value, min, step, onCommit, disabled 
       step={step}
       value={draft}
       onChange={setDraft}
-      onBlur={commit}
-      onKeyDown={e => { if (e.key === 'Enter') commit() }}
+      {...ime.bindEnter<HTMLInputElement>({ onEnter: commit, onBlur: commit })}
       disabled={disabled}
     />
   )
@@ -203,6 +204,7 @@ function NumberField({ label, description, value, min, step, onCommit, disabled 
 
 function ModelField({ value, onCommit, disabled }: { value: string; onCommit: (v: string) => void; disabled?: boolean }) {
   const [draft, setDraft] = useState(value)
+  const ime = useImeGuard()
   useEffect(() => { setDraft(value) }, [value])
   const commit = () => { if (draft.trim() !== value) onCommit(draft.trim()) }
   return (
@@ -212,8 +214,7 @@ function ModelField({ value, onCommit, disabled }: { value: string; onCommit: (v
       value={draft}
       placeholder={i18nT('pages.settings.agentsPanel.model_placeholder')}
       onChange={setDraft}
-      onBlur={commit}
-      onKeyDown={e => { if (e.key === 'Enter') commit() }}
+      {...ime.bindEnter<HTMLInputElement>({ onEnter: commit, onBlur: commit })}
       disabled={disabled}
     />
   )
