@@ -89,6 +89,13 @@ Rules:
 - Do not use a raw `<button>`. Use `Btn` / `SendBtn` / `IconButton` (which carry
   the styling), or `Clickable` for a div-based control.
 
+Text inputs with a custom Enter action use `useImeGuard().bindEnter()` (or
+`bindComposition()` with `claimEnter()` for a custom keyboard handler). Native
+listeners use `createImeLatch()` with composition and focus lifecycle events.
+This preserves Chinese, Japanese and Korean candidate confirmation, including
+Safari's post-composition Enter ordering. Plain native form submission needs no
+extra key handler. See [Modern Web Guidance's IME guidance](https://github.com/GoogleChrome/modern-web-guidance/blob/4dd968349e54ca45a05dd5c818fb035c9054b022/skills/modern-web-guidance/guides/forms/ime-safe-enter-submit.md).
+
 Tooling: `eslint-plugin-jsx-a11y` reports violations at lint time, and
 `@axe-core/react` scans the live DOM in dev mode (findings land in the browser
 console). Neither replaces a keyboard pass over a new control.
