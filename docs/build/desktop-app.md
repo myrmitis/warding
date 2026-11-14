@@ -548,13 +548,15 @@ unit-testable without mocking globals.
 
 ### `main.js` — spawning the gateway
 
-- Ensures `WARDING_HOME` (default `~/.warding`, overridable via the
-  `WARDING_HOME` env var) exists, then spawns the backend with
-  `["gateway", "--no-open"]`. The shell resolves the data home the same way the
-  backend does (`home-dir.js` mirrors `config/paths.py`): a valid
-  `WARDING_HOME` override, else `~/.warding`. There is no other directory.
-- Honors the **`WARDING_PORT`** env var for the dashboard port (default `5476`,
-  validated to `1–65535`). `BACKEND_URL` / health checks target that port.
+- On packaged macOS builds, creates `~/.warding-desktop` at first launch and
+  starts the bundled gateway on port `15476` by default. Opening Warding from
+  Applications can run beside the CLI gateway on port `5476`. Each gateway
+  keeps its own config and conversations. [Release issue #27](https://github.com/myrmitis/warding/issues/27)
+- Uses `~/.warding` and port `5476` by default in other builds. Set
+  `WARDING_HOME` to select a data directory. A valid `WARDING_PORT` takes
+  precedence over the dashboard URL in that directory's config.
+- Passes the selected port to the gateway as `gateway --no-open --port PORT`.
+  The dashboard and health checks use the same port.
 - Sets `WARDING_PROJECT_DIR` to the Electron app's parent directory so the
   bundled `agents/` and `skills/` are discovered.
 - On every desktop platform, pins `PYTHONUTF8=1` and
@@ -572,6 +574,13 @@ unit-testable without mocking globals.
   the already-running gateway to inherit an installer-updated `PATH`.
 - On window close the app hides to the tray; quitting sends `SIGTERM` to the
   gateway process.
+
+On macOS, use the packaged app to check startup with a fresh data directory.
+Port 15476 must be free. The check requires `jq`.
+
+```sh
+bash website/electron/scripts/smoke-standalone-macos.sh /path/to/Warding.app
+```
 
 ## Code signing & notarization (macOS)
 

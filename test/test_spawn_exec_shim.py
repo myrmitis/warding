@@ -162,8 +162,8 @@ class TestSpawnShimArgv:
         assert prefix[0] == sys.executable
         # -I keeps env/user-site out; -S additionally skips site, so a
         # sitecustomize dropped into site-packages cannot run ahead of the shim.
-        assert prefix[1:4] == ("-I", "-S", "-c")
-        assert "def main(" in prefix[4]
+        assert prefix[1:5] == ("-I", "-B", "-S", "-c")
+        assert "def main(" in prefix[5]
         assert prefix[-1] == "--"
 
     def test_tool_profile_carries_limits_and_the_oom_bias(self):
