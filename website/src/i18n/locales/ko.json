@@ -5102,7 +5102,10 @@
       "voice_input": "음성 입력",
       "finishing": "마무리 중…",
       "keep_holding_to_record": "누른 상태로 녹음",
-      "harness": "{{name}}에서 실행 중"
+      "harness": "{{name}}에서 실행 중",
+      "harness_not_installed": "설치되지 않음",
+      "harness_needs_sign_in": "로그인 필요",
+      "harness_stays_note": "선택은 새 채팅에 적용됩니다. 이 채팅은 {{name}}에서 계속됩니다."
     },
     "chatPane": {
       "agent_list": "에이전트 목록",

@@ -5189,7 +5189,10 @@
       "voice_input": "Spracheingabe",
       "finishing": "Wird beendet…",
       "keep_holding_to_record": "Zum Aufnehmen halten",
-      "harness": "Läuft auf {{name}}"
+      "harness": "Läuft auf {{name}}",
+      "harness_not_installed": "Nicht installiert",
+      "harness_needs_sign_in": "Anmeldung nötig",
+      "harness_stays_note": "Ihre Wahl gilt für neue Chats. Dieser Chat bleibt bei {{name}}."
     },
     "chatPane": {
       "agent_list": "Agenten-Liste",

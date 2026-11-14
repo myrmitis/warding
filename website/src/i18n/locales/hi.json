@@ -5189,7 +5189,10 @@
       "voice_input": "वॉइस इनपुट",
       "finishing": "पूरा हो रहा है…",
       "keep_holding_to_record": "रिकॉर्ड करने के लिए दबाए रखें",
-      "harness": "{{name}} पर चल रहा है"
+      "harness": "{{name}} पर चल रहा है",
+      "harness_not_installed": "इंस्टॉल नहीं है",
+      "harness_needs_sign_in": "साइन इन ज़रूरी है",
+      "harness_stays_note": "आपका चुनाव नई चैट पर लागू होता है। यह चैट {{name}} पर ही रहेगी।"
     },
     "chatPane": {
       "agent_list": "एजेंट सूची",

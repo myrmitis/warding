@@ -419,7 +419,8 @@ alone; probe whatever already owns it instead of starting a second listener.
 
 ### Route work across your subscriptions
 
-Chat sessions run the one agent `agent.acp_backend` names; pick it in
+Chat sessions run the one agent `agent.acp_backend` names; pick it from the
+harness menu beside the chat composer or in
 **Settings ▸ Agents & plans ▸ Chat harness** (new chats only: a chat that is
 already open keeps the agent it started on). Work handed to a
 spawned subagent can go to whichever installed coding agent you already pay for
