@@ -17,6 +17,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from warding.dashboard.chat import api_chat_slot_queue_reorder
+from warding.dashboard.handlers._shared import request_boundary_middleware
 from warding.dashboard.state import DashboardState, _ChatSlot
 
 # ── Unit tests: reorder on _ChatSlot._queue ──
@@ -67,7 +68,7 @@ def _make_state():
 
 
 def _make_app(state):
-    app = web.Application()
+    app = web.Application(middlewares=[request_boundary_middleware])
     app["state"] = state
     app.router.add_put(
         "/api/chat/slots/{slot}/queue/order",

@@ -77,6 +77,7 @@ from warding.dashboard.chat_utils import (
     effective_session_key,
     slot_history_key,
 )
+from warding.dashboard.handlers._shared import read_json_object, require_str
 from warding.dashboard.state import (
     DashboardState,
     _ChatSlot,
@@ -175,10 +176,7 @@ def _sweep_stale_permissions(slot: "_ChatSlot") -> None:
 async def api_chat(request: web.Request) -> web.StreamResponse:
     """POST /api/chat — send message to a slot, stream response via SSE."""
     state: DashboardState = request.app["state"]
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     message = body.get("message", "").strip()
     agent = body.get("agent", "")
     slot_name = body.get("slot")
@@ -486,7 +484,7 @@ async def api_chat(request: web.Request) -> web.StreamResponse:
     # to honour it for widget-origin turns and let the text fall through to a
     # normal, fully-gated _run_chat turn instead. Mode changes and tool
     # approvals live on separate endpoints a widget iframe cannot reach.
-    _widget_origin = bool(user_meta) and user_meta.get("origin") == "widget"
+    _widget_origin = user_meta is not None and user_meta.get("origin") == "widget"
     if (
         getattr(slot, "mode", "") == "orchestrator"
         and message.strip().lower() in ("go", "go all")
@@ -2987,10 +2985,7 @@ async def api_chat_slot_queue_edit(request: web.Request) -> web.Response:
     denied = _deny_cross_app_slot_access(request, slot, name, "slot_queue_edit")
     if denied is not None:
         return denied
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     content = body.get("content")
     if not isinstance(content, str) or not content.strip():
         return web.json_response({"error": "content must be a non-empty string"}, status=400)
@@ -3032,10 +3027,7 @@ async def api_chat_slot_queue_reorder(request: web.Request) -> web.Response:
     denied = _deny_cross_app_slot_access(request, slot, name, "slot_queue_reorder")
     if denied is not None:
         return denied
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     order = body.get("order")
     if not isinstance(order, list) or not all(isinstance(x, str) for x in order):
         return web.json_response({"error": "order must be a list of queue id strings"}, status=400)
@@ -3779,10 +3771,7 @@ async def api_chat_slot_agent(request: web.Request) -> web.Response:
     denied = _deny_cross_app_slot_access(request, slot, name, "slot_agent")
     if denied is not None:
         return denied
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     agent_name = body.get("agent", "")
     if agent_name and not _AGENT_NAME_RE.match(agent_name):
         return web.json_response({"error": "invalid agent name"}, status=400)
@@ -4128,10 +4117,7 @@ async def api_chat_slot_model(request: web.Request) -> web.Response:
     denied = _deny_cross_app_slot_access(request, slot, name, "slot_model")
     if denied is not None:
         return denied
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     model_name = _normalize_model(body.get("model", ""))
     reason = _model_rejected_reason(model_name)
     if reason:
@@ -4227,10 +4213,7 @@ async def api_chat_slots_model(request: web.Request) -> web.Response:
     ``failed`` and keeps its old model) rather than aborting the whole switch.
     """
     state: DashboardState = request.app["state"]
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     model_name = _normalize_model(body.get("model", ""))
     reason = _model_rejected_reason(model_name)
     if reason:
@@ -4335,10 +4318,7 @@ async def api_chat_slot_reasoning_effort(request: web.Request) -> web.Response:
     denied = _deny_cross_app_slot_access(request, slot, name, "slot_reasoning_effort")
     if denied is not None:
         return denied
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     effort = body.get("reasoning_effort", "")
     valid_efforts = get_reasoning_effort_values()
     if not isinstance(effort, str) or effort not in valid_efforts:
@@ -4529,10 +4509,7 @@ async def api_chat_slot_workspace(request: web.Request) -> web.Response:
     denied = _deny_cross_app_slot_access(request, slot, name, "slot_workspace")
     if denied is not None:
         return denied
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     ws_name = body.get("workspace", "default")
     # Block workspace change after conversation has started
     if slot.total_messages > 0:
@@ -4560,10 +4537,7 @@ async def api_chat_slot_project(request: web.Request) -> web.Response:
     denied = _deny_cross_app_slot_access(request, slot, name, "slot_project")
     if denied is not None:
         return denied
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     project = body.get("project", "")
     if not isinstance(project, str):
         return web.json_response({"error": "project must be a string"}, status=400)
@@ -4749,12 +4723,7 @@ async def api_chat_slot_followup(request: web.Request) -> web.Response:
     slot = state._slots.get(name)
     if not slot:
         return web.json_response({"error": "not found"}, status=404)
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
-    if not isinstance(body, dict):
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     try:
         cleaned = validate_tool_args(body, SUGGEST_FOLLOWUP_SCHEMA)
     except ValidationError as exc:
@@ -5481,10 +5450,7 @@ async def api_chat_mode(request: web.Request) -> web.Response:
     denied = deny_non_dashboard_caller(request, "chat_mode")
     if denied is not None:
         return denied
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     mode = body.get("mode", "normal")
     raw_slot = body.get("slot")
     slot_key = raw_slot or None
@@ -5767,6 +5733,10 @@ def _deny_trust_pattern(name: str, request_id: str, action: str, code: str) -> w
     return web.json_response({"error": errors[code], "code": code}, status=400)
 
 
+# Longest approval ``request_id`` the endpoint accepts. ACP ids are UUID-sized.
+MAX_REQUEST_ID_CHARS = 256
+
+
 async def api_chat_slot_approve(request: web.Request) -> web.Response:
     """POST /api/chat/slots/{slot}/approve — resolve a pending tool approval."""
     state: DashboardState = request.app["state"]
@@ -5777,13 +5747,12 @@ async def api_chat_slot_approve(request: web.Request) -> web.Response:
     slot = state._slots.get(name)
     if not slot:
         return web.json_response({"error": "not found"}, status=404)
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
-    action = body.get("action", "rejected")
+    body = await read_json_object(request)
+    action = require_str(body, "action", default="rejected")
     original_action = action
-    request_id = body.get("request_id", "")
+    # ``request_id`` keys the approval-future dicts below, so a list or dict here
+    # would raise ``TypeError: unhashable`` and surface as a 500.
+    request_id = require_str(body, "request_id", default="", max_len=MAX_REQUEST_ID_CHARS)
     # Locate the slot that OWNS the pending approval future. It is usually the
     # addressed slot, but under session-sharing or a rehydrated/replaced slot the
     # future can live on a different slot object under a different key. All
@@ -5990,10 +5959,7 @@ async def api_chat_slot_color(request: web.Request) -> web.Response:
     slot = state._slots.get(name)
     if not slot:
         return web.json_response({"error": "not found"}, status=404)
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     has_ci = "color_index" in body
     has_ch = "color_hex" in body
     ci = body.get("color_index")
@@ -6416,14 +6382,7 @@ async def api_chat_slot_context(request: web.Request) -> web.Response:
     if denied is not None:
         return denied
 
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
-    if not isinstance(body, dict):
-        return web.json_response(
-            {"error": "body must be a JSON object", "code": "invalid_body"}, status=400
-        )
+    body = await read_json_object(request)
 
     content = body.get("content", "")
     bad = (

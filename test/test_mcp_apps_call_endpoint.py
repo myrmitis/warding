@@ -22,6 +22,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from warding.dashboard.handlers import mcp_apps as mcp_apps_handlers
+from warding.dashboard.handlers._shared import request_boundary_middleware
 from warding.mcp_apps_render import load_spool
 from warding.mcp_gateway import apps
 from warding.mcp_gateway.app_call import handle_app_call
@@ -658,7 +659,7 @@ def relay_env(short_sock_dir, monkeypatch):
         request["app"] = request.headers.get("X-Test-App", "")
         return await handler(request)
 
-    app = web.Application(middlewares=[_identity])
+    app = web.Application(middlewares=[_identity, request_boundary_middleware])
 
     class _FakeState:
         _restricted_keys: set = set()
