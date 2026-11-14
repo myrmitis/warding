@@ -29,7 +29,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import parse_qs, unquote, unquote_plus, urlparse
 
-from warding.config.paths import CONFIG_DIR_NAME, DESKTOP_CONFIG_DIR_NAME
+from warding.config.paths import (
+    CONFIG_DIR_NAME,
+    DESKTOP_CONFIG_DIR_NAME,
+    isolated_agents_dir,
+)
 from warding.constants import CLI_CONSOLE_STEMS
 from warding.executors import maintenance_executor
 from warding.path_forms import canonical_path_forms
@@ -5333,16 +5337,14 @@ _WRITE_PROTECTED_HOME_PATHS += [
 # route through this gate, so managed-spec generation keeps working; only the
 # agent's own file-edit/bash tools hit it.
 #
-# Kept as a literal (mirroring ``.data-home-ready`` below) to avoid a
-# config->security import cycle; a drift guard in the tests pins it to
-# ``kiro_agents_dir()``'s tail. The default lives under the real home
-# (``~/.kiro/agents``) and is anchored there like every other entry;
-# ``KIRO_HOME`` (kiro-cli's own home override, which ``kiro_agents_dir()``
-# honours) is re-anchored in ``_home_dir_targets_uncached`` so an instance that
-# relocates its agents dir is covered the same way ``WARDING_HOME`` re-anchors
-# the data-home secrets.
+# Both default directories are live even when the calling gateway uses one
+# of them or has an explicit KIRO_HOME. The tool gate also resolves that override.
 _KIRO_AGENTS_DIR = ".kiro/agents"
-_WRITE_PROTECTED_HOME_PATHS += [_KIRO_AGENTS_DIR]
+_KIRO_AGENTS_DIRS = (
+    _KIRO_AGENTS_DIR,
+    isolated_agents_dir(Path(DESKTOP_CONFIG_DIR_NAME)).as_posix(),
+)
+_WRITE_PROTECTED_HOME_PATHS.extend(_KIRO_AGENTS_DIRS)
 
 # ── Adapted-harness permission and launch config (~/.claude, ~/.codex) ──
 # Claude Code and Codex decide what runs WITHOUT asking from files on disk, and
@@ -5728,14 +5730,17 @@ def _build_sensitive_regex() -> re.Pattern[str]:
     # under the override (``agents``), sliced from the same literal so the two
     # spellings cannot drift.
     _KIRO_HOME_LEAF = _KIRO_AGENTS_DIR.split("/", 1)[1]
-    agents_dir_alt = re.escape(_KIRO_AGENTS_DIR)
+    agents_dir_alt = "|".join(re.escape(directory) for directory in _KIRO_AGENTS_DIRS)
     agents_leaf_alt = re.escape(_KIRO_HOME_LEAF)
     kiro_home_var = r"(?:\$KIRO_HOME|\$\{KIRO_HOME\})"
     agents_write_path = (
         rf"(?:{home_alts}/(?:{agents_dir_alt})"
         rf"|{kiro_home_var}/(?:{agents_leaf_alt}))(?:/|\s|$|['\"])"
     )
-    win_agents_dir_alt = win_gsep.join(re.escape(part) for part in _KIRO_AGENTS_DIR.split("/"))
+    win_agents_dir_alt = "|".join(
+        win_gsep.join(re.escape(part) for part in directory.split("/"))
+        for directory in _KIRO_AGENTS_DIRS
+    )
     # cmd.exe ``%KIRO_HOME%`` (with expansion modifiers) and the two PowerShell
     # spellings, mirroring ``userprofile``/``appdata_var`` above.
     win_kiro_home_var = (
