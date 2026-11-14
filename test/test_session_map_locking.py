@@ -235,7 +235,7 @@ class TestLockHoldIsBounded:
         for i in range(300):
             session_map.set(f"dashboard:seed-{i}", f"sid-{i}")
 
-        real_read = Path.read_text
+        real_read = Path.read_bytes
         reading = threading.Event()
         release = threading.Event()
 
@@ -249,7 +249,7 @@ class TestLockHoldIsBounded:
 
         def worker() -> None:
             with patch("warding.session_map.config_dir", return_value=tmp_path):
-                with patch.object(Path, "read_text", slow_read):
+                with patch.object(Path, "read_bytes", slow_read):
                     SessionMap()
 
         t = threading.Thread(target=worker)

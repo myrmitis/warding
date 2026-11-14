@@ -53,6 +53,7 @@ Other style rules:
 | Imports | `import logging` plus `logger = logging.getLogger(__name__)` |
 | Async | `asyncio` throughout; `async def` for all I/O |
 | Module-global asyncio primitives | Never a bare `asyncio.Lock()`/`Event()`/`Queue()` at module scope — it binds to the import-time (or first-use) loop and raises `RuntimeError` from any other loop (Python 3.10+). Use `warding.loop_lock.LoopBoundLock` for locks, or create the primitive inside the coroutine. CI enforces this (`loop-bound-locks` gate). |
+| JSON store files | A store is a whole file that a process loads, changes and writes back. Never read it leniently (`except (OSError, ValueError): data = {}`): the next save replaces the original with the empty store. Load with `warding.atomic_write.load_json_store` (result `ok`, `absent` or `unreadable`; only a missing file is empty; decodes `utf-8-sig`; copies unparseable bytes to `<name>.corrupt-<utc>` once). Refuse to write after an `unreadable` load (`StoreLoad.require_writable()`). Change a store that has several writers with `locked_update(path, mutate)`, which holds a cross-process lock across re-read, mutate and atomic replace. Append to a line log with `append_line`, which starts a new line after a torn tail and truncates back on a failed write. CI enforces this for the store modules (`lenient-store-reads` gate). |
 | Dataclasses | `@dataclass` for data containers |
 | Errors | Custom exceptions in `acp/client.py`; return error strings at tool boundaries. See [error-handling](error-handling.md). |
 

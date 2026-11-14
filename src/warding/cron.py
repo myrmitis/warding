@@ -48,6 +48,11 @@ except ImportError:
 from croniter import croniter  # type: ignore[import-untyped]
 
 from warding import cron_script, platform_compat, sel, shutdown_event
+from warding.atomic_write import (
+    StoreUnreadableError,
+    load_json_store,
+    parse_json_store,
+)
 from warding.config.loader import WardingConfig, config_dir, data_home
 from warding.constants import env_flag_enabled
 from warding.cron_history import CronHistoryStore, CronRunRecord
@@ -926,6 +931,7 @@ class CronService:
         self._path = self._dir / _CRONS_FILE
         self._on_job = on_job
         self._jobs: list[CronJob] = []
+        self._store_error: StoreUnreadableError | None = None
         self._timer_task: asyncio.Task[None] | None = None
         # True only for the span of an in-flight _on_timer() dispatch pass
         # (set/cleared there). _arm_timer() checks this to avoid cancelling
@@ -3661,69 +3667,83 @@ class CronService:
         ``_preread`` lets :meth:`_sync` hand in the bytes it already read for
         the change check so the file is not read twice for one reload.
         """
-        if not self._path.exists():
+        # Strict load. Only a missing file is an empty store. Bytes that cannot
+        # be read or parsed set ``_store_error`` and keep the jobs already in
+        # memory: ``_save`` refuses to write, so the damaged file is never
+        # replaced by an empty registry. A later good read clears the error.
+        try:
+            st = self._path.stat()
+        except FileNotFoundError:
+            self._store_error = None
             self._jobs = []
             self._reset_fingerprint()
             return
-        try:
-            st = self._path.stat()
-            raw = _preread if _preread is not None else self._path.read_bytes()
-            data = json.loads(raw)
-            records = data.get("jobs", []) if isinstance(data, dict) else None
-            if not isinstance(records, list):
-                # A document that parses but is not an object holding a jobs
-                # LIST (top-level [], a scalar, {"jobs": null}) cannot yield
-                # any job — same salvage story as unparseable JSON (there is
-                # nothing to keep), and without this guard data.get() / the
-                # loop below would raise an uncaught AttributeError/TypeError
-                # into _sync and gateway startup.
-                logger.warning(
-                    "Failed to load cron store: document is not an object with a jobs list"
-                )
-                self._jobs = []
-                self._reset_fingerprint()
-                return
-            # Per-entry isolation: one malformed or legacy record must
-            # not discard the whole registry. Each record is built in its own
-            # try block; a bad one is warned about and skipped, and every
-            # well-formed job survives. The whole-store reset below is reserved
-            # for a genuinely unparseable file (json.JSONDecodeError), where
-            # there is nothing to salvage.
-            #
-            # The caught tuple is deliberately NARROWER than the exceptions
-            # _job_from_record can raise: KeyError and TypeError are its two
-            # bad-data signals, and AttributeError is not reachable from JSON.
-            # See _job_from_record's docstring for why, and for what catching it
-            # would cost.
-            jobs: list[CronJob] = []
-            for j in records:
-                try:
-                    jobs.append(_job_from_record(j))
-                except (KeyError, TypeError) as entry_exc:
-                    entry_id = (
-                        j.get("id", "<missing id>") if isinstance(j, dict) else "<not an object>"
-                    )
-                    logger.warning(
-                        "Skipping malformed cron job entry (id=%r): %r; "
-                        "the entry will be dropped from the store on the next write",
-                        entry_id,
-                        entry_exc,
-                    )
-            self._jobs = jobs
-            # Fingerprint from the stat taken BEFORE the read: if a writer
-            # replaced the file between our stat and read we may have loaded the
-            # newer content under an older fingerprint, which only costs one
-            # redundant reload on the next _sync — never a lost update. The
-            # digest is taken from the exact bytes we parsed so _sync compares
-            # like for like.
-            self._last_mtime = st.st_mtime
-            self._last_mtime_ns = st.st_mtime_ns
-            self._last_size = st.st_size
-            self._last_digest = hashlib.blake2b(raw, digest_size=16).digest()
-        except json.JSONDecodeError as exc:
-            logger.warning("Failed to load cron store: %s", exc)
+        except OSError as exc:
+            self._store_error = StoreUnreadableError(
+                self._path, f"stat failed ({type(exc).__name__}: {exc.strerror or exc})"
+            )
+            logger.error("%s", self._store_error)
+            self._reset_fingerprint()
+            return
+        if _preread is not None:
+            loaded = parse_json_store(self._path, _preread, expect=dict)
+        else:
+            loaded = load_json_store(self._path, expect=dict)
+        if loaded.status == "absent":
+            # The file went away between the stat and the load.
+            self._store_error = None
             self._jobs = []
             self._reset_fingerprint()
+            return
+        self._store_error = loaded.error()
+        records: object = []
+        if self._store_error is None:
+            records = loaded.data.get("jobs", [])
+            if not isinstance(records, list):
+                # An object whose "jobs" is not a LIST ({"jobs": null}) cannot
+                # yield a job. Treat it like bytes that cannot be parsed.
+                self._store_error = StoreUnreadableError(
+                    self._path, "the document has no jobs list"
+                )
+        if self._store_error is not None:
+            logger.error("Failed to load cron store: %s", self._store_error)
+            if loaded.raw is None:
+                self._reset_fingerprint()  # a read failure may pass: retry on the next sync
+            else:
+                # Bad bytes stay bad until the file changes. Record them so
+                # ``_sync`` does not re-read and re-log on every tick.
+                self._last_mtime = st.st_mtime
+                self._last_mtime_ns = st.st_mtime_ns
+                self._last_size = st.st_size
+                self._last_digest = hashlib.blake2b(loaded.raw, digest_size=16).digest()
+            return
+        raw = loaded.raw
+        assert raw is not None and isinstance(records, list)
+        jobs: list[CronJob] = []
+        for j in records:
+            try:
+                jobs.append(_job_from_record(j))
+            except (KeyError, TypeError) as entry_exc:
+                entry_id = (
+                    j.get("id", "<missing id>") if isinstance(j, dict) else "<not an object>"
+                )
+                logger.warning(
+                    "Skipping malformed cron job entry (id=%r): %r; "
+                    "the entry will be dropped from the store on the next write",
+                    entry_id,
+                    entry_exc,
+                )
+        self._jobs = jobs
+        # Fingerprint from the stat taken BEFORE the read: if a writer
+        # replaced the file between our stat and read we may have loaded the
+        # newer content under an older fingerprint, which only costs one
+        # redundant reload on the next _sync — never a lost update. The
+        # digest is taken from the exact bytes we parsed so _sync compares
+        # like for like.
+        self._last_mtime = st.st_mtime
+        self._last_mtime_ns = st.st_mtime_ns
+        self._last_size = st.st_size
+        self._last_digest = hashlib.blake2b(raw, digest_size=16).digest()
 
         # Restore timers for active jobs loaded from disk
         if self._running:
@@ -3765,6 +3785,10 @@ class CronService:
         in ``_force_reap``/``cancel`` (authoritative persist is the offloaded
         ``_merge_terminal_state_locked``).
         """
+        if self._store_error is not None:
+            # The file on disk could not be read. Writing now would replace it
+            # with this process's view of the store. Refuse until it reads again.
+            raise self._store_error
         self._dir.mkdir(parents=True, exist_ok=True)
         data = {
             "version": _STORE_VERSION,

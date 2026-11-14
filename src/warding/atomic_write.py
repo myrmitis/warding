@@ -8,14 +8,18 @@ writers target the same file.
 from __future__ import annotations
 
 import asyncio
+import datetime
+import hashlib
 import io
+import json
 import logging
 import os
 import tempfile
 import threading
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Callable, Literal
 
 from warding import platform_compat
 
@@ -550,3 +554,289 @@ def atomic_write(
         except OSError:
             pass
         raise
+
+
+# ---------------------------------------------------------------------------
+# Strict JSON stores
+#
+# A JSON store is a whole file that a process loads, changes and writes back.
+# The old pattern read it leniently: a failed read became an empty store, and
+# the next save replaced the original file with that empty store. A byte-order
+# mark, a truncated file or one transient ``OSError`` was enough to lose every
+# record. The helpers below close that hole.
+#
+# * ``load_json_store`` loads with a three-way result (ok, absent, unreadable).
+#   Only a missing file reads as empty.
+# * ``locked_update`` holds a cross-process lock across re-read, mutate and
+#   atomic replace, and refuses to write after an unreadable load.
+# * ``append_line`` appends one record to a line log without leaving a torn
+#   line behind.
+# ---------------------------------------------------------------------------
+
+#: Infix of the one-time copy of a store file that could not be parsed.
+CORRUPT_INFIX = ".corrupt-"
+
+#: Copies kept per store: the oldest plus the newest. Others go when a new copy lands.
+CORRUPT_COPIES_KEPT = 5
+
+#: A ``locked_update`` mutator returns this when it wants no write.
+NO_CHANGE: Any = object()
+
+
+class StoreUnreadableError(OSError):
+    """A store file exists but cannot be read as the expected JSON.
+
+    Callers raise this instead of treating the store as empty. The message names
+    the file, the cause, any preserved copy and the next step for the operator.
+    """
+
+    def __init__(self, path: Path, reason: str, *, preserved: Path | None = None) -> None:
+        self.path = path
+        self.reason = reason
+        self.preserved = preserved
+        kept = (
+            f" A copy of the original bytes is at {preserved}."
+            if preserved is not None
+            else " The original file is untouched."
+        )
+        super().__init__(
+            f"Cannot read store {path}: {reason}.{kept} Warding will not write to it. "
+            "Fix or restore the file, or move it away to start with an empty store."
+        )
+
+
+@dataclass(frozen=True)
+class StoreLoad:
+    """Result of :func:`load_json_store`.
+
+    ``status`` is ``"ok"`` (``data`` holds the parsed document), ``"absent"``
+    (the file does not exist; ``data`` holds the caller's default) or
+    ``"unreadable"`` (``data`` is ``None``; ``reason`` says why).
+    """
+
+    status: Literal["ok", "absent", "unreadable"]
+    data: Any = None
+    reason: str = ""
+    preserved: Path | None = None
+    path: Path | None = None
+    #: The bytes read, when any were. A caller that fingerprints the file uses them.
+    raw: bytes | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def unreadable(self) -> bool:
+        return self.status == "unreadable"
+
+    def error(self) -> StoreUnreadableError | None:
+        """The error a writer must raise, or ``None`` when the store is usable."""
+        if self.status != "unreadable":
+            return None
+        assert self.path is not None
+        return StoreUnreadableError(self.path, self.reason, preserved=self.preserved)
+
+    def require_writable(self) -> None:
+        """Raise :class:`StoreUnreadableError` when a write must not go ahead."""
+        err = self.error()
+        if err is not None:
+            raise err
+
+
+def _prune_corrupt_copies(path: Path) -> None:
+    """Cap the copies of *path* at :data:`CORRUPT_COPIES_KEPT`.
+
+    Keeps the oldest copy, which is the evidence of the first failure, and the
+    newest ones. Removes the rest.
+    """
+    copies = sorted(path.parent.glob(path.name + CORRUPT_INFIX + "*"))  # UTC stamp sorts by age
+    if len(copies) <= CORRUPT_COPIES_KEPT:
+        return
+    keep = {copies[0], *copies[-(CORRUPT_COPIES_KEPT - 1) :]}
+    for old in copies:
+        if old in keep:
+            continue
+        try:
+            old.unlink()
+        except OSError:
+            logger.warning("could not remove old copy %s", old, exc_info=True)
+
+
+def _preserve_corrupt_copy(path: Path, raw: bytes) -> Path | None:
+    """Copy *raw* to ``<name>.corrupt-<utc>``, once per distinct content.
+
+    Returns the copy's path, or the path of an earlier identical copy. Returns
+    ``None`` when no copy could be made. The original file is never touched.
+    """
+    digest = hashlib.sha256(raw).digest()
+    try:
+        for earlier in sorted(path.parent.glob(path.name + CORRUPT_INFIX + "*")):
+            try:
+                if hashlib.sha256(earlier.read_bytes()).digest() == digest:
+                    return earlier
+            except OSError:
+                continue
+        stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        target = path.with_name(f"{path.name}{CORRUPT_INFIX}{stamp}")
+        # Owner-only: the original may hold credentials (an MCP spec's env).
+        atomic_write(target, raw, mode=0o600)
+        _prune_corrupt_copies(path)
+        return target
+    except OSError:
+        logger.warning("could not preserve a copy of unreadable store %s", path, exc_info=True)
+        return None
+
+
+def load_json_store(
+    path: Path | str,
+    *,
+    default: Any = None,
+    expect: type | tuple[type, ...] | None = None,
+) -> StoreLoad:
+    """Load a JSON store with a three-way result. Never raises for bad content.
+
+    * Missing file: ``absent``, with *default* as the data. Only this case reads
+      as an empty store.
+    * Any other read failure (``OSError`` such as ``EACCES`` or ``EIO``):
+      ``unreadable``. The file may be fine, so no copy is made.
+    * Bytes that are not UTF-8, not JSON, or not of the *expect* type:
+      ``unreadable``, and the bytes are copied to ``<name>.corrupt-<utc>`` once.
+
+    The decode uses ``utf-8-sig``, so a byte-order mark from a Windows editor is
+    not damage. A caller must not write while the result is unreadable. Call
+    :meth:`StoreLoad.require_writable`, or use :func:`locked_update`.
+    """
+    target = Path(path)
+    try:
+        raw = read_bytes_with_retry(target)
+    except FileNotFoundError:
+        return StoreLoad("absent", default, path=target)
+    except OSError as exc:
+        reason = f"read failed ({type(exc).__name__}: {exc.strerror or exc})"
+        logger.error("store %s is unreadable: %s", target, reason)
+        return StoreLoad("unreadable", None, reason, path=target)
+    return parse_json_store(target, raw, expect=expect)
+
+
+def parse_json_store(
+    target: Path,
+    raw: bytes,
+    *,
+    expect: type | tuple[type, ...] | None = None,
+) -> StoreLoad:
+    """Parse bytes already read from the store at *target*, as :func:`load_json_store` does.
+
+    For a caller that needs the raw bytes too, such as a change check by digest.
+    Bad bytes are copied aside once, and the result is ``unreadable``.
+    """
+    try:
+        data = json.loads(raw.decode("utf-8-sig"))
+        if expect is not None and not isinstance(data, expect):
+            names = expect if isinstance(expect, tuple) else (expect,)
+            raise ValueError(
+                f"top level is {type(data).__name__}, expected "
+                + " or ".join(n.__name__ for n in names)
+            )
+    except ValueError as exc:  # UnicodeDecodeError and JSONDecodeError subclass it
+        kind = "UTF-8" if isinstance(exc, UnicodeError) else "JSON"
+        reason = f"not valid {kind} ({exc})"
+        preserved = _preserve_corrupt_copy(target, raw)
+        logger.error("store %s is unreadable: %s (copy: %s)", target, reason, preserved)
+        return StoreLoad("unreadable", None, reason, preserved=preserved, path=target, raw=raw)
+    return StoreLoad("ok", data, path=target, raw=raw)
+
+
+def locked_update(
+    path: Path | str,
+    mutate: Callable[[Any], Any],
+    *,
+    default: Any = None,
+    expect: type | tuple[type, ...] | None = None,
+    indent: int | None = 2,
+    fsync: bool = False,
+    mode: int | None = None,
+    must_exist: bool = False,
+) -> Any:
+    """Read, change and replace a JSON store under a cross-process lock.
+
+    Takes an exclusive lock on ``<path>.lock``, loads the store strictly, calls
+    ``mutate(data)`` and writes its return value atomically. A missing store
+    starts from a copy of *default*. ``mutate`` may change the loaded object in
+    place and return it. It returns :data:`NO_CHANGE` to skip the write.
+
+    With ``must_exist=True`` a missing store raises ``FileNotFoundError``
+    instead, and neither the store nor its directory is created. Use it for
+    records that another owner may delete, so an update cannot bring one back.
+
+    Raises :class:`StoreUnreadableError` without writing when the store exists
+    but cannot be read. Two concurrent callers, in one process or two, both
+    persist their change, because each re-reads after it gets the lock.
+
+    The lock blocks. Call from a worker thread when on the event loop.
+    Returns the value that was written (the loaded value for ``NO_CHANGE``).
+    """
+    target = Path(path)
+    if must_exist:
+        if not target.exists():  # before the lock: no lock file for a record that is gone
+            raise FileNotFoundError(str(target))
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = target.with_name(target.name + ".lock")
+    fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT | getattr(os, "O_BINARY", 0), 0o600)
+    try:
+        with platform_compat.file_lock(fd, exclusive=True):
+            loaded = load_json_store(target, default=default, expect=expect)
+            loaded.require_writable()
+            if must_exist and loaded.status == "absent":
+                # Deleted after the check above. Remove the lock file this call made.
+                try:
+                    lock_path.unlink()
+                except OSError:
+                    pass
+                raise FileNotFoundError(str(target))
+            data = loaded.data
+            if loaded.status == "absent":
+                data = json.loads(json.dumps(default))  # never hand out the caller's default
+            result = mutate(data)
+            if result is NO_CHANGE:
+                return data
+            atomic_write(target, json.dumps(result, indent=indent), fsync=fsync, mode=mode)
+            return result
+    finally:
+        os.close(fd)
+
+
+def append_line(path: Path | str, line: str, *, fsync: bool = False) -> None:
+    """Append one record to a line log without leaving a torn line.
+
+    * If the file does not end in a newline (a torn tail from a crash or a full
+      disk), a newline is written first. This record then starts on its own line
+      and the torn tail stays one bad line.
+    * If the write fails part-way, the file is truncated back to its length
+      before the call. A failed append leaves no fragment behind.
+
+    *line* must not contain a line break. The caller serializes appenders,
+    because the truncate-back would otherwise remove another writer's bytes.
+    """
+    if "\n" in line or "\r" in line:
+        raise ValueError("append_line takes one line; the text contains a line break")
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_RDWR | os.O_CREAT | os.O_APPEND | getattr(os, "O_BINARY", 0)
+    fd = os.open(str(target), flags, 0o644)
+    try:
+        before = os.fstat(fd).st_size
+        prefix = b""
+        if before > 0:
+            os.lseek(fd, before - 1, os.SEEK_SET)
+            if os.read(fd, 1) != b"\n":
+                prefix = b"\n"
+        try:
+            _write_all(fd, prefix + line.encode("utf-8") + b"\n", target)
+            if fsync:
+                os.fsync(fd)
+        except BaseException:
+            try:
+                os.ftruncate(fd, before)
+            except OSError:
+                logger.warning("could not truncate %s back after a failed append", target)
+            raise
+    finally:
+        os.close(fd)
