@@ -936,7 +936,10 @@ class TestKiroPrerequisiteWorkflow:
             home = kwargs["env"]["HOME"]
             whoami_homes.append(home)
             assert home == str(tmp_path)
-            assert kwargs["extra_hidden_dirs"] == (str(tmp_path / ".warding"),)
+            assert kwargs["extra_hidden_dirs"] == (
+                str(tmp_path / ".warding"),
+                str(tmp_path / ".warding-desktop"),
+            )
             return ProcessResult(ok=False)
 
         service = KiroPrerequisiteService(
@@ -1545,6 +1548,7 @@ class TestKiroPrerequisiteWorkflow:
                 assert runtime.kwargs[index]["sandbox_mode"] == "strict"
                 assert runtime.kwargs[index]["extra_hidden_dirs"] == (
                     str(tmp_path / ".warding"),
+                    str(tmp_path / ".warding-desktop"),
                     str(tmp_path / ".aws" / "sso" / "cache"),
                     str(tmp_path / ".local" / "share" / "kiro-cli"),
                     str(tmp_path / ".local" / "share" / "amazon-q"),
@@ -2466,6 +2470,7 @@ class TestKiroPrerequisiteWorkflow:
         assert captured["spawn_argv"] == [
             sys.executable,
             "-I",
+            "-B",
             "-c",
             prerequisite_module._PROCESS_GROUP_SUPERVISOR_CODE,
             # Resource limits ride on the supervisor's argv, not preexec_fn.
@@ -2558,9 +2563,9 @@ class TestKiroPrerequisiteWorkflow:
         )
 
         assert result.ok is True
-        # 4 supervisor items (python, -I, -c, code) plus the optional --rlimits=
+        # 5 supervisor items (python, -I, -B, -c, code) plus the optional --rlimits=
         # fragment, then the resolved sandbox wrapper.
-        wrapper_index = 4 + len(prerequisite_module.resource_limit_supervisor_argv())
+        wrapper_index = 5 + len(prerequisite_module.resource_limit_supervisor_argv())
         assert captured["spawn_argv"][wrapper_index] == f"/usr/bin/{wrapper}"
 
     @pytest.mark.skipif(

@@ -214,9 +214,9 @@ class TestApprovalYoloSafetyRail:
         captured = capsys.readouterr()
         assert "WARDING_HOME must be explicitly set" in captured.err
 
-    def test_yolo_refused_when_resolves_to_default_home(self, monkeypatch, capsys):
-        # Point WARDING_HOME at the literal default; rail must catch it.
-        monkeypatch.setenv("WARDING_HOME", str(Path.home() / ".warding"))
+    @pytest.mark.parametrize("home_name", [".warding", ".warding-desktop"])
+    def test_yolo_refused_when_resolves_to_default_home(self, monkeypatch, capsys, home_name):
+        monkeypatch.setenv("WARDING_HOME", str(Path.home() / home_name))
         with pytest.raises(SystemExit) as exc:
             _resolve_gateway_args(_ns(approval="yolo"))
         assert exc.value.code == 2

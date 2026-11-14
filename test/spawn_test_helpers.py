@@ -12,7 +12,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Sequence
 
-_SHIM_FLAGS = ("-I", "-S", "-c")
+_SHIM_FLAGS = ("-I", "-B", "-S", "-c")
 _ARGV_SEPARATOR = "--"
 
 
@@ -27,9 +27,9 @@ def strip_spawn_shim(args: Sequence[str]) -> tuple[str, ...]:
     so a ``--`` inside the command itself is never mistaken for the separator.
     """
     argv = tuple(args)
-    if len(argv) < 6 or argv[0] != sys.executable or argv[1:4] != _SHIM_FLAGS:
+    if len(argv) < 7 or argv[0] != sys.executable or argv[1:5] != _SHIM_FLAGS:
         return argv
-    index = 4  # argv[4] is the shim source string
+    index = 6
     while index < len(argv) and argv[index] != _ARGV_SEPARATOR:
         index += 1
     return argv[index + 1 :]
