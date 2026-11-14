@@ -1074,7 +1074,7 @@ Examples:
                 "gateway (dev tool). Fixture must exist under "
                 "src/warding/tests_fixtures/. The gateway then runs normally "
                 "against the populated $WARDING_HOME. Refuses when "
-                "$WARDING_HOME is the main gateway home (~/.warding) or "
+                "$WARDING_HOME is a live gateway home (~/.warding or ~/.warding-desktop) or "
                 "when the target is non-empty (use --seed-replace to wipe + re-seed)."
             ),
         )
@@ -1084,8 +1084,7 @@ Examples:
             help=(
                 "When used with --seed, wipe $WARDING_HOME (rmtree) before "
                 "copying the fixture. Ignored without --seed. Does NOT "
-                "override the main-gateway-home rail — ~/.warding is refused "
-                "regardless."
+                "allow replacing either live gateway home."
             ),
         )
         parser.add_argument(
