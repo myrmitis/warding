@@ -24,14 +24,10 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from warding import path_forms as _path_forms
 from warding import platform_compat, security, webhooks
 from warding.config import paths as _config_paths
-from warding.path_spellings import (
-    MAX_TARGET_PATHS,
-    PATH_LIMIT_SENTINEL,
-    exceeds_path_limits,
-    path_spellings,
-)
+from warding.path_spellings import exceeds_path_limits
 from warding.platform import current_context, redact_via_context
 from warding.platform.governance import (
     CU_CLASS_OBSERVE,
@@ -1473,67 +1469,23 @@ _RECURSIVE_SEARCH_OPERATIONS: frozenset[str] = frozenset(
 # number and needs no such treatment.
 _SEARCH_PATH_FIELD = "path"
 
-#: EVERY argument name a tool may carry its target file path under. Public because
-#: it is shared with the consent prompt in ``cli_chat``: a prompt that disclosed a
-#: path the gate did not inspect would let the two disagree about what the target
-#: is, and the surface asking a human would be reading the weaker field. One tuple
-#: is what makes that parity structural instead of a comment claiming it.
-#:
-#: The camel-case spelling is not hypothetical -- ``_SEARCH_DENY_ARG_KEYS`` has
-#: accepted it for the search plane all along, while the sensitive-path keystone
-#: below read only the two snake_case forms.
-TARGET_PATH_KEYS: tuple[str, ...] = ("path", "file_path", "filePath")
-
-#: Argument names whose value is a LIST of target paths. A single call can touch
-#: several files (a multi-file patch, a batched read) and the three scalar keys
-#: above hold one path each, so a call naming a fourth file had nowhere to carry
-#: it. Every element is checked exactly like a scalar value; the ACP client fills
-#: this from the locations a spec-family harness reports for a call.
-TARGET_PATH_LIST_KEYS: tuple[str, ...] = ("paths",)
-
 
 def target_paths(raw_params: Mapping | None) -> list[str]:
-    """Every non-empty string path in *raw_params*, under any accepted spelling.
+    """Every path a tool call names, at any depth of its arguments.
 
-    Returns ALL of them rather than the first match, and callers deny if ANY is
-    forbidden. That is deliberately different from "normalize the aliases onto one
-    key and reject conflicts": a conflict rule has to decide which spelling wins,
-    and picking wrong is how a sensitive path slips past. Checking every value
-    present cannot be gamed by adding a second, innocent-looking alias, and needs
-    no adjudication.
+    One walker, ``path_forms.iter_target_paths``, serves this gate, the governance
+    gate and the consent prompt, so the three read the same arguments. It returns
+    ALL paths rather than the first match, and callers deny if ANY is forbidden.
+    That is deliberately different from "normalize the aliases onto one key and
+    reject conflicts": a conflict rule has to decide which spelling wins, and
+    picking wrong is how a sensitive path slips past.
 
-    A value a harness would trim (``path_spellings``) contributes the trimmed path as
-    well, since the harness opens that one. Collection stops one past
-    ``MAX_TARGET_PATHS`` so the caller can see the bound was exceeded without this
-    function walking an attacker-sized list to the end. A list with more raw
-    entries than that bound returns the path-limit denial sentinel before any
-    iteration, including lists filled with duplicates or non-path objects.
+    The walk finds a path inside an array or an object as well: a batch-shaped tool
+    carries its real targets in ``{"operations": [{"path": ...}]}``. It is iterative
+    and bounded, and past a bound it yields ``PATH_LIMIT_SENTINEL`` (see
+    ``iter_target_paths``), which ``exceeds_path_limits`` denies.
     """
-    if not isinstance(raw_params, Mapping):
-        return []
-    found: list[str] = []
-    seen: set[str] = set()
-
-    def _add(value: object) -> None:
-        if isinstance(value, str) and value.strip():
-            for spelling in path_spellings(value):
-                if spelling not in seen:
-                    seen.add(spelling)
-                    found.append(spelling)
-
-    for key in TARGET_PATH_KEYS:
-        _add(raw_params.get(key))
-    for key in TARGET_PATH_LIST_KEYS:
-        values = raw_params.get(key)
-        if not isinstance(values, (list, tuple)):
-            continue
-        if len(values) > MAX_TARGET_PATHS:
-            return [*found, PATH_LIMIT_SENTINEL]
-        for value in values:
-            if len(found) > MAX_TARGET_PATHS:
-                return found
-            _add(value)
-    return found
+    return list(_path_forms.iter_target_paths(raw_params))
 
 
 # The SCOPE-bearing arguments of a file search as ``(canonical, accepted spellings)``,
@@ -1639,7 +1591,7 @@ def _normalize_search_path(value: str) -> str:
     direction as the relative-root decision below.
 
     DELIBERATELY NOT ``abspath``, which is where this diverges from
-    ``governance._norm_item``: absolutizing resolves a relative root against the
+    ``path_forms.lexical_path``: absolutizing resolves a relative root against the
     GATEWAY process cwd, which is not the cwd the tool runs in. That misattribution
     cuts both ways — a rule denying the tree actually walked is bypassed, and a rule
     naming the gateway's own tree falsely denies an unrelated search. Governance can
