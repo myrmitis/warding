@@ -166,8 +166,11 @@ from warding.hooks import (
     TOOL_AUTO_APPROVE,
     TOOL_DENY,
     ToolHookResult,
+    Verdict,
+    attended_turn,
     fire_tool_hooks,
     safe_read_file,
+    script_hook_verdict,
     validate_file_path,
 )
 from warding.image_artifacts import register_images_off_loop
@@ -4444,6 +4447,7 @@ async def _run_chat(
     _prompt_depth: int = 0,
     _synthetic_payload: bool = False,
     _directive_user_origin: bool = False,
+    _person_attended: bool = False,
     regenerate_hint: str = "",
     _on_consumed: "Callable[[bool], None] | None" = None,
     _on_irreversibly_consumed: "Callable[[], Awaitable[None] | None] | None" = None,
@@ -4499,17 +4503,42 @@ async def _run_chat(
                 logger.error("Hook store not initialized for PRE_TOOL_USE - blocking tool")
             return injected
         try:
-            results = await state._hook_store.fire(
-                event,
-                context,
-                tool_name=tool_name,
-                tool_input=tool_input,
-                tool_response=tool_response,
-                parent_session_key=session_key,
-                hook_continuation_count=hook_continuation_count,
-            )
+            with attended_turn(_person_attended):
+                results = await state._hook_store.fire(
+                    event,
+                    context,
+                    tool_name=tool_name,
+                    tool_input=tool_input,
+                    tool_response=tool_response,
+                    parent_session_key=session_key,
+                    hook_continuation_count=hook_continuation_count,
+                )
             for r in results:
-                if r.exit_code == 0 and r.stdout:
+                if event == HOOK_EVENT_PRE_TOOL_USE and script_hook_verdict(r) is Verdict.UNDECIDED:
+                    # A PreToolUse hook delivers exit 0 (allow) or exit 2 (deny).
+                    # Any other outcome (timeout or crash, an unexecutable
+                    # command, an ordinary failure) delivered no verdict, and a
+                    # gate that did not decide refuses. Passing it would let
+                    # breaking, slowing or deleting the hook switch its policy off.
+                    detail = (
+                        getattr(r, "error", "")
+                        or getattr(r, "stderr", "")
+                        or f"exited with code {getattr(r, 'exit_code', None)!r}"
+                    )[:200]
+                    name = getattr(r, "hook_name", "") or "unknown"
+                    injected.append(f"BLOCKED:{name}:no verdict: {detail}")
+                    logger.error(
+                        "Hook %s could not deliver a verdict (%s) - blocking tool", name, detail
+                    )
+                    state.broadcast_ws(
+                        "activity_event",
+                        {
+                            "slot": slot.key,
+                            "kind": "hook",
+                            "text": f"Hook {name} BLOCKED (no verdict): {detail[:100]}",
+                        },
+                    )
+                elif r.exit_code == 0 and r.stdout:
                     injected.append(r.stdout)
                     logger.info("Hook %s stdout: %s", r.hook_name, r.stdout[:200])
                     state.broadcast_ws(
@@ -6560,23 +6589,28 @@ async def _run_chat(
                     # so the security gate evaluates what actually executes.
                     # event.title may be an LLM-authored description that hides
                     # a dangerous command (see HookManager.on_tool_call).
-                    tool_result = state.context_builder.hooks.on_tool_call(
-                        event.title,
-                        session_key=session_key,
-                        agent=slot.agent or "",
-                        app=slot._app or "",
-                        tool_kind=event.tool_kind,
-                        raw_params=event.raw_tool_params,
-                        command=event.shell_command,
-                        is_shell=event.is_shell,
-                        mcp_server_name=event.mcp_server_name,
-                        mcp_tool_name=event.tool_name,
-                        # The RESOLVED agent (what actually served the turn), not
-                        # slot.agent — that is an alias resolve_agent_bindings
-                        # maps to a concrete kiro agent, so it must never decide
-                        # which builtin app an agent belongs to.
-                        resolved_agent=read_effective_agent(client),
-                    )
+                    # Attended only when the caller states that a person at the
+                    # dashboard browser sent this turn. A queued, injected, scripted
+                    # or API-client turn is unattended.
+                    with attended_turn(_person_attended):
+                        tool_result = state.context_builder.hooks.on_tool_call(
+                            event.title,
+                            session_key=session_key,
+                            agent=slot.agent or "",
+                            app=slot._app or "",
+                            tool_kind=event.tool_kind,
+                            raw_params=event.raw_tool_params,
+                            command=event.shell_command,
+                            is_shell=event.is_shell,
+                            mcp_server_name=event.mcp_server_name,
+                            mcp_tool_name=event.tool_name,
+                            # The RESOLVED agent (what actually served the turn),
+                            # not slot.agent — that is an alias
+                            # resolve_agent_bindings maps to a concrete kiro
+                            # agent, so it must never decide which builtin app an
+                            # agent belongs to.
+                            resolved_agent=read_effective_agent(client),
+                        )
                     if tool_result.action == TOOL_DENY:
                         # Surface WHY: carry the deny reason into the pill so
                         # the user sees "Blocked by security policy: ..." rather

@@ -55,11 +55,15 @@ from warding.discord.session_resume import (
 )
 from warding.discord.transport import DISCORD_CAPABILITIES
 from warding.executors import run_in_embed_pool
-from warding.hooks import TOOL_AUTO_APPROVE, TOOL_DENY
 from warding.messaging.attachments import IngestLimits
 from warding.messaging.attachments import cleanup as cleanup_attachments
 from warding.messaging.commands import stop_running_turn
-from warding.messaging.dispatch import build_directive_consumer, delivery_is_muted
+from warding.messaging.dispatch import (
+    build_directive_consumer,
+    build_tool_gate,
+    delivery_is_muted,
+    skip_automated_while_busy,
+)
 from warding.messaging.driver import APPROVAL_INTERACTIVE, TurnDriver
 from warding.messaging.identity import channel_inbound_permitted, publish_turn_identity
 from warding.messaging.link import (
@@ -374,6 +378,8 @@ class DiscordDispatcher:
         resumed_key = route.resumed_key
         session_key = resumed_key or self._session_key(user_id, thread_id)
         if self.sessions.is_busy(session_key):
+            if skip_automated_while_busy(msg, channel_type="discord", session_key=session_key):
+                return
             if resumed_key is not None:
                 # Do NOT queue or steer into a resumed session's running turn.
                 # ``_drain_queue`` is only ever called from the tail of a
@@ -577,21 +583,13 @@ class DiscordDispatcher:
             )
 
             # PreToolUse security gate (channel-neutral, off ctx_builder.hooks).
-            def _tool_gate(event: Any) -> str:
-                result = self.ctx_builder.hooks.on_tool_call(
-                    getattr(event, "title", "") or "",
-                    session_key=session_key,
-                    agent=agent,
-                    tool_kind=getattr(event, "tool_kind", "") or "",
-                    raw_params=getattr(event, "raw_tool_params", None),
-                    command=getattr(event, "shell_command", None),
-                    is_shell=bool(getattr(event, "is_shell", False)),
-                )
-                if result.action == TOOL_DENY:
-                    return "deny"
-                if result.action == TOOL_AUTO_APPROVE:
-                    return "auto_approve"
-                return ""
+            # An auto-nudge or monitor wake (``msg.automated``) has no person watching it.
+            _tool_gate = build_tool_gate(
+                self.ctx_builder,
+                session_key=session_key,
+                agent=agent,
+                attended=not msg.automated,
+            )
 
             driver = TurnDriver(
                 provider,

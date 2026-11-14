@@ -28,7 +28,7 @@ from warding.dashboard.chat_utils import (
     remember_slack_options,
 )
 from warding.executors import run_in_embed_pool
-from warding.hooks import HOOK_REPLY, TOOL_AUTO_APPROVE, TOOL_DENY
+from warding.hooks import HOOK_REPLY, TOOL_AUTO_APPROVE, TOOL_DENY, attended_turn
 from warding.llm_helpers import save_conversation_turn_off_loop
 from warding.messaging import auto_title
 from warding.messaging.dispatch import build_directive_consumer
@@ -134,6 +134,7 @@ async def handle_message_transport(
     consolidator: HistoryConsolidator | None = None,
     user_display_name: str | None = None,
     gateway: Any | None = None,
+    from_trusted_bot: bool = False,
 ) -> None:
     """Drive a Slack message through the new transport path end-to-end.
 
@@ -250,7 +251,15 @@ async def handle_message_transport(
     # Shared with native handle_message so a thread linked via
     # /warding link-to-dashboard routes into its dashboard slot (with the same
     # auth recheck + bang fall-through) instead of spawning a fresh session.
-    if await maybe_route_linked_thread(text, session_key, user_id, channel, slack, reply_ts):
+    if await maybe_route_linked_thread(
+        text,
+        session_key,
+        user_id,
+        channel,
+        slack,
+        reply_ts,
+        from_trusted_bot=from_trusted_bot,
+    ):
         return
 
     # ── Hook: auto-reply before touching the LLM (mirrors native) ──
@@ -566,15 +575,17 @@ async def handle_message_transport(
         def _tool_gate(event: Any) -> str:
             if context_builder is None:
                 return ""
-            result = context_builder.hooks.on_tool_call(
-                getattr(event, "title", "") or "",
-                session_key=session_key,
-                agent=_agent or "",
-                tool_kind=getattr(event, "tool_kind", "") or "",
-                raw_params=getattr(event, "raw_tool_params", None),
-                command=getattr(event, "shell_command", None),
-                is_shell=bool(getattr(event, "is_shell", False)),
-            )
+            # A message a trusted bot sent has no person watching it.
+            with attended_turn(not from_trusted_bot):
+                result = context_builder.hooks.on_tool_call(
+                    getattr(event, "title", "") or "",
+                    session_key=session_key,
+                    agent=_agent or "",
+                    tool_kind=getattr(event, "tool_kind", "") or "",
+                    raw_params=getattr(event, "raw_tool_params", None),
+                    command=getattr(event, "shell_command", None),
+                    is_shell=bool(getattr(event, "is_shell", False)),
+                )
             if result.action == TOOL_DENY:
                 return "deny"
             if result.action == TOOL_AUTO_APPROVE:

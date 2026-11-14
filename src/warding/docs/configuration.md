@@ -385,6 +385,22 @@ file the agent itself cannot read or write, which is what makes the ceiling
 un-disableable by the agent. An enterprise security policy can force-pin the
 rules so they cannot be opted out of at all.
 
+## Script Hooks
+
+A script hook runs a shell command on an event. It is stored in
+`~/.warding/hooks.json`.
+
+A PreToolUse hook decides with its exit code. Exit 0 allows the tool call. Exit 2
+blocks it, and the hook's stderr becomes the reason. **Any other exit code also
+blocks the call.** A timeout, a crash and a command that cannot run block it too.
+In earlier versions these only logged a warning. A hook that exits 1 when it finds
+nothing, such as `grep`, now blocks every call it matches.
+
+To turn a hook off, disable or delete it on the Hooks page, or set
+`"enabled": false` on its entry in `~/.warding/hooks.json`. A hook that only
+observes, and never denies, can end its command with `|| true` so it never blocks.
+Do not do that to a hook that denies with exit 2: it would turn the deny into an allow.
+
 ## File Locations
 
 | Path | Purpose |

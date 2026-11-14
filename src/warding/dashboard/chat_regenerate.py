@@ -10,6 +10,7 @@ from aiohttp import web
 from warding.dashboard.chat_persistence import _save_slot_to_history
 from warding.dashboard.chat_runner import _run_chat
 from warding.dashboard.kiro_readiness import reject_if_agent_unverified
+from warding.dashboard.origin import request_is_dashboard_person
 from warding.dashboard.state import DashboardState
 from warding.security import redact_credentials, redact_exfiltration_urls
 from warding.sel import sel
@@ -102,6 +103,7 @@ async def api_chat_slot_regenerate(request: web.Request) -> web.Response:
                 user_msg,
                 regenerate_hint=hint,
                 _directive_user_origin=not bool(request.get("app", "")),
+                _person_attended=request_is_dashboard_person(request),
             )
         )
         slot.task = task
@@ -267,6 +269,7 @@ async def api_chat_slot_edit_resend(request: web.Request) -> web.Response:
                 slot,
                 _bc,
                 _directive_user_origin=not bool(request.get("app", "")),
+                _person_attended=request_is_dashboard_person(request),
             )
         )
         slot.task = task

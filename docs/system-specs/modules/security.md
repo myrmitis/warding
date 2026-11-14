@@ -508,6 +508,71 @@ trusted as the aggregate; a same-named CheckRun cannot mask another failure.
 Unresolved review threads are reported for visibility but are advisory rather
 than an automatic readiness failure.
 
+### Fail-closed verdicts at the PreToolUse gate (`hooks.py`)
+
+A missing verdict never counts as allow. Every decision point at the gate answers
+with one `Verdict` value: `ALLOW`, `DENY` or `UNDECIDED`. A decision point that
+raised, timed out, exited with an undefined code or returned `None` is `UNDECIDED`.
+
+- **One wrapper.** `@_fail_closed_gate` wraps `HookManager.on_tool_call`. An
+  exception (`PlatformCompositionError` included), `None` or any non-`ToolHookResult`
+  value becomes a `deny_policy` result. The reason says the gate failed. The fault
+  goes to the gateway log with its traceback and to the SEL as a failed-closed
+  `governance_degraded` record. `security_deny` is False, so a gate fault does not
+  count against a cron job's refusal budget.
+- **One soft path.** `settle_undecided()` resolves an `UNDECIDED` decision point:
+  `ALLOW` inside `attended_turn()`, `DENY` everywhere else. The default is
+  unattended. `attended_turn(person_sent)` takes a required argument: a caller
+  enters an attended turn only by stating that a person sent the turn. Automation
+  is never a person: an auto-nudge, a monitor wake, a cron or heartbeat delivery,
+  a sub-agent completion, a bot-sent message and a script or SDK client are all
+  unattended.
+  - **Dashboard.** `_run_chat(_person_attended=...)` is separate from
+    `_directive_user_origin`, which keeps its directive-authorization meaning. The
+    chat, regenerate and rewind handlers pass `request_is_dashboard_person()`: true
+    only for a request with no app identity and no `X-Internal-Secret` header (the
+    browser authenticates with its cookie). The OpenAI-compatible endpoint passes
+    False. A script that replays a browser cookie cannot be told from the browser;
+    that limit is accepted. A queued message that drains later is unattended.
+  - **CLI chat.** `cli_chat._answer_permission` is attended, because the operator
+    answers the prompt.
+  - **Channels.** Gateway-built messages carry `automated=True`:
+    `InboundMessage.automated` (Discord) and `WebexInbound.automated`, set by the
+    Discord and Webex auto-nudge builders in `slack/gateway.py`. The dispatcher
+    passes `person_sent` into the gate (`ChannelTurn.person_sent`, default False,
+    and `build_tool_gate(attended=...)`, which Discord and Telegram share). Adapters
+    with no synthetic builder (Feishu, WeCom, Weixin, Teams, WhatsApp, iMessage) set
+    `person_sent=True` for a message their client received. Replays of a person's own
+    message (queue drain, button press) stay attended. An automated message is never
+    queued or steered: a queue entry is bare text, so its drain would replay it as a
+    person's turn. The Discord, Telegram and Webex busy paths call
+    `skip_automated_while_busy()` and drop it, as the nudge fire path already skips a
+    busy session; the loop retries on its next cycle. `attended_turn(False)` inside an
+    attended block makes the inner turn unattended.
+  - **Slack.** `from_trusted_bot` reaches both Slack gates, the informational
+    tool-call event and `maybe_route_linked_thread`, so a bot message does not become
+    a user-origin dashboard turn.
+  Cron, heartbeat, sub-agent, task-runner and auto-improvement turns never enter an
+  attended turn. Two decision points use the soft path:
+  `_governance_denial` (profile resolution) and `_script_hooks_capability_denied`
+  (a `None` decision also counts as `UNDECIDED`). The marker never turns a decided
+  `DENY` into an allow.
+- **Script hooks.** A PreToolUse script hook has two verdicts: exit 0 is allow and
+  exit 2 is deny. `script_hook_verdict()` maps every other outcome to `UNDECIDED`:
+  timeout, crash, unexecutable command, signal death and exit 1. `_fire` in
+  `dashboard/chat_runner.py` turns an `UNDECIDED` PreToolUse result into a
+  `BLOCKED:` entry, so the call is refused on the same path as an exit-2 block.
+  **Behavior change:** a PreToolUse hook that exits with any code other than 0 or 2
+  now blocks the call. Before, such a hook only logged a warning. A logging or
+  `grep`-style hook that exits 1 on no match now blocks every tool call it matches.
+  To turn a hook off, disable or delete it on the dashboard Hooks page, or set
+  `"enabled": false` on its entry in `~/.warding/hooks.json`. A hook that only
+  observes (never denies) can end its command with `|| true`. Do not do that to a
+  hook that denies with exit 2: it would turn the deny into an allow.
+
+Computer-use refusals stay in band on `tools._dispatch`. `effective = POLICY ∩ PROFILE`
+is unchanged. Tests: `test/test_fail_closed_verdict.py`.
+
 ### Denied Commands (`security.py` + `hooks.py`)
 
 First-class `DeniedCommandRule` records in `BUILTIN_DENIED_RULES` (`security.py`) — each a stable `id`, a Python regex `pattern`, a `category`, and a human `description` — blocking destructive and credential-exfiltrating operations. They are enforced **only** at Warding's own `hooks.py` PreToolUse gate (`HookManager.on_tool_call` → `PolicyAuthority.is_denied`), never by kiro-cli. They are no longer a raw `deniedCommands` array injected into a kiro agent JSON, so there is no `execute_bash`/`shell` tool-settings copy and no project-dir `agents/defaults.json` override for them. Built-ins are **default-ON but user-DISABLEABLE** from Settings → Security (see "Denied-command rules, opt-out state, and read-only auto-approve" below).

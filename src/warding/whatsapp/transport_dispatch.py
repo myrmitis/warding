@@ -321,6 +321,8 @@ class WhatsAppDispatcher:
         await drive_turn(
             ChannelTurn(
                 channel_type="whatsapp",
+                # A message this channel's client received from a person.
+                person_sent=True,
                 session_key=session_key,
                 conversation_id=f"whatsapp:{scope}",
                 agent=agent,
