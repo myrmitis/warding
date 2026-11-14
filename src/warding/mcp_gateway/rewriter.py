@@ -510,9 +510,6 @@ def _build_stub_entry(
         for k, v in original.items()
         if k not in ("command", "args", "env", "poolable", "autoApprove", _WRAPPER_MARKER)
     }
-    argv = ["-m", _STUB_MODULE, *stub_args]
-    if sys.platform == "darwin" and platform_compat.is_bundled_interpreter():
-        argv.insert(0, "-B")
     wrapped.update({
         _WRAPPER_MARKER: True,
         "command": sys.executable,
@@ -520,7 +517,7 @@ def _build_stub_entry(
         # session-agnostic, so it is appended per session by
         # ``session_servers.pooled_session_servers`` at ACP injection time,
         # where the value is in scope.
-        "args": argv,
+        "args": ["-B", "-m", _STUB_MODULE, *stub_args],
         # autoApprove must stay on the wrapper — kiro-cli reads it at the
         # permission-prompt UI layer, separately from the backend.
         "autoApprove": auto_approve,
