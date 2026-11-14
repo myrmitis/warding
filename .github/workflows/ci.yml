@@ -1,5 +1,11 @@
 name: CI
 
+# Every Linux job in this file runs on a pinned image, `ubuntu-24.04`, and not
+# on `ubuntu-latest`. A new image changes the system time zone database and the
+# list of releases that Playwright ships Chromium for, and either change fails
+# jobs with no change in this repository. Raise the pin in one commit that also
+# makes the suite pass on the new image.
+
 on:
   push:
     branches: [main]
@@ -56,7 +62,7 @@ jobs:
   # and the full matrix runs.
   changes:
     name: Detect changed surface
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     # dorny/paths-filter reads the PR's changed-file list from the GitHub REST
     # API on pull_request events -> needs pull-requests:read. Job-level
@@ -177,7 +183,7 @@ jobs:
 
   scrub-lint:
     name: Scrub Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -192,7 +198,7 @@ jobs:
 
   vendor-manifest:
     name: Vendored Tree Integrity
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     # Deliberately NOT gated behind the `changes` job's surface outputs:
     # everything under src/warding/_vendor is excluded from semgrep and the
@@ -207,13 +213,13 @@ jobs:
         # src/warding/_vendor relative to scripts/vendor_manifest.sha256.
         # Legitimate vendored bumps regenerate the manifest with --write (see
         # src/warding/_vendor/README.md) so the change lands as a reviewable
-        # manifest diff. No setup-python step: ubuntu-latest ships Python 3,
+        # manifest diff. No setup-python step: ubuntu-24.04 ships Python 3,
         # same as the other stdlib-only lint jobs in this file.
         run: python3 scripts/verify_vendor_manifest.py
 
   brand-lint:
     name: Brand Name Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -262,7 +268,7 @@ jobs:
 
   focus-cue-lint:
     name: Focus Cue Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -289,7 +295,7 @@ jobs:
 
   changelog-history:
     name: Changelog History Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -328,7 +334,7 @@ jobs:
 
   loop-bound-locks:
     name: Loop-Bound Locks Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -351,7 +357,7 @@ jobs:
 
   harness-parity:
     name: Harness Parity Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -384,7 +390,7 @@ jobs:
 
   docs-lint:
     name: Docs Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -400,13 +406,13 @@ jobs:
         # its directory index, every directory holding docs has one, no code comment
         # cites a doc that does not exist, and no doc whose filename is hardcoded in
         # code has been renamed out from under its consumer.
-        # No setup-python step: ubuntu-latest ships Python 3 and the script is
+        # No setup-python step: ubuntu-24.04 ships Python 3 and the script is
         # stdlib-only.
         run: ./scripts/docs-lint.sh
 
   backend-lint:
     name: Backend Lint & Type Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Sized for 2-vCPU private-repository runners: the black gate checks the
     # whole tree on every run, the slowest step there, before isort, flake8 and
     # mypy start.
@@ -498,7 +504,7 @@ jobs:
   backend-test:
     name: Backend Tests
     needs: [changes]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       # Don't cancel sibling shards when one fails -- we want the full failure
@@ -869,7 +875,7 @@ jobs:
   #
   backend-test-sandbox:
     name: Backend Tests (namespace sandbox)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -924,7 +930,7 @@ jobs:
     # there are no shard artifacts to combine. Coverage Gate asserts this job is
     # exactly `skipped` in that case, and `success` otherwise.
     if: needs.changes.outputs.only_frontend != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -985,7 +991,7 @@ jobs:
   # requires it is still satisfied.
   coverage-gate:
     name: Coverage Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [coverage-combine, frontend-test, frontend-coverage-merge, backend-test, changes]
     # Single source of truth for the floors -- referenced by the check steps,
@@ -1230,7 +1236,7 @@ jobs:
 
   frontend-lint:
     name: Frontend Lint & Type Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1381,7 +1387,7 @@ jobs:
 
   cfn-lint:
     name: CloudFormation Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1408,7 +1414,7 @@ jobs:
   # pure unit tests, no Electron binary download, no packaging.
   electron-test:
     name: Electron Shell Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1438,7 +1444,7 @@ jobs:
   frontend-test:
     name: Frontend Tests
     needs: [changes]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Per-shard budget. The whole suite was ~23 min on one runner; split four
     # ways each shard is well under this, and a hung shard fails fast.
     timeout-minutes: 25
@@ -1576,7 +1582,7 @@ jobs:
     # skips the frontend lane.) `!cancelled()` lets it still stitch a report
     # when a shard failed, so the failure surfaces in one place.
     if: ${{ !cancelled() && needs.changes.outputs.only_backend != 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1640,7 +1646,7 @@ jobs:
   bundle-size:
     name: Bundle Size Gate
     needs: [changes]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     # A backend-only diff cannot change the frontend bundle, so this gate has
     # nothing to measure there. Meta diffs (.github/**, scripts/**) leave both
@@ -1678,7 +1684,10 @@ jobs:
 
   e2e:
     name: E2E (stub ACP backend, offline)
-    runs-on: ubuntu-latest
+    # The Playwright version in package-lock.json ships Chromium builds for a
+    # fixed list of Ubuntu releases. Raise the image pin together with the
+    # Playwright version.
+    runs-on: ubuntu-24.04
     # The frontend build, the render gate (head and base) and the smoke and
     # Playwright suites run back to back: about 16 minutes on a 4-vCPU runner,
     # and longer on 2-vCPU private-repository runners.
@@ -1744,7 +1753,7 @@ jobs:
       #
       # `--with-deps` is dropped rather than retried because it buys nothing this
       # gate asserts on. Every shared library Chromium needs is already on the
-      # ubuntu-latest image (the apt log reports libnss3, libx11-6, libxcb1,
+      # ubuntu-24.04 image (the apt log reports libnss3, libx11-6, libxcb1,
       # libasound2 and libxkbcommon0 as `already the newest version`); the only
       # packages it newly installs are 9 CJK/Thai/Cyrillic font packages. The suite
       # has no pixel comparison (no toHaveScreenshot / toMatchSnapshot anywhere
