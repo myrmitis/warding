@@ -192,7 +192,7 @@ leaving the specs enough of that budget to actually run:
 - **`--with-deps` is not used.** It runs `apt-get update` first, and when the
   runner's default mirror answers `Ign:` apt falls back and stalls — measured at
   23, 15 and 12 minutes. It also buys nothing this gate asserts on: every shared
-  library Chromium needs is already on the `ubuntu-latest` image, and the only
+  library Chromium needs is already on the `ubuntu-24.04` image, and the only
   packages it newly installs are 9 CJK/Thai/Cyrillic font packages. There is no
   pixel comparison anywhere under `website/`, `locale` is pinned to `en-US`, and
   the render gate reads `textContent` rather than measuring geometry. A spec that
