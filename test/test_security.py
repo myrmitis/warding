@@ -3342,8 +3342,11 @@ class TestIsSensitivePath:
         assert is_sensitive_path(prefix + str(home / ".aws" / "credentials")) is True
         assert security.path_contains_sensitive(prefix + str(home)) is True
         assert is_sensitive_path(prefix + str(tmp_path / "project")) is False
-        unc = security._without_extended_prefix("\\\\?\\UNC\\host\\share\\x")
+        from warding.path_forms import split_namespace_prefix
+
+        unc, is_unc = split_namespace_prefix("\\\\?\\UNC\\host\\share\\x")
         assert unc == "\\\\host\\share\\x"
+        assert is_unc is True
 
     def test_unrelated_dotfile(self) -> None:
         assert is_sensitive_path("~/.bashrc") is False

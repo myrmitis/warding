@@ -78,8 +78,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # kiro-cli — the agent runtime Warding drives over ACP; chat sessions
-# require it. Global install (Q_INSTALL_GLOBAL) places kiro-cli,
-# kiro-cli-chat, kiro-cli-term into /usr/local/bin; Q_SKIP_SETUP skips
+# require it. The binaries (kiro-cli, kiro-cli-chat, kiro-cli-term) must be in
+# /usr/local/bin, outside the volume. Q_INSTALL_GLOBAL asks the installer for
+# that location, but the installer decides where it writes: some versions
+# ignore the variable and install to /root/.local/bin. The step below does not
+# depend on that choice. It copies the binaries to /usr/local/bin when the
+# installer put them in the per-user directory. Q_SKIP_SETUP skips
 # dotfile/shell integrations that are meaningless in a container.
 #
 # Supply-chain discipline (image inputs must be verifiable):
@@ -111,6 +115,13 @@ RUN set -eux; \
     echo "${SHA256}  /tmp/kirocli.zip" | sha256sum -c -; \
     unzip -q /tmp/kirocli.zip -d /tmp; \
     Q_INSTALL_GLOBAL=1 Q_SKIP_SETUP=1 /tmp/kirocli/install.sh; \
+    if [ ! -x /usr/local/bin/kiro-cli ]; then \
+        for bin in /root/.local/bin/kiro-cli*; do \
+            [ -f "${bin}" ] || { echo "kiro-cli installer left no binary in /usr/local/bin or /root/.local/bin" >&2; exit 1; }; \
+            install -m 0755 "${bin}" /usr/local/bin/; \
+            rm -f "${bin}"; \
+        done; \
+    fi; \
     rm -rf /tmp/kirocli /tmp/kirocli.zip /tmp/kirocli-manifest.json; \
     mkdir -p /usr/local/share/warding; \
     printf '%s\n' "${RESOLVED}" > /usr/local/share/warding/kiro-cli-version; \
