@@ -40,8 +40,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from warding import platform_compat
-from warding.config.paths import CONFIG_DIR_NAME, config_dir
+from warding import platform_compat, protected_manifest
+from warding.config.paths import config_dir
 from warding.constants import GITHUB_SLUG, WARDING_SPAWNED_ENV, WARDING_SPAWNED_VALUE
 from warding.platform import current_context
 
@@ -72,14 +72,6 @@ _STRICT_DIRS: list[str] = [
     ".azure",
     ".docker",
     ".kube",
-    # Encrypted secret vault. The ``.vault`` dir is also a
-    # keystone leaf in ``security._DATA_HOME_SECRET_LEAVES`` (which blocks the
-    # agent's in-process tool-call file access), but a spawned ``python -c``
-    # subprocess does an OS ``open()`` that never routes through that gate — so
-    # the vault dir must ALSO be bind-mount-hidden here, exactly as ``.env`` is
-    # in ``_CC_FILES``. Without this a same-UID agent subprocess could read
-    # ``.vault/.vault_key`` and decrypt the store.
-    f"{CONFIG_DIR_NAME}/.vault",
 ]
 
 _STANDARD_DIRS: list[str] = [
@@ -89,8 +81,6 @@ _STANDARD_DIRS: list[str] = [
     ".config/gcloud",
     ".azure",
     ".docker",
-    # Secret vault — hidden in every mode (see _STRICT_DIRS note above).
-    f"{CONFIG_DIR_NAME}/.vault",
 ]
 
 # CC mode: hides all credential dirs including .aws, but selectively exposes
@@ -105,8 +95,6 @@ _CC_DIRS: list[str] = [
     ".azure",
     ".docker",
     ".kube",
-    # Secret vault — hidden in every mode (see _STRICT_DIRS note above).
-    f"{CONFIG_DIR_NAME}/.vault",
 ]
 
 # CC mode: files to expose read-only inside otherwise-hidden dirs.
@@ -122,9 +110,28 @@ _CC_FILES: list[str] = [
     ".pypirc",
     ".netrc",
     ".git-credentials",
-    # Warding's channel-credential file under the default data home.
-    f"{CONFIG_DIR_NAME}/.env",
 ]
+
+# ── Data-home leaves, generated from the protected manifest ──
+#
+# ``security.sensitive_home_dirs()`` is the agent-TOOL gate. The lists in this
+# module are a separate, OS-level gate: a spawned ``python -c`` does an ``open()``
+# that never routes through the tool gate. Both read ``protected_manifest.LEAVES``,
+# so a leaf cannot sit at one layer and be missing at the other.
+#
+# HIDDEN leaves have no reader inside the sandbox. They are masked in EVERY mode,
+# and ``_CC_FILES`` carries them too so the file-level rules (read deny + hardlink
+# deny on macOS, empty-file bind on Linux) apply at cc and strict. READONLY leaves
+# are not masked here: a ceiling that is hidden from the process that enforces it
+# reads as absent, and an absent ceiling resolves to the permissive default. They
+# take write and link denies in the macOS profile (``_manifest_readonly_rules``).
+_HIDDEN = protected_manifest.Disposition.HIDDEN
+_READONLY = protected_manifest.Disposition.READONLY
+_MANIFEST_HIDDEN: list[str] = protected_manifest.home_relative(_HIDDEN)
+_STRICT_DIRS += _MANIFEST_HIDDEN
+_STANDARD_DIRS += _MANIFEST_HIDDEN
+_CC_DIRS += _MANIFEST_HIDDEN
+_CC_FILES += _MANIFEST_HIDDEN
 
 
 def _hidden_path_contains_visible_path(
@@ -1480,6 +1487,10 @@ def _build_launcher_script(
         env_prefixes = env_prefixes + list(_PYTHON_ENV_PREFIXES)
     hide_ssh = sandbox_level == "strict"
     hidden_dirs = [os.path.join(home, d) for d in dirs]
+    # Manifest leaves under a data home that ``WARDING_HOME`` moved out from under
+    # ``$HOME``, and the per-app files (``apps/*/.app_secret``) that exist now.
+    hidden_dirs.extend(protected_manifest.relocated_targets(_HIDDEN, home))
+    hidden_dirs.extend(protected_manifest.expand_wildcards(_HIDDEN, home))
     hidden_dirs.extend(os.path.abspath(path) for path in extra_hidden_dirs)
     hidden_dirs = [
         path
@@ -2069,6 +2080,41 @@ _SEATBELT_PROFILE = """\
 """
 
 
+def _sbpl_string(text: str) -> str:
+    """Escape *text* for a seatbelt string literal."""
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _manifest_seatbelt_rules(home: str, extra_visible_dirs: tuple[str, ...]) -> list[str]:
+    """Seatbelt rules for the manifest rows the dir loop does not already cover.
+
+    * READONLY leaves stay readable and take write and link denies. Both the file
+      spelling (``literal``) and the directory spelling (``subpath``) are emitted
+      because the profile cannot tell which a leaf is, and the leaf may not exist yet:
+      a deny on a missing path also stops the agent from creating it.
+    * Per-app wildcard leaves (``apps/*/.app_secret``) get a regex rule, so an app
+      installed after the spawn is covered too.
+    """
+    rules: list[str] = []
+    for target in protected_manifest.all_targets(_READONLY, home):
+        if _hidden_path_contains_visible_path(target, extra_visible_dirs):
+            continue
+        escaped = _sbpl_string(target)
+        rules.append(f'(deny file-write* (literal "{escaped}"))')
+        rules.append(f'(deny file-write* (subpath "{escaped}"))')
+        rules.append(f'(deny file-link (subpath "{escaped}"))')
+    for pattern in protected_manifest.seatbelt_regexes(_HIDDEN, home):
+        # Same rule as the literal rows: a trusted path the caller needs visible
+        # beats the mask. The pattern is an anchored ERE the ``re`` module also parses.
+        if any(re.match(pattern, os.path.abspath(v)) for v in extra_visible_dirs):
+            continue
+        escaped = _sbpl_string(pattern)
+        rules.append(f'(deny file-read* (regex #"{escaped}"))')
+        rules.append(f'(deny file-write* (regex #"{escaped}"))')
+        rules.append(f'(deny file-link (regex #"{escaped}"))')
+    return rules
+
+
 def _build_seatbelt_profile(
     sandbox_level: str = "strict",
     *,
@@ -2093,9 +2139,11 @@ def _build_seatbelt_profile(
     files = _CC_FILES if sandbox_level in ("cc", "strict") else []
     expose_files = _CC_EXPOSE_FILES if sandbox_level == "cc" else []
     expose_abs = {os.path.join(home, f) for f in expose_files}
+    manifest_hidden = set(protected_manifest.all_targets(_HIDDEN, home))
     rules: list[str] = []
-    for d in dirs:
-        target = os.path.join(home, d)
+    dir_targets = [os.path.join(home, d) for d in dirs]
+    dir_targets.extend(protected_manifest.relocated_targets(_HIDDEN, home))
+    for target in dir_targets:
         if _hidden_path_contains_visible_path(target, extra_visible_dirs):
             continue
         escaped = target.replace('"', '\\"')
@@ -2109,6 +2157,14 @@ def _build_seatbelt_profile(
             rules.append(f'(deny file-read* (require-all (subpath "{escaped}") {exceptions}))')
         else:
             rules.append(f'(deny file-read* (subpath "{escaped}"))')
+        if target in manifest_hidden:
+            # A seatbelt read deny does not stop a write: forging a signing key needs
+            # no read. Linux gets both directions from one bind mount. The write deny
+            # stays scoped to manifest leaves: widening it to every hidden entry would
+            # also cover ``.aws``, which a tool rewrites when it refreshes a token.
+            # Both spellings, because a leaf may be a plain file.
+            rules.append(f'(deny file-write* (subpath "{escaped}"))')
+            rules.append(f'(deny file-write* (literal "{escaped}"))')
         # Deny creating a HARDLINK whose target is under this dir.
         # Seatbelt's file-read* deny is path-based, so a hardlink at a
         # non-denied path (e.g. /tmp) reads the same inode past the deny rule.
@@ -2123,6 +2179,7 @@ def _build_seatbelt_profile(
         rules.append(f'(deny file-read* (literal "{escaped}"))')
         # Also deny hardlinking the protected file (see above).
         rules.append(f'(deny file-link (literal "{escaped}"))')
+    rules.extend(_manifest_seatbelt_rules(home, extra_visible_dirs))
     for target in dict.fromkeys(os.path.abspath(path) for path in extra_hidden_dirs):
         if _hidden_path_contains_visible_path(target, extra_visible_dirs):
             continue
@@ -2147,7 +2204,8 @@ def _build_seatbelt_profile(
         # exception, since a hardlink to known_hosts has no legitimate use.
         rules.append(f'(deny file-link (subpath "{ssh_escaped}"))')
 
-    return _SEATBELT_PROFILE.format(deny_rules="\n".join(rules))
+    # One copy of each rule. A relocated data home can repeat a spelling.
+    return _SEATBELT_PROFILE.format(deny_rules="\n".join(dict.fromkeys(rules)))
 
 
 # kiro-cli >= 2.13 ships its own internal agent sandbox, toggled by the

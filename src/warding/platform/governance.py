@@ -2831,17 +2831,12 @@ def assert_governance_paths_protected() -> None:
     """
     # Deferred import: keep ``security`` (heavy regex stack) off this module's
     # import path; only the boot check needs it.
-    from warding import security
-
     # The trust-root paths under the data home (~/.warding) must be gated.
-    required = (
-        ".warding/security_policy.json",
-        ".warding/profiles",
-        ".warding/admission_policy.json",
-        # Denied-command opt-out ceiling — the agent must not be able to write
-        # its own deny opt-out state (would let it disable the deny gate).
-        ".warding/denied_commands.json",
-    )
+    # The rows the manifest marks ``keystone`` (policy, profiles, admission policy,
+    # and the denied-command opt-out the agent must not write).
+    from warding import protected_manifest, security
+
+    required = tuple(protected_manifest.keystone_entries())
     sensitive = set(security._SENSITIVE_HOME_DIRS)  # noqa: SLF001 — boot integrity check
     missing = [p for p in required if p not in sensitive]
     if missing:
