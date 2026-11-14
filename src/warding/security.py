@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import parse_qs, unquote, unquote_plus, urlparse
 
-from warding.config.paths import CONFIG_DIR_NAME
+from warding.config.paths import CONFIG_DIR_NAME, DESKTOP_CONFIG_DIR_NAME
 from warding.constants import CLI_CONSOLE_STEMS
 from warding.executors import maintenance_executor
 from warding.path_forms import canonical_path_forms
@@ -4916,7 +4916,7 @@ _SENSITIVE_HOME_DIRS: list[str] = [
 # so one leaf list means a new secret is added once and covered wherever the
 # data home lives.
 #
-_DATA_HOME_PREFIXES: tuple[str, ...] = (CONFIG_DIR_NAME,)
+_DATA_HOME_PREFIXES: tuple[str, ...] = (CONFIG_DIR_NAME, DESKTOP_CONFIG_DIR_NAME)
 _DATA_HOME_SECRET_LEAVES: list[str] = [
     ".env",
     # The Notes builtin stores a GitHub Personal Access Token here so it can

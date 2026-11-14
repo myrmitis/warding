@@ -283,7 +283,12 @@ while [ -h "$SOURCE" ]; do
   [ "${SOURCE:0:1}" != "/" ] && SOURCE="$DIR/$SOURCE"
 done
 DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-exec "$DIR/python3.12" -s -m warding "$@"
+# MCP children use this launcher with a scrubbed Python environment.
+flags=(-s)
+if [[ "$OSTYPE" == darwin* ]]; then
+  flags+=(-B)
+fi
+exec "$DIR/python3.12" "${flags[@]}" -m warding "$@"
 LAUNCH
   chmod +x "$out/bin/warding"
 

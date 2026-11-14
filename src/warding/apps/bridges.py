@@ -45,7 +45,7 @@ from warding.config.loader import (
     publish_materialized_agents,
     schedule_materialized_agents_refresh,
 )
-from warding.config.paths import kiro_agents_dir
+from warding.config.paths import kiro_agents_dir, kiro_home
 from warding.cron import CronStoreBusy
 from warding.cron_script import resolve_script_path
 from warding.env import emit_env
@@ -212,9 +212,7 @@ def _global_mcp_specs() -> dict[str, Any]:
     that cannot read it neutralizes nothing rather than failing app enable.
     """
     try:
-        raw = json.loads(
-            (Path.home() / ".kiro" / "settings" / "mcp.json").read_text(encoding="utf-8")
-        )
+        raw = json.loads((kiro_home() / "settings" / "mcp.json").read_text(encoding="utf-8"))
         specs = raw.get("mcpServers")
         return dict(specs) if isinstance(specs, dict) else {}
     except FileNotFoundError:

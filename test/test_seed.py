@@ -439,8 +439,9 @@ def test_seed_main_home_rail_refuses(
     assert not target.exists()
 
 
+@pytest.mark.parametrize("home_name", [".warding", ".warding-desktop"])
 def test_seed_main_home_rail_refuses_even_with_replace(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, home_name: str
 ) -> None:
     """``--seed-replace`` does NOT override the main-home guardrail.
 
@@ -450,7 +451,7 @@ def test_seed_main_home_rail_refuses_even_with_replace(
     """
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
-    target = fake_home / ".warding"
+    target = fake_home / home_name
     target.mkdir()
     (target / "real_user_data.txt").write_text("don't delete me")
     monkeypatch.setenv("HOME", str(fake_home))

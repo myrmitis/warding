@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # ``CONFIG_DIR_NAME`` is the segment appended to ``~/`` — a POSIX-style relative
 # literal so downstream string checks (the security keystone) can match it.
 CONFIG_DIR_NAME = ".warding"
+DESKTOP_CONFIG_DIR_NAME = ".warding-desktop"
 
 # kiro-cli's own home directory name (``~/.kiro``). It holds kiro-cli's agents,
 # settings and sessions and is a different directory from Warding's data home.
@@ -86,6 +87,11 @@ def default_home_paths() -> tuple[Path, ...]:
     ``~/.warding`` is still recognized as the real home.
     """
     return (_default_home(),)
+
+
+def operator_home_paths() -> tuple[Path, ...]:
+    """Well-known live data directories excluded from destructive test setup."""
+    return (*default_home_paths(), Path.home() / DESKTOP_CONFIG_DIR_NAME)
 
 
 def _select_default_home() -> Path:
@@ -482,24 +488,8 @@ def _in_linked_git_worktree(path: Path) -> bool:
 def kiro_home() -> Path:
     """Return the kiro home (``~/.kiro``), honoring a ``KIRO_HOME`` override.
 
-    ``KIRO_HOME`` is kiro-cli's own documented override for its user-level
-    directory. Honoring it here is what lets the agents directory — the specs that
-    define which MCP servers exist — stop being unconditionally machine-wide, so a
-    non-default instance can be told to own its own copy instead of rewriting the
-    real install's (see ``agent._decline_shared_agent_home`` for what that
-    rewriting costs: managed MCP servers that read one credential while calling a
-    gateway that expects another, and 403 on every call).
-
-    SCOPE CAVEAT — read before setting this. ``KIRO_HOME`` redirects kiro-cli's
-    WHOLE user directory (agents, prompts, skills, steering, settings, sessions),
-    but Warding currently resolves the host ``~/.kiro`` for most of those readers
-    (session transcripts in ``session_map.py`` / ``acp/*`` / ``providers/acp.py``
-    / ``dashboard/handlers/usage.py``, and the ``settings/mcp.json`` registry).
-    Setting ``KIRO_HOME`` therefore moves where kiro-cli WRITES sessions without
-    moving where Warding READS them, which breaks session resume. Only the agents
-    directory follows it today, so this is not yet a supported way to isolate an
-    instance — ``build_pod_env()`` deliberately does not set it. Bringing the
-    remaining readers through this resolver is the prerequisite.
+    The packaged macOS app and pods use this override to keep agent specs,
+    sessions, and settings separate from the CLI's default Kiro home.
 
     Rejects the same unsafe targets as :func:`_valid_override_home` (a
     filesystem/drive root, or a known POSIX system directory) so a malformed

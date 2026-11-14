@@ -23,7 +23,7 @@ from warding.config.loader import (
     WardingConfig,
     _resolve_stub_servers,
 )
-from warding.config.paths import data_home, kiro_agents_dir
+from warding.config.paths import data_home, kiro_agents_dir, kiro_home
 from warding.dashboard.state import DashboardState
 from warding.env import emit_env
 from warding.loop_lock import LoopBoundLock
@@ -76,7 +76,7 @@ def _is_valid_mcp_name(name: str) -> bool:
     return bool(_VALID_MCP_NAME_RE.match(name))
 
 
-_GLOBAL_MCP_JSON = Path.home() / ".kiro" / "settings" / "mcp.json"
+_GLOBAL_MCP_JSON = kiro_home() / "settings" / "mcp.json"
 # Surface label carried into the provenance decision so a declined rewrite names
 # the file it declined to touch.
 _KIRO_GLOBAL_SURFACE = "~/.kiro/settings/mcp.json"

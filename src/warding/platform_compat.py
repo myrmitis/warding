@@ -4212,7 +4212,15 @@ def find_python_interpreter(reject: Optional[Callable[[str], bool]] = None) -> s
             # must ride the argv as ``-X utf8``, matching
             # ``dep_sync._probe_interpreter``.
             out = subprocess.check_output(
-                [p, "-I", "-X", "utf8", "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
+                [
+                    p,
+                    "-I",
+                    "-B",
+                    "-X",
+                    "utf8",
+                    "-c",
+                    "import sys; print('%d.%d' % sys.version_info[:2])",
+                ],
                 timeout=5,
                 stderr=subprocess.DEVNULL,
                 **UTF8_TEXT,

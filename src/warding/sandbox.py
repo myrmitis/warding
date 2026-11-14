@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from warding import platform_compat
-from warding.config.paths import CONFIG_DIR_NAME, config_dir
+from warding.config.paths import CONFIG_DIR_NAME, DESKTOP_CONFIG_DIR_NAME, config_dir, kiro_home
 from warding.constants import GITHUB_SLUG, WARDING_SPAWNED_ENV, WARDING_SPAWNED_VALUE
 from warding.platform import current_context
 
@@ -80,6 +80,7 @@ _STRICT_DIRS: list[str] = [
     # in ``_CC_FILES``. Without this a same-UID agent subprocess could read
     # ``.vault/.vault_key`` and decrypt the store.
     f"{CONFIG_DIR_NAME}/.vault",
+    f"{DESKTOP_CONFIG_DIR_NAME}/.vault",
 ]
 
 _STANDARD_DIRS: list[str] = [
@@ -91,6 +92,7 @@ _STANDARD_DIRS: list[str] = [
     ".docker",
     # Secret vault — hidden in every mode (see _STRICT_DIRS note above).
     f"{CONFIG_DIR_NAME}/.vault",
+    f"{DESKTOP_CONFIG_DIR_NAME}/.vault",
 ]
 
 # CC mode: hides all credential dirs including .aws, but selectively exposes
@@ -107,6 +109,7 @@ _CC_DIRS: list[str] = [
     ".kube",
     # Secret vault — hidden in every mode (see _STRICT_DIRS note above).
     f"{CONFIG_DIR_NAME}/.vault",
+    f"{DESKTOP_CONFIG_DIR_NAME}/.vault",
 ]
 
 # CC mode: files to expose read-only inside otherwise-hidden dirs.
@@ -124,6 +127,7 @@ _CC_FILES: list[str] = [
     ".git-credentials",
     # Warding's channel-credential file under the default data home.
     f"{CONFIG_DIR_NAME}/.env",
+    f"{DESKTOP_CONFIG_DIR_NAME}/.env",
 ]
 
 
@@ -182,6 +186,7 @@ _PYTHON_ENV_PREFIXES: list[str] = [
     "PYTHONPATH",
     "PYTHONHOME",
     "PYTHONPYCACHEPREFIX",
+    "PYTHONDONTWRITEBYTECODE",
 ]
 
 # Gateway-owned credentials must never reach agent-influenced subprocesses.
@@ -948,7 +953,7 @@ def _probe_unshare_via_spawn() -> tuple[bool, bool, str, str] | None:
         # by hand: the child gets only its standard streams, so an orphaned probe
         # cannot hold the gateway lock fd or the dashboard listen socket open.
         proc = subprocess.Popen(
-            [sys.executable, "-I", "-S", "-c", _PROBE_SHIM_CODE],
+            [sys.executable, "-I", "-B", "-S", "-c", _PROBE_SHIM_CODE],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -2157,9 +2162,7 @@ def _build_seatbelt_profile(
 # active per spawn, so on macOS the layers are mutually exclusive:
 # kiro's internal sandbox ON  -> Warding's seatbelt OFF for kiro-cli spawns
 # kiro's internal sandbox OFF -> Warding's seatbelt ON (unchanged default)
-# (``~/.kiro/settings`` is the kiro-cli backend's own directory, distinct from
-# Warding's data home ``~/.warding``; the filename is the literal kiro-cli ships.)
-_KIRO_INTERNAL_SETTINGS_PATH = "~/.kiro/settings/amazon-internal.json"
+_KIRO_INTERNAL_SETTINGS_PATH = "settings/amazon-internal.json"
 _KIRO_INTERNAL_SANDBOX_KEY = "sandbox"
 
 # One loud warning per process for the delegation decision (per-spawn logs
@@ -2170,8 +2173,8 @@ _kiro_delegation_warned = False
 def kiro_internal_sandbox_enabled() -> bool:
     """True when kiro-cli's own internal agent sandbox is enabled.
 
-    Reads the ``"sandbox"`` key from ``~/.kiro/settings/amazon-internal.json``
-    (kiro-cli >= 2.13). Absent file, missing key, or parse failure all return
+    Reads the ``"sandbox"`` key from ``settings/amazon-internal.json`` in the
+    Kiro home (kiro-cli >= 2.13). Absent file, missing key, or parse failure all return
     False, which keeps Warding's own sandbox engaged — failure resolves
     toward our audited isolation layer, never toward no isolation.
 
@@ -2188,7 +2191,7 @@ def kiro_internal_sandbox_enabled() -> bool:
     from warding.hooks import safe_read_file
 
     try:
-        data = json.loads(safe_read_file(_KIRO_INTERNAL_SETTINGS_PATH))
+        data = json.loads(safe_read_file(str(kiro_home() / _KIRO_INTERNAL_SETTINGS_PATH)))
         if not isinstance(data, dict):
             # Valid-but-non-object JSON ([], "str", null, 123) must also
             # resolve toward Warding's own sandbox, not raise.
@@ -2939,7 +2942,7 @@ def _warn_mode_off_unconfined(argv: list[str], is_kiro_spawn: bool) -> None:
         _warned_set.add("darwin_kiro")
         logger.warning(
             "SECURITY: agent.sandbox='off' but kiro-cli's internal sandbox is "
-            "NOT enabled (~/.kiro/settings/amazon-internal.json). Both isolation "
+            "NOT enabled in the Kiro home settings. Both isolation "
             "layers are inactive — ~/.aws, ~/.ssh and other secrets are readable "
             "by the agent subprocess and only the bypassable app-level "
             "security.py checks remain. Set agent.sandbox='auto' or enable "
@@ -3671,7 +3674,7 @@ def wrap_argv(
                     "sandbox are unaffected — they carry an isolation marker and "
                     "pass through. The usual cause is kiro-cli's internal "
                     'sandbox: set {"sandbox": false} in '
-                    "~/.kiro/settings/amazon-internal.json so Warding's own "
+                    "settings/amazon-internal.json in the Kiro home so Warding's own "
                     "profile owns isolation (that profile is the one that hides "
                     "the credential directories, so this keeps isolation rather "
                     "than weakening it), then restart the gateway. Other outer "
@@ -5205,7 +5208,8 @@ def spawn_shim_argv(profile: str = RLIMIT_PROFILE_TOOL) -> tuple[str, ...]:
         # pay ~10ms to exec a shim that would only exec again.
         _SHIM_ARGV_CACHE[key] = ()
         return ()
-    argv = [sys.executable, "-I", "-S", "-c", _SPAWN_SHIM_CODE]
+    # Isolated Python ignores the desktop gateway's PYTHONPYCACHEPREFIX.
+    argv = [sys.executable, "-I", "-B", "-S", "-c", _SPAWN_SHIM_CODE]
     if spec:
         argv.append(f"--rlimits={spec}")
     if bias:

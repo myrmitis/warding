@@ -57,7 +57,7 @@ def clean_backend(monkeypatch):
     Warding's OWN backend selection / fail-closed path — never reach the code
     they assert on. Point the settings path at a non-existent file so delegation
     is off by default; the dedicated delegation tests set
-    ``_KIRO_INTERNAL_SETTINGS_PATH`` explicitly and are unaffected.
+    ``_KIRO_INTERNAL_SETTINGS_PATH`` explicitly or restore its default.
 
     Clears ``WARDING_SANDBOX_ACTIVE`` to prevent the "already inside sandbox"
     passthrough from short-circuiting tests on hosts (like remote servers) where
@@ -65,6 +65,7 @@ def clean_backend(monkeypatch):
     passthrough set the env var explicitly.
     """
     monkeypatch.delenv("WARDING_SANDBOX_ACTIVE", raising=False)
+    settings_path = sandbox_mod._KIRO_INTERNAL_SETTINGS_PATH
     monkeypatch.setattr(
         "warding.sandbox._KIRO_INTERNAL_SETTINGS_PATH",
         "/nonexistent/warding-test/amazon-internal.json",
@@ -77,7 +78,7 @@ def clean_backend(monkeypatch):
     if hasattr(sandbox_mod._warn_mode_off_unconfined, "_info_logged"):
         delattr(sandbox_mod._warn_mode_off_unconfined, "_info_logged")
     reset_backend()
-    yield
+    yield settings_path
     reset_backend()
 
 
@@ -2070,9 +2071,21 @@ class TestKiroInternalSandboxExclusion:
             wrap_argv(["python3", "-m", "worker"], mode="auto")
         mock_sb.assert_called_once()
 
-    def test_darwin_kiro_disabled_stays_wrapped(self, tmp_path, monkeypatch):
-        """kiro sandbox OFF -> Warding's seatbelt ON (the inverse rule)."""
-        self._write_settings(tmp_path, monkeypatch, '{"sandbox": false}')
+    def test_darwin_kiro_disabled_stays_wrapped(self, tmp_path, monkeypatch, clean_backend):
+        """Keep Seatbelt when the private Kiro home disables its sandbox."""
+        home = tmp_path / "home"
+        private_kiro = home / ".warding-desktop" / "kiro"
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setenv("USERPROFILE", str(home))
+        monkeypatch.setenv("KIRO_HOME", str(private_kiro))
+        monkeypatch.setattr("warding.sandbox._KIRO_INTERNAL_SETTINGS_PATH", clean_backend)
+        for root, content in (
+            (home / ".kiro", '{"sandbox": true}'),
+            (private_kiro, '{"sandbox": false}'),
+        ):
+            settings = root / "settings" / "amazon-internal.json"
+            settings.parent.mkdir(parents=True)
+            settings.write_text(content)
         monkeypatch.setattr("warding.sandbox.sys.platform", "darwin")
         with (
             patch("warding.sandbox.detect_backend", return_value="sandbox-exec"),
