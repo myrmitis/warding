@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import ParamSpec, TypeVar
 
 from warding.acp.types import PROVIDER_LABEL_DEFAULT
+from warding.atomic_write import StoreLoad, StoreUnreadableError, load_json_store
 from warding.config.paths import config_dir, kiro_sessions_dir
 from warding.messaging.link import (
     SLACK_NAMESPACE,
@@ -200,6 +201,74 @@ class ConversationOwnershipConflict(RuntimeError):
     """
 
 
+def _normalize_entries(raw: dict) -> tuple[dict[str, dict], bool]:
+    """Turn a loaded map document into entries in the current shape.
+
+    Returns ``(entries, migrated)``. ``migrated`` is True when the document held a
+    legacy shape that the caller should write back. Pure: it reads no file.
+    """
+    migrated = False
+    new_data: dict[str, dict] = {}
+    for key, val in raw.items():
+        if isinstance(val, str):
+            # Backward compat: plain string → new dict format
+            entry: dict = {
+                "sid": val,
+                "slack_thread_ts": None,
+                "slack_channel_id": None,
+            }
+            migrated = True
+        elif isinstance(val, dict) and "sid" in val:
+            entry = val
+        else:
+            continue  # skip corrupt entries
+        # v1c: namespace bare Slack thread_ts keys → slack:<thread>,
+        # preserving sid. Keep the raw thread_ts inside the entry so the
+        # reverse index + challenge-redirect resume path are unaffected,
+        # and populate the Layer-3 own-channel link.
+        canon = canonical_key(key)
+        # Scrub a pre-release corruption signature: a ``dashboard:`` key
+        # carrying no ``slack_thread_ts`` but a ``discord:``
+        # ``slack_channel_id`` is an impossible pair. It is left by an
+        # early Discord session-resume build that ran the legacy
+        # Slack-only ``set_channel`` path on a cold resumed dashboard
+        # session; ``!unlink`` removes the Discord mirror but cannot
+        # clear these separate legacy fields, so a later resume attempt
+        # sees a phantom Slack binding. A genuine Slack link always has a
+        # thread timestamp, so scrub only this exact signature.
+        legacy_channel = entry.get("slack_channel_id")
+        if (
+            canon.startswith("dashboard:")
+            and not entry.get("slack_thread_ts")
+            and isinstance(legacy_channel, str)
+            and legacy_channel.startswith("discord:")
+        ):
+            entry.pop("slack_thread_ts", None)
+            entry.pop("slack_channel_id", None)
+            migrated = True
+        if canon != key:
+            migrated = True
+            if not entry.get("slack_thread_ts"):
+                entry["slack_thread_ts"] = key
+            if "link" not in entry:
+                entry["link"] = ChannelLink(
+                    channel_type="slack",
+                    channel_id=entry.get("slack_channel_id"),
+                    thread_id=key,
+                ).to_dict()
+        existing = new_data.get(canon)
+        if existing is not None:
+            # Collision (e.g. partially-migrated file): never clobber a
+            # live session. Overwrite ONLY when the existing entry has no
+            # sid and the incoming one does; otherwise keep existing.
+            # Order-independent — if both have a sid, the first-seen wins
+            # deterministically rather than depending on dict iteration.
+            if not (entry.get("sid") and not existing.get("sid")):
+                continue
+        new_data[canon] = entry
+    return new_data, migrated
+
+
 class SessionMap:
     """Persistent mapping of session_key → kiro-cli session ID.
 
@@ -297,6 +366,11 @@ class SessionMap:
         self._snapshot_seq = 0
         self._written_seq = 0
         self._io_lock = threading.Lock()
+        self._store_error: StoreUnreadableError | None = None
+        # (mtime_ns, size) of a file that parsed badly. None after a read error.
+        self._bad_signature: tuple[int, int] | None = None
+        # Keys removed while the store is refused. Recovery must not restore them.
+        self._refused_deletions: set[str] = set()
         self._load()
 
     @contextmanager
@@ -351,74 +425,21 @@ class SessionMap:
         themselves, and both are bounded (see the class threading contract).
         """
         self._thread_to_session = {}
-        if self._path.exists():
-            try:
-                raw = json.loads(self._path.read_text(encoding="utf-8"))
-            except (ValueError, OSError):
-                self._data = {}
-                return
-            if not isinstance(raw, dict):
-                self._data = {}
-                return
-            migrated = False
-            new_data: dict[str, dict] = {}
-            for key, val in raw.items():
-                if isinstance(val, str):
-                    # Backward compat: plain string → new dict format
-                    entry: dict = {
-                        "sid": val,
-                        "slack_thread_ts": None,
-                        "slack_channel_id": None,
-                    }
-                    migrated = True
-                elif isinstance(val, dict) and "sid" in val:
-                    entry = val
-                else:
-                    continue  # skip corrupt entries
-                # v1c: namespace bare Slack thread_ts keys → slack:<thread>,
-                # preserving sid. Keep the raw thread_ts inside the entry so the
-                # reverse index + challenge-redirect resume path are unaffected,
-                # and populate the Layer-3 own-channel link.
-                canon = canonical_key(key)
-                # Scrub a pre-release corruption signature: a ``dashboard:`` key
-                # carrying no ``slack_thread_ts`` but a ``discord:``
-                # ``slack_channel_id`` is an impossible pair. It is left by an
-                # early Discord session-resume build that ran the legacy
-                # Slack-only ``set_channel`` path on a cold resumed dashboard
-                # session; ``!unlink`` removes the Discord mirror but cannot
-                # clear these separate legacy fields, so a later resume attempt
-                # sees a phantom Slack binding. A genuine Slack link always has a
-                # thread timestamp, so scrub only this exact signature.
-                legacy_channel = entry.get("slack_channel_id")
-                if (
-                    canon.startswith("dashboard:")
-                    and not entry.get("slack_thread_ts")
-                    and isinstance(legacy_channel, str)
-                    and legacy_channel.startswith("discord:")
-                ):
-                    entry.pop("slack_thread_ts", None)
-                    entry.pop("slack_channel_id", None)
-                    migrated = True
-                if canon != key:
-                    migrated = True
-                    if not entry.get("slack_thread_ts"):
-                        entry["slack_thread_ts"] = key
-                    if "link" not in entry:
-                        entry["link"] = ChannelLink(
-                            channel_type="slack",
-                            channel_id=entry.get("slack_channel_id"),
-                            thread_id=key,
-                        ).to_dict()
-                existing = new_data.get(canon)
-                if existing is not None:
-                    # Collision (e.g. partially-migrated file): never clobber a
-                    # live session. Overwrite ONLY when the existing entry has no
-                    # sid and the incoming one does; otherwise keep existing.
-                    # Order-independent — if both have a sid, the first-seen wins
-                    # deterministically rather than depending on dict iteration.
-                    if not (entry.get("sid") and not existing.get("sid")):
-                        continue
-                new_data[canon] = entry
+        signature = self._file_signature()  # before the read, as ``_recover_store`` does
+        loaded = load_json_store(self._path, default={}, expect=dict)
+        # An unreadable map loads as empty IN MEMORY only. ``_store_error`` makes
+        # every write refuse, so the damaged file is never replaced by the empty
+        # map. ``_recover_store`` retries before a write: a read error is retried
+        # each time, and bytes that did not parse stay refused until the file changes.
+        self._store_error = loaded.error()
+        self._bad_signature = signature if loaded.unreadable and loaded.raw is not None else None
+        self._refused_deletions = set()
+        if loaded.unreadable:
+            self._data = {}
+            return
+        if loaded.status == "ok":
+            raw = loaded.data
+            new_data, migrated = _normalize_entries(raw)
             self._data = new_data
             self._rebuild_thread_index()
             if migrated:
@@ -657,6 +678,75 @@ class SessionMap:
         payload, seq = self._serialize()
         self._write_payload(payload, seq)
 
+    def _file_signature(self) -> tuple[int, int] | None:
+        """``(mtime_ns, size)`` of the map file, or ``None`` when it cannot be stat'ed."""
+        try:
+            st = self._path.stat()
+        except OSError:
+            return None
+        return st.st_mtime_ns, st.st_size
+
+    def _recover_store(self) -> bool:
+        """Retry a refused load before a write. Returns True when writes may go ahead.
+
+        A read error (``EACCES``, ``EIO``, an antivirus lock) may pass, so it is
+        retried on every write. Bytes that did not parse stay refused until the
+        file changes. The read runs WITHOUT the map lock, as the class contract
+        requires; :meth:`_adopt_recovered` merges under it.
+        """
+        if self._store_error is None:
+            return True
+        signature = self._file_signature()
+        if self._bad_signature is not None and signature == self._bad_signature:
+            return False
+        loaded = load_json_store(self._path, default={}, expect=dict)
+        return self._adopt_recovered(loaded, signature)
+
+    @_guarded
+    def _adopt_recovered(self, loaded: StoreLoad, signature: tuple[int, int] | None) -> bool:
+        """Merge a recovered load into the map. Runs under the map lock.
+
+        What the operator did while the store was refused survives, per key:
+
+        * a key removed meanwhile (unbind, expiry) stays removed: the disk entry
+          is not restored;
+        * a key set meanwhile joins the disk entry field by field. A field set
+          meanwhile wins. A blank placeholder (``""``, ``None``) never hides a
+          disk value, and a dict field (``flags``, ``agents``) merges by key;
+        * a key only on disk is adopted as it is.
+
+        A change aimed at an entry that exists only on disk (such as clearing its
+        session id) found no entry while the store was refused and did nothing.
+        """
+        if self._store_error is None:
+            return True
+        if loaded.unreadable:
+            self._store_error = loaded.error()
+            self._bad_signature = signature if loaded.raw is not None else None
+            return False
+        entries, _migrated = _normalize_entries(loaded.data)
+        for key, disk_entry in entries.items():
+            if key in self._refused_deletions:
+                continue
+            mine = self._data.get(key)
+            if mine is None:
+                self._data[key] = disk_entry
+                continue
+            merged = dict(disk_entry)
+            for field, value in mine.items():
+                if value is None or value == "":
+                    merged.setdefault(field, value)
+                elif isinstance(value, dict) and isinstance(merged.get(field), dict):
+                    merged[field] = {**merged[field], **value}
+                else:
+                    merged[field] = value
+            self._data[key] = merged
+        self._refused_deletions = set()
+        self._store_error = None
+        self._bad_signature = None
+        self._rebuild_thread_index()
+        return True
+
     def _write_payload(self, payload: str, seq: int) -> None:
         """Land one serialized snapshot atomically; refuse to regress.
 
@@ -673,6 +763,11 @@ class SessionMap:
         keeps a crash from ever leaving a truncated file: the worst case is a
         well-formed OLDER map.
         """
+        if self._store_error is not None:
+            if not self._recover_store():
+                raise self._store_error
+            # Disk entries joined the map: the payload predates them.
+            payload, seq = self._serialize()
         with self._io_lock:
             if seq <= self._written_seq:
                 return
@@ -883,6 +978,9 @@ class SessionMap:
         is announced here rather than at each caller — this is the only path by
         which a whole entry leaves the map.
         """
+        if self._store_error is not None:
+            # The entry may exist only on disk, where this load could not see it.
+            self._refused_deletions.add(key)
         entry = self._data.pop(key, None)
         if not entry:
             return
@@ -1008,6 +1106,8 @@ class SessionMap:
                 stale.append(key)
         for k in stale:
             del self._data[k]
+            if self._store_error is not None:
+                self._refused_deletions.add(k)
         if stale:
             self._rebuild_thread_index()
             self._save()

@@ -374,6 +374,8 @@ Persistent mapping of `session_key → kiro_session_id` stored at
 `~/.warding/session_map.json`. Enables `session/load` to restore full
 kiro-cli conversation history when a session is recycled.
 
+The map loads through `load_json_store`. Only a missing file is an empty map. A file that cannot be read or parsed loads as empty in memory only. The bad bytes are copied to `session_map.json.corrupt-<utc>` once (the newest 5 copies are kept), and every write raises `StoreUnreadableError`, so the file is never replaced. Before a write the map retries the load. A read error is retried each time. Bytes that did not parse stay refused until the file changes. When the load succeeds, the disk entries join the map and an entry set meanwhile wins.
+
 **Only long-lived conversational sessions are mapped.** Stateless sessions
 (cron, subagent, taskrunner, channel, side, heartbeat/background,
 `wf-pool:` warm workflow-pool workers) are excluded via `_STATELESS_PREFIXES`.

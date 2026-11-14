@@ -1,0 +1,13 @@
+{
+  "cron.py::CronService.count_enabled_from_disk": 1,
+  "cron.py::referenced_skill_names": 1,
+  "dashboard/handlers/mcp.py::_collect_server_rows": 1,
+  "dashboard/handlers/mcp.py::_launch_specs_for": 1,
+  "dashboard/handlers/mcp.py::_local_overlay_section": 1,
+  "dashboard/handlers/mcp.py::_run_mcp_probe": 1,
+  "dashboard/handlers/mcp.py::api_mcp_active": 2,
+  "dashboard/handlers/mcp.py::api_mcp_probe": 1,
+  "dashboard/handlers/mcp.py::api_mcp_servers": 1,
+  "subagent_persistence.py::prune_stale_tombstones": 1,
+  "subagent_persistence.py::read_state": 1
+}

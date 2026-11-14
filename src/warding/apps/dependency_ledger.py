@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from warding import platform_compat
-from warding.atomic_write import atomic_write
+from warding.atomic_write import atomic_write, load_json_store
 from warding.config.loader import config_dir
 
 logger = logging.getLogger(__name__)
@@ -139,15 +139,25 @@ def _locked_ledger(*, exclusive: bool = True) -> Iterator[None]:
 
 
 def _read_ledger_unlocked() -> dict[str, Any]:
-    """Read the ledger file without acquiring a lock (caller must hold lock)."""
-    path = _ledger_path()
-    if not path.is_file():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
-        logger.warning("Failed to read dependency ledger: %s", exc)
-        return {}
+    """Read the ledger for DISPLAY (caller must hold the lock).
+
+    An unreadable ledger reads as empty here, so a preview still renders. Never
+    write back what this returns: use :func:`_load_ledger_for_update`.
+    """
+    loaded = load_json_store(_ledger_path(), default={}, expect=dict)
+    return {} if loaded.unreadable else loaded.data
+
+
+def _load_ledger_for_update() -> dict[str, Any]:
+    """Read the ledger as the base of a write (caller must hold the lock).
+
+    Only a missing file is an empty ledger. A file that exists but cannot be
+    read raises :class:`StoreUnreadableError`, so the write that follows cannot
+    replace it with a ledger that lacks every other app's dependencies.
+    """
+    loaded = load_json_store(_ledger_path(), default={}, expect=dict)
+    loaded.require_writable()
+    return loaded.data
 
 
 def _write_ledger_unlocked(data: dict[str, Any]) -> None:
@@ -170,7 +180,7 @@ def record_install(dep_key: str, app_name: str, dep_type: str) -> None:
     appends the current app to ``installedBy`` (no duplicates).
     """
     with _locked_ledger():
-        ledger = _read_ledger_unlocked()
+        ledger = _load_ledger_for_update()
         entry = ledger.get(dep_key)
         if entry:
             installed_by = entry.get("installedBy", [])
@@ -193,7 +203,7 @@ def record_uninstall(dep_key: str, app_name: str) -> None:
     If the ``installedBy`` list becomes empty, the entry is deleted entirely.
     """
     with _locked_ledger():
-        ledger = _read_ledger_unlocked()
+        ledger = _load_ledger_for_update()
         entry = ledger.get(dep_key)
         if not entry:
             return
@@ -266,7 +276,7 @@ def classify_and_clean_for_uninstall(
     """
     keep = set(keep_specific or [])
     with _locked_ledger():
-        ledger = _read_ledger_unlocked()
+        ledger = _load_ledger_for_update()
         result = _classify_deps(app_name, declared_deps, ledger)
 
         # Update ledger for removable deps
