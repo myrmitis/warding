@@ -115,10 +115,103 @@ warding security events [-n 20]   # Show recent events
 warding security verify            # Verify HMAC chain integrity
 ```
 
-## Thread Safety
+## Thread and Process Safety
 
 Singleton pattern. The chain state (`_last_hash`) and the file append are
 guarded by `threading.Lock`, held only inside the writer thread (and the
 synchronous fallback / `prune`), never by enqueuing callers. Enqueue is
-lock-free via the thread-safe `queue.Queue`. Safe for concurrent access from the
-asyncio event loop + MCP server stdio processes.
+lock-free via the thread-safe `queue.Queue`.
+
+The gateway, the CLI, cron and the MCP stdio processes (`mcp_core.py`,
+`mcp_cron.py`, `cron_script.py`) all append to one log. A thread lock does not
+cover them, so every append also takes a cross-process lock.
+
+- **Chain lock.** The lock file is `security_events.d/.chain.lock`. The segment
+  directory is on the sensitive-path floor, so the audited agent cannot open the
+  file to starve the writer. The writer takes the lock through
+  `platform_compat.try_acquire_lock_strict` before `_lock`. It holds the lock
+  across "re-read the tip if the log moved, chain, append". Rotation runs inside
+  the same hold.
+- **Lock order.** Chain lock first, then `_lock`, then the rotation lock. No path
+  takes them in another order.
+- **Hold time.** An append holds the lock for one stat, one tail read and one
+  write. Rotation holds it for a bounded directory scan (`_SEGMENT_SCAN_CAP`), a
+  rename and a retention sweep. `prune` holds it only for its final swap (see
+  below), never for the full-file pass.
+- **Bounded wait.** A worker thread polls (sleeping `_CHAIN_LOCK_POLL_SECS`, 0.5
+  ms) and gives up after `_CHAIN_LOCK_TIMEOUT_SECS` (10 s). `prune` has its own
+  budget, `_CHAIN_LOCK_PRUNE_TIMEOUT_SECS` (60 s), because it runs on the
+  maintenance executor and a wait there costs nothing. A thread that runs an event
+  loop (an inline `critical=True` audit) polls with the same sub-millisecond
+  sleeps for at most `_CHAIN_LOCK_LOOP_BUDGET_SECS` (20 ms). An append holds the
+  lock for well under a millisecond, so a collision with another writer clears
+  within a few polls. 20 ms is under the 50 ms where a stall becomes visible to a
+  person. A lock still busy after the budget is not a collision, so the audit
+  fails closed. A busy lock raises `SelChainLockTimeout`, an `OSError`. A critical
+  caller denies the action. The background writer drops the batch with a warning.
+- **Busy versus broken.** `try_acquire_lock_strict` returns False only for
+  contention. Any other lock failure raises `OSError`. Only the errno values in
+  `_LOCK_UNSUPPORTED_ERRNOS` (`ENOLCK`, `ENOSYS` under a seccomp filter,
+  `EOPNOTSUPP`) mean the filesystem cannot lock. Nobody holds the lock then, so
+  waiting cannot help, and the append takes the guarded path below at once, with a
+  warning. `try_acquire_lock` keeps its old behaviour for its other callers.
+- **Fail closed, not guarded.** Everything else fails the append with the
+  original `OSError`: a resource error opening or priming the lock file
+  (`_LOCK_FILE_RESOURCE_ERRNOS`: `EMFILE`, `ENFILE`, `ENOMEM`, `ENOSPC`), any other
+  lock-call error, and a directory or FIFO planted at `.chain.lock`. Taking the
+  guarded path for those would give whoever causes them a switch that turns
+  serialization off.
+- **Unusable lock file.** A planted link that cannot be removed, or a segment
+  directory that cannot be made, takes the guarded path with a warning. It is a
+  property of the directory, not of the process. `SelChainLockTimeout` is for
+  contention only.
+- **Prune.** `prune` does its long work with no append lock:
+  - It deletes aged rotated segments without `_lock`. It reads each closed
+    segment unlocked and takes `_lock` only around the unlink. An appender that
+    holds the chain lock therefore never waits behind a read of several 32 MiB
+    files.
+  - It streams the live log's survivors to a temp file, then takes the chain
+    lock, `_lock` and the rotation lock for a short swap: check that the live log
+    is the file it read, copy the bytes appended since, `fsync` the temp file, and
+    replace the log. The wait for the rotation lock is bounded by
+    `_PRUNE_ROTATION_LOCK_TIMEOUT_SECS` (5 s), because the swap already holds the
+    other two locks. On a timeout the sweep is retried on the next run.
+  - If another process rotated the log (or renamed it before recreating it)
+    meanwhile, the swap is skipped and prune returns without error.
+  - If re-reading the chain tip fails after the replace, prune still reports the
+    removed count. The tip is marked unknown, so the next append fails closed
+    until it can be read.
+  - A prune temp file (`.sel_prune_*.tmp`) older than `_PRUNE_ORPHAN_AGE_SECS`
+    (1 h) is an orphan from a crashed prune, and the next prune deletes it.
+- **Identity guard (kept).** The append still checks the opened file's identity
+  and re-chains on a mismatch (`_LiveLogReplaced`, `_APPEND_RETRIES`,
+  `SelChainContention`). It covers a writer that does not hold the chain lock:
+  an older build during an upgrade, or a foreign replacement of the file.
+
+### Chain tip
+
+`_read_last_hash` returns `""` only for an ABSENT log, or a log with no parseable
+record. A failed read of an existing log (permission error, I/O error) raises
+`SelTipUnknown`, an `OSError`. The append then fails closed through the same
+paths as an unwritable log. It never restarts the chain from genesis. The HMAC
+chain format and the key location are unchanged.
+
+If the tip is unreadable at start-up, `_tip_known` stays False. The next append
+re-reads the tip under the chain lock and fails closed while it is unreadable.
+
+### Verified behaviour
+
+Two processes appended 500 events each at once to a fresh data home, with a
+seeded HMAC key. Before the lock, `verify_integrity` reported 410–462 of about
+1000 records off the chain, and some events were dropped with
+`SelChainContention`. After the lock, all 1000 records verify.
+
+Tests in `test/test_sel.py`: `TestCrossProcessChain` (concurrent processes,
+unreadable tip) and `TestChainLockBehaviour` (busy lock times out, lock error is
+not polled, the strict helper, a brief collision on an event-loop thread
+succeeds, a held lock fails closed within the loop budget, prune keeps late
+appends). `TestPruneAndLockHardening` covers the review fixes: the segment sweep takes no
+thread lock while reading, a vanished live log, fail-closed lock errors (`EMFILE`, `EBADF`, a
+descriptor-starved open, a planted directory), the bounded rotation-lock wait, the count after
+a failed re-anchor, `fsync` before the replace, and orphan cleanup. Not tested: Windows, Linux, rotation under concurrent processes, and
+an older build writing at the same time.

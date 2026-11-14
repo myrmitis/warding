@@ -1976,12 +1976,17 @@ class TestRotationIsSerializedAcrossProcesses:
             _fill(log, 200)
         assert held and all(held), "rotation ran without holding the cross-process lock"
 
-    def test_below_the_cap_no_cross_process_lock_is_taken(self, sel_dir, small_segments):
-        """The audit hot path must not pay for a lock it does not need."""
+    def test_below_the_cap_the_rotation_lock_is_not_taken(self, sel_dir, small_segments):
+        """An append below the cap takes the chain lock only.
+
+        Every append holds the chain lock, because two processes share one
+        chain. The rotation lock is a second lock, and an append far below
+        the cap must not open it.
+        """
         log = SecurityEventLog(base_dir=sel_dir, sync=True)
-        with patch("warding.sel.platform_compat.try_acquire_lock") as locker:
+        with patch.object(SecurityEventLog, "_open_rotation_lock", autospec=True) as rotation_lock:
             _fill(log, 3)  # nowhere near the cap
-        locker.assert_not_called()
+        rotation_lock.assert_not_called()
 
     def test_contention_defers_rotation_without_a_stale_tip(self, sel_dir, small_segments):
         """Losing the lock must not mean appending from a pre-rotation tip.
@@ -4001,3 +4006,389 @@ class TestMetadataRedaction:
         assert self.AKIA_TOKEN not in raw
         assert self.AKIA_TOKEN[:10] not in raw
         assert len(json.loads(raw.strip())["resources"]) <= _MAX_ARG_LEN
+
+
+_APPENDER = """
+import sys, time
+from pathlib import Path
+from warding.sel import SecurityEvent, SecurityEventLog
+
+base, name, count = Path(sys.argv[1]), sys.argv[2], int(sys.argv[3])
+log = SecurityEventLog(base_dir=base, sync=True)
+(base / f"ready-{name}").write_text("ok")
+while not (base / "go").exists():
+    time.sleep(0.001)
+for i in range(count):
+    log.log(
+        SecurityEvent(
+            event_id=f"{name}-{i}",
+            timestamp="2026-11-14T00:00:00+00:00",
+            event_type="tool_invocation",
+            caller_identity="mcp:test",
+            agent="warding",
+            source="mcp",
+            operation="op",
+        )
+    )
+"""
+
+
+class TestCrossProcessChain:
+    """Several processes share one log; the chain must stay one chain."""
+
+    def test_concurrent_processes_append_one_verifiable_chain(self, sel_dir):
+        import subprocess
+        import sys
+
+        procs, per_proc = 3, 150
+        # Seed the key and the chain so every child starts from an existing log.
+        seed = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(seed, 1)
+        SecurityEventLog._instance = None
+        SecurityEventLog._initialized = False
+
+        src_root = str(Path(sel_mod.__file__).resolve().parents[1])
+        env = {**os.environ, "PYTHONPATH": src_root}
+        children = [
+            subprocess.Popen(
+                [sys.executable, "-c", _APPENDER, str(sel_dir), f"p{n}", str(per_proc)],
+                env=env,
+            )
+            for n in range(procs)
+        ]
+        try:
+            deadline = time.monotonic() + 60
+            while not all((sel_dir / f"ready-p{n}").exists() for n in range(procs)):
+                assert time.monotonic() < deadline, "a child never became ready"
+                time.sleep(0.01)
+            (sel_dir / "go").write_text("go")  # release them together
+            assert [c.wait(timeout=120) for c in children] == [0] * procs
+        finally:
+            for c in children:
+                if c.poll() is None:
+                    c.kill()
+
+        verified = SecurityEventLog(base_dir=sel_dir, sync=True).verify_integrity(detailed=True)
+        assert verified.total == 1 + procs * per_proc, "an append was dropped"
+        assert verified.valid == verified.total, (
+            f"{verified.total - verified.valid} records broke the chain"
+        )
+
+    @pytest.mark.skipif(
+        os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+        reason="needs POSIX permissions that a non-root user cannot bypass",
+    )
+    def test_unreadable_tip_fails_closed_instead_of_restarting_the_chain(self, sel_dir):
+        first = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(first, 3)
+        live = sel_dir / "security_events.jsonl"
+        tip = json.loads(live.read_text(encoding="utf-8").splitlines()[-1])["entry_hash"]
+        size = live.stat().st_size
+        SecurityEventLog._instance = None
+        SecurityEventLog._initialized = False
+
+        live.chmod(0)
+        try:
+            log = SecurityEventLog(base_dir=sel_dir, sync=True)
+            with pytest.raises(sel_mod.SelTipUnknown):
+                log.log(_make_event(event_id="critical"), critical=True)
+            log.log(_make_event(event_id="best-effort"))  # swallowed, not written
+        finally:
+            live.chmod(0o600)
+        assert live.stat().st_size == size, "an append landed while the tip was unknown"
+
+        # Once the tip is readable again the chain continues; it never restarted.
+        log.log(_make_event(event_id="after"))
+        records = [json.loads(x) for x in live.read_text(encoding="utf-8").splitlines()]
+        assert records[-1]["prev_hash"] == tip
+        assert log.verify_integrity() == (4, 4)
+
+
+def _hold_chain_lock(sel_dir: Path):
+    """Take the chain lock from a separate file handle, as another process would."""
+    lock_path = sel_dir / "security_events.d" / ".chain.lock"
+    fh = open(lock_path, "a+b")
+    assert platform_compat.try_acquire_lock(fh.fileno(), exclusive=True)
+    return fh
+
+
+class TestChainLockBehaviour:
+    """The chain lock's failure modes: busy, broken, and an event-loop caller."""
+
+    def test_a_busy_lock_times_out_and_fails_closed(self, sel_dir, monkeypatch):
+        monkeypatch.setattr(sel_mod, "_CHAIN_LOCK_TIMEOUT_SECS", 0.05)
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(log, 2)
+        live = sel_dir / "security_events.jsonl"
+        size = live.stat().st_size
+
+        holder = _hold_chain_lock(sel_dir)
+        try:
+            started = time.monotonic()
+            with pytest.raises(sel_mod.SelChainLockTimeout):
+                log.log(_make_event(event_id="critical"), critical=True)
+            assert time.monotonic() - started < 5, "the wait was not bounded"
+        finally:
+            holder.close()
+        assert live.stat().st_size == size, "an append landed without the lock"
+
+        log.log(_make_event(event_id="after"))  # lock free again: the chain goes on
+        assert log.verify_integrity() == (3, 3)
+
+    def test_a_lock_error_is_not_polled_as_contention(self, sel_dir, monkeypatch):
+        """ENOLCK/ENOSYS mean nobody holds the lock: take the guarded path, no wait."""
+        monkeypatch.setattr(sel_mod, "_CHAIN_LOCK_TIMEOUT_SECS", 30.0)
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(log, 2)
+
+        def broken(fd, *, exclusive=False):
+            raise OSError(errno.ENOLCK, "No locks available")
+
+        started = time.monotonic()
+        with patch.object(platform_compat, "try_acquire_lock_strict", broken):
+            log.log(_make_event(event_id="critical"), critical=True)
+        assert time.monotonic() - started < 5, "a lock error was polled until the deadline"
+        assert log.verify_integrity() == (3, 3)
+
+    def test_the_strict_helper_separates_busy_from_error(self, sel_dir):
+        path = sel_dir / "probe.lock"
+        first = open(path, "a+b")
+        second = open(path, "a+b")
+        try:
+            assert platform_compat.try_acquire_lock_strict(first.fileno(), exclusive=True)
+            assert platform_compat.try_acquire_lock_strict(second.fileno(), exclusive=True) is False
+            platform_compat.release_lock(first.fileno())
+            closed = os.open(path, os.O_RDWR)
+            os.close(closed)
+            with pytest.raises(OSError):  # EBADF: a failed lock call, not contention
+                platform_compat.try_acquire_lock_strict(closed, exclusive=True)
+        finally:
+            first.close()
+            second.close()
+
+    def test_a_brief_collision_on_an_event_loop_thread_succeeds(self, sel_dir, monkeypatch):
+        """Another writer's sub-budget hold must not deny a critical audit."""
+        import asyncio
+
+        monkeypatch.setattr(sel_mod, "_CHAIN_LOCK_LOOP_BUDGET_SECS", 2.0)  # CI-load slack
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(log, 1)
+
+        async def collide():
+            holder = _hold_chain_lock(sel_dir)
+            releaser = threading.Timer(0.01, holder.close)  # closing drops the flock
+            releaser.start()
+            try:
+                log.log(_make_event(event_id="critical"), critical=True)
+            finally:
+                releaser.join()
+
+        asyncio.run(collide())
+        assert log.verify_integrity() == (2, 2)
+
+    def test_a_held_lock_fails_closed_within_the_loop_budget(self, sel_dir, monkeypatch):
+        """The loop is never held for the long wait: it gives up at its own budget."""
+        import asyncio
+
+        monkeypatch.setattr(sel_mod, "_CHAIN_LOCK_TIMEOUT_SECS", 30.0)
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(log, 1)
+        live = sel_dir / "security_events.jsonl"
+        size = live.stat().st_size
+        elapsed: list[float] = []
+
+        async def held():
+            holder = _hold_chain_lock(sel_dir)
+            try:
+                started = time.monotonic()
+                with pytest.raises(sel_mod.SelChainLockTimeout):
+                    log.log(_make_event(event_id="busy"), critical=True)
+                elapsed.append(time.monotonic() - started)
+            finally:
+                holder.close()
+
+        asyncio.run(held())
+        # The budget is 20 ms; the ceiling leaves room for a loaded CI runner while
+        # staying far below the 30 s worker wait.
+        assert elapsed[0] < 1.0, f"the loop thread waited {elapsed[0]:.3f}s"
+        assert live.stat().st_size == size, "an append landed without the lock"
+
+    def test_prune_streams_without_the_chain_lock_and_keeps_late_appends(self, sel_dir):
+        """A slow prune must not make appenders wait, and must not lose their records."""
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        old = datetime.now(tz=timezone.utc) - timedelta(days=400)
+        for i in range(3):
+            log.log(_make_event(event_id=f"old{i}", timestamp=(old + timedelta(seconds=i)).isoformat()))
+        _fill_now = datetime.now(tz=timezone.utc)
+        for i in range(3):
+            log.log(
+                _make_event(
+                    event_id=f"new{i}", timestamp=(_fill_now + timedelta(seconds=i)).isoformat()
+                )
+            )
+
+        real_stream = SecurityEventLog._prune_live_stream
+        seen = {}
+
+        def stream_then_append(self_, cutoff):
+            result = real_stream(self_, cutoff)
+            probe = _hold_chain_lock(sel_dir)  # free: prune holds nothing while streaming
+            probe.close()
+            seen["lock_free"] = True
+            # An append that lands after the stream pass must survive the swap.
+            self_.log(_make_event(event_id="late", timestamp=_fill_now.isoformat()))
+            return result
+
+        with patch.object(SecurityEventLog, "_prune_live_stream", stream_then_append):
+            assert log.prune(keep_days=365) == 3
+        assert seen.get("lock_free")
+        ids = [
+            json.loads(x)["event_id"]
+            for x in (sel_dir / "security_events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        assert ids == ["new0", "new1", "new2", "late"]
+
+
+def _seed_old_and_new(log: SecurityEventLog, old_count: int = 3, new_count: int = 3) -> None:
+    old = datetime.now(tz=timezone.utc) - timedelta(days=400)
+    now = datetime.now(tz=timezone.utc)
+    for i in range(old_count):
+        log.log(_make_event(event_id=f"old{i}", timestamp=(old + timedelta(seconds=i)).isoformat()))
+    for i in range(new_count):
+        log.log(_make_event(event_id=f"new{i}", timestamp=(now + timedelta(seconds=i)).isoformat()))
+
+
+class TestPruneAndLockHardening:
+    """Review fixes: no long read under the thread lock, bounded waits, fail-closed errors."""
+
+    def test_the_segment_sweep_reads_without_the_thread_lock(self, sel_dir, small_segments):
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(log, 300)  # rotates into several closed segments, all older than a day
+        assert log._segments_oldest_first(), "precondition: rotation happened"
+        free: list[bool] = []
+        real = SecurityEventLog._newest_timestamp
+
+        def watching(self_, path):
+            got = self_._lock.acquire(blocking=False)
+            free.append(got)
+            if got:
+                self_._lock.release()
+            return real(self_, path)
+
+        with patch.object(SecurityEventLog, "_newest_timestamp", watching):
+            assert log.prune(keep_days=1) > 0
+        assert free and all(free), "a segment was read while holding the thread lock"
+
+    def test_prune_returns_when_the_live_log_is_renamed_away(self, sel_dir):
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)  # no log file exists yet
+        assert log._prune_live_stream(datetime.now(tz=timezone.utc)) is None
+        assert list(sel_dir.glob(".sel_prune_*.tmp")) == [], "left a temp file behind"
+
+    @pytest.mark.parametrize("code", [errno.EMFILE, errno.EBADF])
+    def test_a_lock_call_error_that_is_not_unsupported_fails_closed(self, sel_dir, code):
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(log, 1)
+        live = sel_dir / "security_events.jsonl"
+        size = live.stat().st_size
+
+        def failing(fd, *, exclusive=False):
+            raise OSError(code, "lock call failed")
+
+        with patch.object(platform_compat, "try_acquire_lock_strict", failing):
+            with pytest.raises(OSError) as raised:
+                log.log(_make_event(event_id="critical"), critical=True)
+        assert raised.value.errno == code
+        assert live.stat().st_size == size, "appended without the lock"
+
+    def test_running_out_of_descriptors_opening_the_lock_fails_closed(self, sel_dir):
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(log, 1)
+        live = sel_dir / "security_events.jsonl"
+        size = live.stat().st_size
+
+        def no_fds(*args, **kwargs):
+            raise OSError(errno.EMFILE, "Too many open files")
+
+        with patch.object(sel_mod, "open", no_fds, create=True):
+            with pytest.raises(OSError) as raised:
+                log.log(_make_event(event_id="critical"), critical=True)
+        assert raised.value.errno == errno.EMFILE
+        assert live.stat().st_size == size
+
+    def test_a_directory_planted_at_the_lock_path_fails_closed(self, sel_dir):
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(log, 1)
+        lock_path = sel_dir / "security_events.d" / ".chain.lock"
+        lock_path.unlink()
+        lock_path.mkdir()
+        live = sel_dir / "security_events.jsonl"
+        size = live.stat().st_size
+        with pytest.raises(OSError):
+            log.log(_make_event(event_id="critical"), critical=True)
+        assert live.stat().st_size == size, "appended with serialization switched off"
+
+    def test_prune_gives_up_on_a_held_rotation_lock_instead_of_waiting(
+        self, sel_dir, monkeypatch
+    ):
+        monkeypatch.setattr(sel_mod, "_PRUNE_ROTATION_LOCK_TIMEOUT_SECS", 0.05)
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _seed_old_and_new(log)
+        live = sel_dir / "security_events.jsonl"
+        before = live.read_text(encoding="utf-8")
+        rotate_lock = open(sel_dir / "security_events.d" / ".rotate.lock", "a+b")
+        assert platform_compat.try_acquire_lock(rotate_lock.fileno(), exclusive=True)
+        try:
+            started = time.monotonic()
+            assert log.prune(keep_days=365) == 0
+            assert time.monotonic() - started < 10, "prune waited without a bound"
+        finally:
+            rotate_lock.close()
+        assert live.read_text(encoding="utf-8") == before, "swept without the rotation lock"
+        log.log(_make_event(event_id="after"))  # the chain lock was released
+        assert not list(sel_dir.glob(".sel_prune_*.tmp")), "left its temp file behind"
+
+    def test_prune_reports_its_count_when_re_anchoring_fails_after_the_replace(self, sel_dir):
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _seed_old_and_new(log)
+
+        def tip_unreadable(self_):
+            raise sel_mod.SelTipUnknown("tip unreadable")
+
+        with patch.object(SecurityEventLog, "_reanchor_now", tip_unreadable):
+            assert log.prune(keep_days=365) == 3
+        ids = [
+            json.loads(x)["event_id"]
+            for x in (sel_dir / "security_events.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        assert ids == ["new0", "new1", "new2"]
+
+    def test_prune_syncs_the_survivors_before_the_replace(self, sel_dir):
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _seed_old_and_new(log)
+        order: list[str] = []
+        real_fsync, real_replace = os.fsync, os.replace
+
+        def fsync(fd):
+            order.append("fsync")
+            return real_fsync(fd)
+
+        def replace(src, dst):
+            order.append("replace")
+            return real_replace(src, dst)
+
+        with patch.object(sel_mod.os, "fsync", fsync), patch.object(sel_mod.os, "replace", replace):
+            assert log.prune(keep_days=365) == 3
+        assert "fsync" in order and order.index("fsync") < order.index("replace")
+
+    def test_the_next_prune_removes_an_old_orphan_temp_file_only(self, sel_dir):
+        log = SecurityEventLog(base_dir=sel_dir, sync=True)
+        _fill(log, 1)
+        old = sel_dir / ".sel_prune_old.tmp"
+        young = sel_dir / ".sel_prune_young.tmp"
+        old.write_text("x", encoding="utf-8")
+        young.write_text("x", encoding="utf-8")
+        long_ago = time.time() - 2 * sel_mod._PRUNE_ORPHAN_AGE_SECS
+        os.utime(old, (long_ago, long_ago))
+        log.prune(keep_days=365)
+        assert not old.exists(), "a crashed prune's temp file was never cleaned"
+        assert young.exists(), "removed a temp file a live prune might be streaming"

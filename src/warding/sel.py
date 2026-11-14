@@ -25,6 +25,7 @@ Retention: configurable, default 365 days.
 
 from __future__ import annotations
 
+import asyncio
 import atexit
 import errno
 import hashlib
@@ -37,6 +38,7 @@ import re
 import stat
 import tempfile
 import threading
+import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -97,6 +99,49 @@ _SEGMENT_NAME_RE = re.compile(
 # let it suppress rotation and bring back the unbounded growth. Not a segment
 # name, so _segments_oldest_first() never sees it and retention never deletes it.
 _ROTATE_LOCK_FILE = ".rotate.lock"
+# Cross-process chain lock: a sidecar in the segment directory. Every append holds
+# it across "read the tip, chain, write", so two processes cannot both chain off
+# the same tip. It is a separate file because rotation and prune replace the live
+# log, and a lock on the log's own inode would not survive that. The segment
+# directory is on the sensitive-path floor (``security._SENSITIVE_HOME_DIRS``).
+_CHAIN_LOCK_FILE = ".chain.lock"
+# Longest a worker thread waits for the chain lock before it fails closed. An
+# append holds it for one stat, one tail read and one write, so a wait this long
+# means a wedged holder. A thread that runs an event loop (an inline
+# ``critical=True`` audit can land there) waits at most _CHAIN_LOCK_LOOP_BUDGET_SECS.
+_CHAIN_LOCK_TIMEOUT_SECS = 10.0
+# Prune's own budget. It runs on the maintenance executor, never on a loop, and
+# takes the lock only for its final swap, so it can afford to queue behind a
+# rotation without that wait counting against an append.
+_CHAIN_LOCK_PRUNE_TIMEOUT_SECS = 60.0
+_CHAIN_LOCK_POLL_SECS = 0.0005
+# Total a thread that runs an event loop may spend waiting for the chain lock, in
+# short sleeps of _CHAIN_LOCK_POLL_SECS. An append holds the lock for well under a
+# millisecond (one stat, one tail read, one write), so a collision between writers
+# clears within a few polls and 20 ms covers dozens of back-to-back holds. It is
+# also under the 50 ms where a stall becomes visible to a person, and a fifth of
+# asyncio's 100 ms slow-callback threshold. A holder still there after 20 ms is not
+# a collision, so the append fails closed. The long wait stays on worker threads.
+_CHAIN_LOCK_LOOP_BUDGET_SECS = 0.020
+# Lock-call errno values that mean "this filesystem or sandbox cannot lock": no
+# locks left (ENOLCK), the call is filtered or missing (ENOSYS), or the filesystem
+# does not support it (EOPNOTSUPP). Nobody holds the lock and nobody ever can, so
+# these alone take the guarded no-lock path. Any other lock failure (EBADF, EINTR,
+# a resource error) fails closed.
+_LOCK_UNSUPPORTED_ERRNOS = frozenset({errno.ENOLCK, errno.ENOSYS, errno.EOPNOTSUPP})
+# Opening or priming the lock file failed for want of a resource: descriptors,
+# memory or space. The process is starved, not the filesystem, and an attacker who
+# can exhaust descriptors must not be able to switch serialization off. Fail closed.
+_LOCK_FILE_RESOURCE_ERRNOS = frozenset(
+    {errno.EMFILE, errno.ENFILE, errno.ENOMEM, errno.ENOSPC}
+)
+# How long prune's swap waits for the rotation lock. It holds the chain lock and
+# ``_lock`` while it waits, so the wait must be short; a holder that outlasts it is
+# an older build that is wedged, and the sweep is retried on the next run.
+_PRUNE_ROTATION_LOCK_TIMEOUT_SECS = 5.0
+# An unreferenced prune temp file older than this is an orphan from a crashed
+# prune. A live prune finishes in seconds, so an hour cannot hit a running one.
+_PRUNE_ORPHAN_AGE_SECS = 3600.0
 # Ceiling on entries examined when enumerating segments. Rotation itself keeps at
 # most _SEGMENT_KEEP + 1 files there, so a larger directory is someone else's
 # doing; the walk runs on the append path (where a critical audit is written
@@ -136,6 +181,42 @@ class SelChainContention(OSError):
 
     Reaching this needs a foreign write to land between our chaining and our open
     on every one of ``_APPEND_RETRIES + 1`` attempts.
+    """
+
+
+class _StagedPrune(NamedTuple):
+    """A prune's survivors, streamed to a temp file before any append lock is taken."""
+
+    tmp_path: str
+    identity: tuple[int, int]  # (st_dev, st_ino) of the log that was read
+    consumed: int  # bytes of that log already copied; the swap copies the rest
+    removed: int
+
+
+class SelChainLockTimeout(OSError):
+    """Another process held the chain lock for the whole wait.
+
+    Raised only on CONTENTION: the lock was busy until the deadline, or busy on a
+    thread that runs an event loop (which waits at most 20 ms). An
+    ``OSError`` for the same reason as :class:`SelChainContention`: this class
+    already answers an audit that cannot be written. A ``critical=True`` caller
+    denies the action, and the background writer drops the batch with a warning.
+    The append never runs on a lock another process holds.
+
+    It is NOT raised when the lock cannot be used at all (an unopenable lock file,
+    or a lock call that fails with ``ENOLCK`` or ``ENOSYS``). Nobody holds the lock
+    then, so the append takes the guarded fallback described in
+    :meth:`SecurityEventLog._chain_lock`.
+    """
+
+
+class SelTipUnknown(OSError):
+    """The chain tip of an EXISTING live log could not be read.
+
+    "Tip unknown" is not "empty log". Reading a failed tip as genesis would
+    restart the HMAC chain inside a file that already holds records. Only an
+    ABSENT log starts a new chain. An ``OSError`` so the append fails closed
+    through the paths that already handle an unwritable log.
     """
 
 
@@ -379,7 +460,23 @@ class SecurityEventLog:
         # thread and by synchronous fallbacks / prune, never by enqueuing callers).
         self._lock = threading.Lock()
         self._hmac_key = self._load_or_create_hmac_key()
-        self._last_hash = self._read_last_hash()
+        # ``_tip_known`` is False while the tip of an existing log is unreadable.
+        # The next append re-reads it under the chain lock and fails closed if it
+        # still cannot, instead of chaining off genesis.
+        self._tip_known = True
+        # One prune at a time; ``_prune_staged`` hands the streamed survivors to the
+        # swap step, which runs under the append locks.
+        self._prune_mutex = threading.Lock()
+        self._prune_staged: _StagedPrune | None = None
+        self._last_hash = ""
+        try:
+            self._last_hash = self._read_last_hash()
+        except SelTipUnknown:
+            self._tip_known = False
+            logger.warning(
+                "SEL: chain tip unreadable at startup; appends fail closed until it is",
+                exc_info=True,
+            )
         # Identity of the live log as of our last observation, so a replacement
         # by another process (its rotation) is detected before we chain off a tip
         # that has moved into the closed segment. Seeded here because
@@ -551,40 +648,59 @@ class SecurityEventLog:
                     list(event.metadata),
                 )
             event.metadata = redacted
+        try:
+            self._dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            if raise_on_error:
+                raise
+            logger.warning("SEL dir create failed for %d events", len(events), exc_info=True)
+            return
         callback: Callable[[dict], None] | None
-        with self._lock:
-            try:
-                self._dir.mkdir(parents=True, exist_ok=True)
-            except OSError:
-                if raise_on_error:
-                    raise
-                logger.warning("SEL dir create failed for %d events", len(events), exc_info=True)
-                return
-            # Close the live log first when it is already at the size cap, so
-            # this batch lands in a fresh segment, and keep the cross-process
-            # rotation lock held across our own chain + append (see
-            # _rotation_window). Rotation is best-effort and never raises: a
-            # rotation that cannot happen must not stop the audit record it
-            # precedes from being written.
-            with self._rotation_window() if self._may_rotate() else _no_rotation():
-                # Remember the chain tip so we can roll back if the append
-                # fails: we advance _last_hash per event below, but nothing is
-                # persisted until the write() succeeds. Without the rollback, a
-                # failed write would leave _last_hash pointing at a phantom hash
-                # never on disk, and the next batch would chain off it —
-                # silently corrupting the HMAC chain (verify_integrity would
-                # then report a break). Read INSIDE the window: rotation resets
-                # the tip to genesis, and rolling back to a pre-rotation tip
-                # would chain this batch off a record in a different segment.
-                try:
-                    self._append_chained_locked(events)
-                except OSError:
-                    if raise_on_error:
-                        raise
-                    logger.warning(
-                        "SEL append failed for %d events", len(events), exc_info=True
-                    )
-            callback = self._forward_callback
+        try:
+            # Lock order is fixed: the cross-process chain lock first, then the
+            # thread lock. Several processes share this log and ``_lock`` only
+            # covers threads, so without the chain lock two processes read the
+            # same tip and fork the chain.
+            with self._chain_lock(), self._lock:
+                # Close the live log first when it is already at the size cap, so
+                # this batch lands in a fresh segment. Rotation is best-effort and
+                # never raises: a rotation that cannot happen must not stop the
+                # audit record it precedes from being written. The chain lock
+                # already serializes our rotation with every other appender; the
+                # rotation lock stays for prune and for builds that predate the
+                # chain lock (see _rotation_window).
+                rotating = self._may_rotate()
+                with self._rotation_window() if rotating else _no_rotation():
+                    # Remember the chain tip so we can roll back if the append
+                    # fails: we advance _last_hash per event below, but nothing is
+                    # persisted until the write() succeeds. Without the rollback,
+                    # a failed write would leave _last_hash pointing at a phantom
+                    # hash never on disk, and the next batch would chain off it —
+                    # silently corrupting the HMAC chain (verify_integrity would
+                    # then report a break). Read INSIDE the window: rotation resets
+                    # the tip to genesis, and rolling back to a pre-rotation tip
+                    # would chain this batch off a record in a different segment.
+                    try:
+                        if not rotating:
+                            # The rotation window does this stat itself. Without
+                            # it, a tip another process advanced is caught only by
+                            # the append guard, one wasted attempt later.
+                            self._reanchor_if_replaced()
+                        self._append_chained_locked(events)
+                    except OSError:
+                        if raise_on_error:
+                            raise
+                        logger.warning(
+                            "SEL append failed for %d events", len(events), exc_info=True
+                        )
+                callback = self._forward_callback
+        except OSError:
+            # The chain lock timed out, or the rotation window could not read the
+            # tip. Nothing was chained or written. Fail closed like a failed append.
+            if raise_on_error:
+                raise
+            logger.warning("SEL append failed for %d events", len(events), exc_info=True)
+            return
         if callback:
             for event in events:
                 self._forward_event(callback, event)
@@ -592,14 +708,17 @@ class SecurityEventLog:
     def _append_chained_locked(self, events: list[SecurityEvent]) -> None:
         """Chain *events* onto the live log, re-chaining if it moves under us.
 
-        Caller holds ``_lock``. The tip is rolled back on any failure so a
-        record never chains off a hash that was not persisted.
+        Caller holds the chain lock and ``_lock``. The tip is rolled back on any
+        failure so a record never chains off a hash that was not persisted.
 
-        The retry exists because the append is deliberately lock-free (a blocking
-        cross-process acquire on this path could park an event-loop caller writing
-        a critical audit). Instead of serializing, the append VALIDATES the file it
-        opened and re-chains when another process moved it on — see
-        :meth:`_append_lines_locked`.
+        The chain lock already stops a cooperating process from moving the log
+        between our tip read and our write. The retry stays as the guard for a
+        writer that does not hold it (a build that predates the lock, or a
+        foreign replacement of the file): the append VALIDATES the file it opened
+        and re-chains when the file moved on — see :meth:`_append_lines_locked`.
+
+        A tip that is not known (:class:`SelTipUnknown`) is re-read first and the
+        append fails closed if it still cannot be read.
 
         EVERY attempt is validated, including the last. When the retries are
         exhausted the batch is NOT written; :class:`SelChainContention` is raised.
@@ -622,6 +741,8 @@ class SecurityEventLog:
         to audit, and the background writer treats it exactly as it already treats
         a full disk.
         """
+        if not self._tip_known:
+            self._reanchor_now()  # raises SelTipUnknown while the tip is unreadable
         for attempt in range(_APPEND_RETRIES + 1):
             prev_last_hash = self._last_hash
             lines = self._chain_locked(events)
@@ -673,9 +794,9 @@ class SecurityEventLog:
         When given, the file actually opened is validated BY FD before anything is
         written, and :class:`_LiveLogReplaced` is raised if it is a different file.
 
-        This is what makes a lock-free append safe against a concurrent rotation,
-        and why the check is on the FD rather than on the path. Two outcomes, both
-        correct:
+        This is what keeps an append safe against a writer that does not hold the
+        chain lock (a rotation by a build that predates it). It is also why the
+        check is on the FD rather than on the path. Two outcomes, both correct:
 
         * the rename has NOT happened yet -- we hold the old inode, the identity
           matches, we write, and the winner's rename carries our record into the
@@ -1011,12 +1132,11 @@ class SecurityEventLog:
         Skipping on contention does NOT leave the loser appending from a stale
         tip, which is the reason the lock spans the append at all: the contended
         path re-checks the live log's identity and re-anchors the tip immediately
-        before the caller chains (see :meth:`_reanchor_if_replaced`). A rotation
-        that lands between that check and the append is the residual, and it is
-        the pre-existing cross-process interleaving race rather than an
-        escalation of it -- closing THAT means holding a cross-process lock
-        across every audit write, which is both the event-loop hazard above and
-        the hot-path cost of an audit write.
+        before the caller chains (see :meth:`_reanchor_if_replaced`). The caller
+        also holds the chain lock (see :meth:`_chain_lock`) across every audit
+        write, so no cooperating process rotates or appends between that check
+        and the append. This rotation lock only orders rotation against prune
+        and against builds that predate the chain lock.
 
         Every failure -- an uncreatable/planted segment dir, a planted or
         unopenable lock file -- yields WITHOUT rotating so the audit record still
@@ -1056,29 +1176,62 @@ class SecurityEventLog:
         SEL trust dir -- the link is removed, never its target -- and if the link
         cannot be removed we decline to rotate rather than open through it.
         """
-        lock_path = self._segment_dir / _ROTATE_LOCK_FILE
+        return self._open_lock_file(
+            self._segment_dir / _ROTATE_LOCK_FILE, "rotation lock", "refusing to rotate"
+        )
+
+    def _open_lock_file(
+        self, lock_path: Path, name: str, refusal: str, *, strict: bool = False
+    ) -> IO[bytes] | None:
+        """Open a SEL mutex file, refusing a planted link. ``None`` if unusable.
+
+        Shared by the rotation lock and the chain lock. *name* and *refusal* only
+        shape the log lines. Callers decide what an unusable lock means: rotation
+        skips, an append takes the guarded path.
+
+        With ``strict`` two causes are NOT "unusable" and raise ``OSError`` instead
+        of returning ``None``: a path that holds something other than a regular
+        file (a directory or FIFO planted there), and a resource error from the open
+        or the priming write (``_LOCK_FILE_RESOURCE_ERRNOS``). Returning ``None``
+        for those would let whoever causes them switch serialization off.
+        """
         if platform_compat.is_link_or_junction(lock_path):
             logger.warning(
-                "SEL rotation lock %s is a symlink/junction — removing the link "
+                "SEL %s %s is a symlink/junction — removing the link "
                 "(planted before upgrade?)",
+                name,
                 lock_path,
             )
             try:
                 platform_compat.unlink_link_or_junction(lock_path)
             except OSError:
                 logger.warning(
-                    "cannot remove linked SEL rotation lock %s; refusing to rotate "
+                    "cannot remove linked SEL %s %s; %s "
                     "rather than open through the link",
+                    name,
                     lock_path,
+                    refusal,
                     exc_info=True,
                 )
                 return None
+        if strict:
+            try:
+                mode = os.lstat(lock_path).st_mode
+            except FileNotFoundError:
+                pass
+            else:
+                if not stat.S_ISREG(mode):
+                    raise OSError(
+                        errno.EINVAL, f"SEL {name} path is not a regular file", str(lock_path)
+                    )
         try:
             # "a+b": msvcrt.locking needs a writable fd and locks a byte range,
             # so the file must be non-empty (same shape as metrics retention).
             lock_fh = open(lock_path, "a+b")
-        except OSError:
-            logger.warning("SEL rotation lock %s could not be opened", lock_path, exc_info=True)
+        except OSError as exc:
+            if strict and exc.errno in _LOCK_FILE_RESOURCE_ERRNOS:
+                raise
+            logger.warning("SEL %s %s could not be opened", name, lock_path, exc_info=True)
             return None
         try:
             lock_fh.seek(0, os.SEEK_END)
@@ -1086,14 +1239,123 @@ class SecurityEventLog:
                 lock_fh.write(b"\0")
                 lock_fh.flush()
             try:
-                os.chmod(lock_path, 0o600)  # lockdown-ok: the rotation lock holds no data (a single NUL byte), so there is no payload to expose
+                os.chmod(lock_path, 0o600)  # lockdown-ok: a lock file holds no data (a single NUL byte), so there is no payload to expose
             except OSError:
                 pass  # perms are hygiene here; the file holds no data
-        except OSError:
+        except OSError as exc:
             lock_fh.close()
-            logger.warning("SEL rotation lock %s could not be primed", lock_path, exc_info=True)
+            if strict and exc.errno in _LOCK_FILE_RESOURCE_ERRNOS:
+                raise
+            logger.warning("SEL %s %s could not be primed", name, lock_path, exc_info=True)
             return None
         return lock_fh
+
+    @contextmanager
+    def _chain_lock(self, timeout: float | None = None) -> Iterator[None]:
+        """Hold the cross-process chain lock across "read tip, chain, append".
+
+        Takes the lock on a sidecar file through the ``platform_compat`` helpers,
+        BEFORE ``_lock``. It is a separate file from the log because rotation and
+        prune replace the log. It lives inside the segment directory, which is on
+        the sensitive-path floor, so the audited agent cannot open the file and
+        hold the lock to starve the writer.
+
+        Never waits forever, and never holds an event loop for long. On a worker
+        thread the acquire polls until *timeout*. On a thread that runs an event
+        loop (an inline ``critical=True`` audit) it polls in sub-millisecond sleeps
+        for at most ``_CHAIN_LOCK_LOOP_BUDGET_SECS`` (20 ms): enough to ride out a
+        collision with another writer, short of a stall a person would see. A lock
+        still busy at the deadline raises :class:`SelChainLockTimeout`, and the
+        append never runs on a lock another process holds.
+
+        Two cases are NOT contention and take the guarded fallback instead (the
+        identity check and re-chain in :meth:`_append_chained_locked`, with a
+        warning, and no wait):
+
+        * the lock file cannot be made safe to open (a planted link that cannot be
+          removed, an unwritable directory);
+        * the lock call fails with one of ``_LOCK_UNSUPPORTED_ERRNOS`` (``ENOLCK``,
+          ``ENOSYS`` under a seccomp filter, ``EOPNOTSUPP``): the filesystem cannot
+          lock. Nobody holds the lock, so polling would only wait out the deadline
+          and then deny every audit.
+
+        Everything else fails closed: a resource error (``EMFILE``, ``ENFILE``,
+        ``ENOMEM``, ``ENOSPC``), any other lock-call error, and a directory or FIFO
+        planted at the lock path. Letting those through would give an attacker who
+        can exhaust descriptors, or plant a non-file, a switch that turns
+        serialization off.
+
+        The hold is one stat, one tail read and one write for an append. Rotation
+        holds it across a bounded directory scan, a rename and a retention sweep.
+        Prune holds it only for its final swap, with its own larger *timeout*.
+
+        A fresh file handle per acquire is deliberate: ``flock`` locks belong to
+        the open file description, so threads that shared one handle would not
+        exclude each other.
+        """
+        if timeout is None:
+            timeout = _CHAIN_LOCK_TIMEOUT_SECS
+        lock_fh = (
+            self._open_lock_file(
+                self._segment_dir / _CHAIN_LOCK_FILE,
+                "chain lock",
+                "appending without it",
+                strict=True,
+            )
+            if self._ensure_segment_dir()
+            else None
+        )
+        if lock_fh is None:
+            self._warn_chain_lock_unavailable()
+            yield
+            return
+        try:
+            fd = lock_fh.fileno()
+            held = False
+            try:
+                self._acquire_chain_lock(fd, timeout)
+                held = True
+            except SelChainLockTimeout:
+                raise
+            except OSError as exc:
+                if exc.errno not in _LOCK_UNSUPPORTED_ERRNOS:
+                    raise  # a resource or programming error: fail closed
+                logger.warning("SEL chain lock call unsupported here", exc_info=True)
+                self._warn_chain_lock_unavailable()
+            try:
+                yield
+            finally:
+                if held:
+                    platform_compat.release_lock(fd)
+        finally:
+            lock_fh.close()
+
+    @staticmethod
+    def _warn_chain_lock_unavailable() -> None:
+        logger.warning(
+            "SEL chain lock unavailable; appending without cross-process "
+            "serialization (the identity guard still re-chains on a collision)"
+        )
+
+    @staticmethod
+    def _acquire_chain_lock(fd: int, timeout: float) -> None:
+        """Take the lock on *fd* or raise. ``OSError`` that is not busy propagates."""
+        try:
+            asyncio.get_running_loop()
+            on_loop = True
+        except RuntimeError:
+            on_loop = False
+        if on_loop:
+            timeout = min(timeout, _CHAIN_LOCK_LOOP_BUDGET_SECS)
+        deadline = time.monotonic() + timeout
+        while not platform_compat.try_acquire_lock_strict(fd, exclusive=True):
+            if time.monotonic() >= deadline:
+                where = "on an event-loop thread " if on_loop else ""
+                raise SelChainLockTimeout(
+                    f"SEL chain lock not acquired {where}within {timeout:g}s "
+                    "(another writer holds it); refusing to append unserialized"
+                )
+            time.sleep(_CHAIN_LOCK_POLL_SECS)
 
     def _may_rotate(self) -> bool:
         """Whether the CURRENT thread is allowed to do rotation's filesystem work.
@@ -1155,10 +1417,9 @@ class SecurityEventLog:
         reports it (a fresh file gets a new inode), and is skipped when either
         side reports 0 — some Windows filesystems do not supply a file index.
 
-        The residual after this is the pre-existing one: a rotation landing
-        between this stat and our append. Closing THAT means holding a
-        cross-process lock across every audit write, which is the hot-path cost
-        of an audit write, so it stays measured rather than paid for here.
+        The chain lock closes the window between this stat and our append for
+        every process that holds it. The identity guard in the append covers a
+        writer that does not.
         """
         identity = self._live_identity()
         previous = self._live_seen
@@ -1168,7 +1429,7 @@ class SecurityEventLog:
                 "SEL live log moved on since our last write (another process "
                 "rotated or appended); re-reading the chain tip before appending"
             )
-            self._last_hash = self._read_last_hash()
+            self._load_tip()
         return identity[2]
 
     def _reanchor_now(self) -> None:
@@ -1183,7 +1444,18 @@ class SecurityEventLog:
         wrote it. Both now share one predicate, and this path skips it entirely.
         """
         self._live_seen = self._live_identity()
+        self._load_tip()
+
+    def _load_tip(self) -> None:
+        """Re-read the live log's chain tip into ``_last_hash``, or mark it unknown.
+
+        ``_tip_known`` is False from before the read until it succeeds, so a
+        :class:`SelTipUnknown` leaves the cached tip untrusted. The next append
+        re-reads it and fails closed while it is unreadable.
+        """
+        self._tip_known = False
         self._last_hash = self._read_last_hash()
+        self._tip_known = True
 
     def _ensure_segment_dir(self) -> bool:
         """Create the segment dir (owner-only), refusing a planted link.
@@ -1255,7 +1527,7 @@ class SecurityEventLog:
             # chain this process's next batch off a record in a different file.
             # Re-anchor on the live log we are about to append to — safe to trust
             # because the caller holds the lock across that append.
-            self._last_hash = self._read_last_hash()
+            self._load_tip()
             return
         target = self._next_segment_path()
         if target is None:
@@ -1506,7 +1778,7 @@ class SecurityEventLog:
         permission problem on one file would quietly eat the evidence behind it.
         Stopping leaves the count over budget until the obstruction clears, which
         is the safe direction, and the next rotation retries. Matches
-        :meth:`_prune_segments_locked`, which already stops for the same reason.
+        :meth:`_prune_segments`, which already stops for the same reason.
         """
         segments = self._segments_oldest_first()
         excess = len(segments) - _SEGMENT_KEEP
@@ -1571,8 +1843,6 @@ class SecurityEventLog:
         lines are logged so the integrity concern is surfaced, not hidden.
         """
         target = path or self._path
-        if not target.exists():
-            return ""
         try:
             with open(target, "rb") as f:
                 f.seek(0, 2)
@@ -1638,11 +1908,15 @@ class SecurityEventLog:
                         return data.get("entry_hash", "")
             # No parseable record anywhere in the file — nothing to chain from.
             return ""
-        except OSError:
+        except FileNotFoundError:
+            return ""  # no log yet: the one case that starts a new chain
+        except OSError as exc:
+            # The file is there (or may be) and cannot be read. That is "tip
+            # unknown", never "empty": returning "" would restart the chain.
             logger.warning(
                 "SEL: failed to read chain tip from %s", target, exc_info=True
             )
-            return ""
+            raise SelTipUnknown(f"cannot read the SEL chain tip from {target}: {exc}") from exc
 
     def _compute_hash(self, event: SecurityEvent) -> str:
         # Hash over all fields except entry_hash itself
@@ -2245,80 +2519,126 @@ class SecurityEventLog:
     def prune(self, keep_days: int = _RETENTION_DAYS) -> int:
         """Remove entries older than keep_days. Returns count removed.
 
-        Streams the log line-by-line to bound memory usage, writes survivors
-        to a temp file, then atomically replaces the original. The append lock
-        is held across the whole read+replace critical section so a concurrent
-        append cannot land in the old file after the read pass and be lost by
-        the replace: appends either complete before the read (and are copied)
-        or block until after the replace (and land in the new file). Appends
-        run on the background writer thread, so blocking them for the prune
-        duration never touches the event loop.
+        Streams the live log line-by-line to bound memory usage and writes the
+        survivors to a temp file WITHOUT holding any append lock, so the long
+        part of a prune (a full-file JSON pass, up to the 32 MiB cap) never makes
+        an appender wait. It then takes the chain lock, the thread lock and the
+        rotation lock for the SHORT swap only: it checks that the live log is still
+        the file it read, copies the bytes appended since (a few records), and
+        atomically replaces the log. An append therefore lands either in the
+        copied tail or in the new file, never in the discarded old one.
 
-        ``_lock`` is a THREAD lock, so it does nothing about a sibling process --
-        and prune's read-then-replace is the one window where that is
-        destructive rather than merely untidy. If another process rotates while
-        we are streaming, our ``os.replace`` drops a snapshot of the OLD file
-        over the fresh live log, discarding its rotation record and every event
-        appended since. That is the only path in this class that can lose
-        already-persisted audit events, so the window is serialized with the
-        cross-process ROTATION lock (the same one rotation takes) via
-        :meth:`_prune_live_locked`.
+        If the live log was replaced while prune streamed (another process
+        rotated), the swap is skipped and retried on the next daily run. Replacing
+        the new file with a snapshot of the old one would discard its rotation
+        record and every event appended since, which is the one way this class can
+        lose persisted audit events.
 
-        Unlike rotation, prune WAITS for that lock instead of skipping. Rotation
-        is deferrable and runs on the audit hot path; prune is a once-a-day sweep
-        on the maintenance executor, never on the event loop, and skipping it
-        would postpone retention for a whole day. When the lock cannot be taken
-        at all the live sweep is skipped and reported, because doing it
-        unserialized is what loses events.
+        Prune takes the chain lock with its own, larger budget
+        (``_CHAIN_LOCK_PRUNE_TIMEOUT_SECS``): it runs on the maintenance executor,
+        never on the event loop, and skipping it would postpone retention for a
+        whole day. When the locks cannot be taken the live sweep is skipped and
+        reported, because swapping unserialized is what loses events.
 
         Rotated segments are aged out WHOLE rather than rewritten: a segment
         whose newest record is past the cutoff is deleted outright, which keeps
         every surviving segment's chain intact (rewriting one would orphan its
         first record's ``prev_hash``). Their entries are included in the
-        returned count.
+        returned count. That sweep reads closed files with NO lock held and takes
+        ``_lock`` only around each unlink, so an appender that holds the chain lock
+        never waits behind a long read.
         """
         self.flush()  # don't rewrite the file out from under queued appends
         cutoff_dt = datetime.now(tz=timezone.utc) - timedelta(days=keep_days)
 
-        removed = 0
-        with self._lock:
-            removed += self._prune_segments_locked(cutoff_dt)
+        with self._prune_mutex:
+            self._remove_orphan_prune_files()
+            removed = self._prune_segments(cutoff_dt)
             if not self._path.exists():
                 return removed
-            lock_fh = self._open_rotation_lock() if self._ensure_segment_dir() else None
-            if lock_fh is None:
-                logger.warning(
-                    "SEL prune could not take the rotation lock; skipping the live-log "
-                    "sweep rather than risking a concurrent rotation's events"
-                )
+            staged = self._prune_live_stream(cutoff_dt)
+            if staged is None:
                 return removed
+            self._prune_staged = staged
             try:
-                with platform_compat.file_lock(lock_fh.fileno(), exclusive=True):
-                    removed += self._prune_live_locked(cutoff_dt, keep_days)
+                # Chain lock first, then ``_lock`` (the order every append uses).
+                with self._chain_lock(_CHAIN_LOCK_PRUNE_TIMEOUT_SECS), self._lock:
+                    removed += self._prune_under_locks(cutoff_dt, keep_days)
             except OSError:
                 logger.warning(
-                    "SEL prune could not serialize the live-log sweep; skipped",
-                    exc_info=True,
+                    "SEL prune could not take its locks; live-log sweep skipped", exc_info=True
                 )
             finally:
-                lock_fh.close()
-        return removed
+                self._prune_staged = None
+                try:
+                    os.unlink(staged.tmp_path)  # absent after a successful replace
+                except OSError:
+                    pass
+            return removed
 
-    def _prune_live_locked(self, cutoff_dt: datetime, keep_days: int) -> int:
-        """Rewrite the live log without its aged-out entries. Returns count removed.
+    def _prune_under_locks(self, cutoff_dt: datetime, keep_days: int) -> int:
+        """Swap in the staged prune. Caller holds the chain lock and ``_lock``.
 
-        Caller holds ``_lock`` AND the cross-process rotation lock, so no sibling
-        can rotate the file out from under the read-then-replace below.
+        Takes the rotation lock too, so a build that predates the chain lock cannot
+        rotate the file out from under the replace. The wait for it is bounded by
+        ``_PRUNE_ROTATION_LOCK_TIMEOUT_SECS``: this step already holds the chain lock
+        and ``_lock``, so an unbounded wait would stall every appender.
+        """
+        lock_fh = self._open_rotation_lock() if self._ensure_segment_dir() else None
+        if lock_fh is None:
+            logger.warning(
+                "SEL prune could not take the rotation lock; skipping the live-log "
+                "sweep rather than risking a concurrent rotation's events"
+            )
+            return 0
+        try:
+            fd = lock_fh.fileno()
+            deadline = time.monotonic() + _PRUNE_ROTATION_LOCK_TIMEOUT_SECS
+            while not platform_compat.try_acquire_lock_strict(fd, exclusive=True):
+                if time.monotonic() >= deadline:
+                    logger.warning(
+                        "SEL prune could not get the rotation lock within %gs; "
+                        "live-log sweep skipped until the next run",
+                        _PRUNE_ROTATION_LOCK_TIMEOUT_SECS,
+                    )
+                    return 0
+                time.sleep(_CHAIN_LOCK_POLL_SECS)
+            try:
+                return self._prune_live_locked(cutoff_dt, keep_days)
+            finally:
+                platform_compat.release_lock(fd)
+        except OSError:
+            logger.warning(
+                "SEL prune could not serialize the live-log sweep; skipped",
+                exc_info=True,
+            )
+            return 0
+        finally:
+            lock_fh.close()
+
+    def _prune_live_stream(
+        self, cutoff_dt: datetime
+    ) -> _StagedPrune | None:
+        """Write the live log's survivors to a temp file. Holds no lock.
+
+        Returns the staged result, or ``None`` when nothing is aged out. Only COMPLETE lines are consumed: a
+        line another process is mid-writing is left for the swap's tail copy.
+        ``consumed`` is the byte offset the tail copy resumes from.
         """
         cutoff_str = cutoff_dt.isoformat()
         tmp_fd, tmp_path = tempfile.mkstemp(
             dir=str(self._path.parent), prefix=".sel_prune_", suffix=".tmp"
         )
         live_removed = 0
+        consumed = 0
         try:
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as tmp_f:
-                with open(self._path, encoding="utf-8") as src_f:
+            with os.fdopen(tmp_fd, "wb") as tmp_f:
+                with open(self._path, "rb") as src_f:
+                    st = os.fstat(src_f.fileno())
                     for raw_line in src_f:
+                        if not raw_line.endswith(b"\n"):
+                            break  # partial tail: the swap copies it once complete
+                        consumed += len(raw_line)
                         line = raw_line.strip()
                         if not line:
                             continue
@@ -2331,33 +2651,87 @@ class SecurityEventLog:
                             live_removed += 1
                             continue
                         tmp_f.write(line)
-                        tmp_f.write("\n")
-
-            if live_removed:
-                os.replace(tmp_path, self._path)
-                # The replace gives the live log a NEW inode and a smaller size, so
-                # re-anchor both the tip and the identity we compare against.
-                # Leaving the identity stale would make the next append see a
-                # foreign change and re-chain needlessly.
-                self._reanchor_now()
-                logger.info(
-                    "SEL pruned %d entries older than %d days", live_removed, keep_days
-                )
-            else:
+                        tmp_f.write(b"\n")
+        except FileNotFoundError:
+            # Another process renamed the log and has not recreated it yet. There
+            # is nothing to stream; the next run tries again.
+            try:
                 os.unlink(tmp_path)
+            except OSError:
+                pass
+            return None
         except BaseException:
-            # Clean up temp file on any failure
             try:
                 os.unlink(tmp_path)
             except OSError:
                 pass
             raise
-        return live_removed
+        if not live_removed:
+            os.unlink(tmp_path)
+            return None
+        return _StagedPrune(tmp_path, (st.st_dev, st.st_ino), consumed, live_removed)
 
-    def _prune_segments_locked(self, cutoff: datetime) -> int:
+    def _prune_live_locked(self, cutoff_dt: datetime, keep_days: int) -> int:
+        """Replace the live log with the staged survivors. Returns count removed.
+
+        Caller holds the chain lock, ``_lock`` AND the cross-process rotation lock,
+        so no sibling can rotate the file out from under the replace. This is the
+        SHORT step of a prune: a stat, a copy of the bytes appended since the
+        stream pass, and one ``os.replace``.
+        """
+        staged = self._prune_staged
+        if staged is None:
+            return 0
+        try:
+            st = os.stat(self._path)
+        except FileNotFoundError:
+            return 0
+        same_file = not (staged.identity[1] and st.st_ino) or (
+            st.st_dev,
+            st.st_ino,
+        ) == staged.identity
+        if not same_file or st.st_size < staged.consumed:
+            logger.info(
+                "SEL live log was replaced while prune streamed it; "
+                "skipping the live-log sweep until the next run"
+            )
+            return 0
+        # "r+b", not "ab": a temp file that vanished must fail here, not be
+        # recreated half-written and then replace the live log.
+        with open(staged.tmp_path, "r+b") as tmp_f, open(self._path, "rb") as src_f:
+            tmp_f.seek(0, os.SEEK_END)
+            src_f.seek(staged.consumed)
+            tmp_f.write(src_f.read())  # appended since the stream pass
+            tmp_f.flush()
+            os.fsync(tmp_f.fileno())  # the survivors are durable before they replace the log
+        os.replace(staged.tmp_path, self._path)
+        # The replace gives the live log a NEW inode and a smaller size, so
+        # re-anchor both the tip and the identity we compare against. Leaving the
+        # identity stale would make the next append see a foreign change and
+        # re-chain needlessly.
+        try:
+            self._reanchor_now()
+        except OSError:
+            # The replace already happened and the entries are gone. The tip is
+            # marked unknown, so the next append re-reads it and fails closed while
+            # it is unreadable. The count must still be reported.
+            logger.warning(
+                "SEL prune replaced the live log but could not re-read its chain tip",
+                exc_info=True,
+            )
+        logger.info("SEL pruned %d entries older than %d days", staged.removed, keep_days)
+        return staged.removed
+
+    def _prune_segments(self, cutoff: datetime) -> int:
         """Delete whole rotated segments whose NEWEST record predates *cutoff*.
 
-        Returns the number of entries dropped with them. Caller holds ``_lock``.
+        Returns the number of entries dropped with them. Holds NO lock while it
+        reads: a closed segment is immutable, and a sweep over several 32 MiB files
+        takes seconds, which an appender that already holds the chain lock must not
+        wait behind. ``_lock`` is taken only around each unlink, the one step that
+        races rotation's own retention sweep. A segment that vanished first
+        (rotation's sweep got there) is already gone and is skipped.
+
         A segment is deleted only when its last record is past the cutoff, so a
         segment straddling the boundary is kept in full rather than rewritten:
         rewriting it would orphan its first record's ``prev_hash`` and turn a
@@ -2373,13 +2747,35 @@ class SecurityEventLog:
                 break
             count = sum(1 for _ in self._iter_lines_backward(path))
             try:
-                path.unlink()
+                with self._lock:
+                    path.unlink()
+            except FileNotFoundError:
+                continue
             except OSError:
                 logger.warning("SEL could not delete aged-out segment %s", path, exc_info=True)
                 break
             removed += count
             logger.info("SEL deleted aged-out segment %s (%d entries)", path.name, count)
         return removed
+
+    def _remove_orphan_prune_files(self) -> None:
+        """Delete prune temp files a crashed prune left behind. Best-effort.
+
+        Only files older than ``_PRUNE_ORPHAN_AGE_SECS``: another process may be
+        streaming right now, and its temp file is young.
+        """
+        cutoff = time.time() - _PRUNE_ORPHAN_AGE_SECS
+        try:
+            candidates = list(self._dir.glob(".sel_prune_*.tmp"))
+        except OSError:
+            return
+        for path in candidates:
+            try:
+                if path.is_file() and path.stat().st_mtime < cutoff:
+                    path.unlink()
+                    logger.info("SEL removed orphan prune temp file %s", path.name)
+            except OSError:
+                logger.warning("SEL could not remove orphan %s", path, exc_info=True)
 
     def _newest_timestamp(self, path: Path) -> datetime | None:
         """Timestamp of *path*'s newest parseable record, or ``None``."""
