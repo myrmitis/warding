@@ -143,17 +143,26 @@ jobs:
           # required tuple. Fast tripwire — the authoritative controls are
           # security.py + governance.py + their unit tests.
           #
-          # security.py GENERATES the sensitive floor by expanding each secret
-          # leaf (denied_commands.json among them, in _DATA_HOME_SECRET_LEAVES)
-          # under the single data-home prefix, ~/.warding (_DATA_HOME_PREFIXES).
-          # Assert the leaf is in that list; the governance boot tuple carries the
-          # resolved ".warding/denied_commands.json".
-          if ! grep -q '"denied_commands.json"' src/warding/security.py; then
-            echo "::error::denied_commands.json must be in security._SENSITIVE_HOME_DIRS (via _DATA_HOME_SECRET_LEAVES; agent must not read/write its own deny ceiling)"
+          # protected_manifest.LEAVES is the one list of protected data-home
+          # leaves. security.py generates the sensitive floor from it
+          # (tool_gate_leaves(), expanded under ~/.warding by _DATA_HOME_PREFIXES),
+          # and governance.py builds the boot-integrity tuple from the rows marked
+          # keystone=True (keystone_entries()). Assert the row exists and is a
+          # keystone, and that both consumers still read the manifest.
+          if ! grep -q '"denied_commands.json"' src/warding/protected_manifest.py; then
+            echo "::error::denied_commands.json must be a row of protected_manifest.LEAVES (agent must not read/write its own deny ceiling)"
             exit 1
           fi
-          if ! grep -q '".warding/denied_commands.json"' src/warding/platform/governance.py; then
-            echo "::error::denied_commands.json must be in the governance boot-integrity required tuple"
+          if ! grep -A8 '"denied_commands.json"' src/warding/protected_manifest.py | grep -q 'keystone=True'; then
+            echo "::error::the denied_commands.json manifest row must be keystone=True (governance boot-integrity check)"
+            exit 1
+          fi
+          if ! grep -q 'protected_manifest.tool_gate_leaves()' src/warding/security.py; then
+            echo "::error::security._DATA_HOME_SECRET_LEAVES must be generated from protected_manifest.tool_gate_leaves()"
+            exit 1
+          fi
+          if ! grep -q 'protected_manifest.keystone_entries()' src/warding/platform/governance.py; then
+            echo "::error::the governance boot-integrity tuple must come from protected_manifest.keystone_entries()"
             exit 1
           fi
           echo "::endgroup::"

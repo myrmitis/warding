@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import parse_qs, unquote, unquote_plus, urlparse
 
-from warding.config.paths import CONFIG_DIR_NAME
+from warding import protected_manifest
 from warding.constants import CLI_CONSOLE_STEMS
 from warding.executors import maintenance_executor
 from warding.sel import SecurityEvent, SecurityEventLog
@@ -4871,329 +4871,27 @@ _SENSITIVE_HOME_DIRS: list[str] = [
 ]
 
 # ── Warding's own data-home secrets & governance trust-root ──
-# These leaves live directly under Warding's data home and must never be
-# readable OR writable through the shared file gate (``is_sensitive_path``):
+# The leaves that live directly under Warding's data home are listed in ONE place,
+# ``protected_manifest.LEAVES``, with the reason for each. The shared file gate
+# (``is_sensitive_path``) blocks both reads and writes of every one of them, so an
+# agent tool cannot forge auth tokens, impersonate internal callers, read live
+# sessions, or rewrite its own security ceiling. Every legitimate reader and writer
+# (token_secret.py, refresh_tokens.py, sel.py, apps/admission.py, governance.py,
+# cli_commands.py, mcp_core.py, …) opens these paths directly, NOT through this gate,
+# so real functionality is unaffected.
 #
-#   .env                          channel/API credentials (Slack/Discord/…)
-#   browser-cookies.txt           reusable browser-auth session cookies …
-#   playwright-storage-state.json … and the Playwright storage-state they become
-#   sel_hmac.key                  Security Event Log HMAC key — signs the
-#   security_events.jsonl         tamper-evident audit chain (``sel.py``);
-#   trust                         the key now lives at ``trust/sel_hmac.key``
-#                                 (owner-only dir OUTSIDE the log's directory);
-#                                 the bare leaf covers pre-migration installs
-#   app_admission.json            App Kit admission ceiling (apps/admission.py)
-#   security_policy.json          governance ceiling (KEYSTONE, governance.py)
-#   profiles                      per-surface governance profiles
-#   admission_policy.json         signed-plugin admission trust root
-#   denied_commands.json          denied-command opt-out ceiling — if an
-#                                 auto-approved/YOLO agent shell could WRITE it,
-#                                 it could set ``disable_all=true`` and defeat
-#                                 the whole deny gate after a restart, so it must
-#                                 be neither readable nor writable via any shell
-#                                 form (operator edits it out-of-band via the
-#                                 dashboard ``/api/security/…`` endpoints)
-#   oauth_endpoints.json          operator OAuth consent-endpoint extension —
-#                                 each entry widens the banner-only OAuth
-#                                 entropy carve-out, so a writable file would
-#                                 let the agent exempt an attacker host from
-#                                 the exfiltration heuristics (operator edits
-#                                 it out-of-band by hand)
-#   token_signing.key             dashboard access/refresh token signing key
-#   refresh_chains.json           refresh-token chain state
-#   .local_secret                 internal MCP/cron/hook callback auth secret
-#
-# An agent that could fs_read any of these could forge auth tokens, impersonate
-# internal callers, exfiltrate live sessions, or rewrite its OWN security
-# ceiling; one that could fs_write them could neuter its governance/admission
-# limits. Every legitimate reader/writer (token_secret.py, refresh_tokens.py,
-# sel.py, apps/admission.py, governance.py, cli_commands.py, mcp_core.py, …)
-# opens these directly (NOT via this gate), so real functionality is unaffected.
+# The OS sandbox and the posture report read the same manifest, so a leaf is added
+# once there and covered at every layer. Do not add a leaf here by hand.
 #
 # Each leaf is expanded under the data-home prefix (``~/.warding``), and
 # ``_home_dir_targets_uncached`` re-anchors it under a ``WARDING_HOME`` override,
 # so one leaf list means a new secret is added once and covered wherever the
-# data home lives.
+# data home lives. Per-app rows (``apps/*/.app_secret``) hold a ``*`` segment that a
+# literal list cannot express; they are matched by NAME instead
+# (``_path_names_manifest_leaf``) and by pattern in the shell matcher.
 #
-_DATA_HOME_PREFIXES: tuple[str, ...] = (CONFIG_DIR_NAME,)
-_DATA_HOME_SECRET_LEAVES: list[str] = [
-    ".env",
-    # The Notes builtin stores a GitHub Personal Access Token here so it can
-    # push a vault. Owner-only mode (0600) does not isolate another process
-    # running as the same UID, and the token is a live bearer credential for the
-    # user's repositories, so it belongs behind the shared floor like every other
-    # credential store. The app's own backend opens it directly rather than
-    # through this gate, so it keeps working. It is a leaf here (not a flat
-    # ``~/.warding`` entry) so a ``WARDING_HOME`` override re-anchors it too. A
-    # vault relocated with ``MD_NOTEBOOK_HOME`` falls outside a home-relative
-    # entry; the default path is what ships and what an agent would find.
-    "workspace/md-notebook/pat",
-    # The WhatsApp channel's linked-device session store (whatsmeow's sqlite
-    # keys). It IS the credential: anything that can read it can act as the
-    # operator on WhatsApp, read every chat and send as them, with no second
-    # factor and nothing on the phone to notice. Owner-only file modes do not
-    # isolate another process running as the same UID, and a prompt-injected
-    # agent's fs_read is exactly that process, so it belongs behind the shared
-    # floor like every other credential store. Classified as the whole DIRECTORY
-    # so the WAL and SHM sidecars, which hold the same key bytes, are covered
-    # too. The channel's own client opens it directly rather than through this
-    # gate, so pairing keeps working.
-    "whatsapp",
-    # The Notes builtin's vault registry. It is not a secret, but it stores each
-    # vault's on-disk ``localPath``, which auto-sync trusts and runs ``git
-    # add``/``commit``/``push`` against. A prompt-injected agent that could
-    # rewrite this file would repoint a vault at an unrelated repository and have
-    # the app commit and push work from it outside the hook controls, so the
-    # agent must not be able to write it. The app's own backend opens it directly
-    # rather than through this gate, so it keeps working.
-    "workspace/md-notebook/vaults.json",
-    # The Notes builtin's sync settings. ``autoSync`` here is the bit that
-    # AUTHORIZES the background loop's unattended ``git push`` (using the
-    # app's stored PAT), and ``autoSyncMins`` sets its cadence. A prompt-injected
-    # agent that could write this file would flip on unattended pushing without
-    # the operator's consent — the same escalation the ``vaults.json`` entry
-    # above guards against, one step earlier. The user toggles it through the
-    # HMAC-gated ``PUT /api/settings``; the app's own backend opens the file
-    # directly rather than through this gate, so it keeps working.
-    "workspace/md-notebook/settings.json",
-    "browser-cookies.txt",
-    "playwright-storage-state.json",
-    # Per-session work ledgers (session_ledger.py). Not credentials, but each
-    # directory is one session's private work state, and the ledger's whole
-    # authorization model is "a session reaches only its OWN ledger" (the HTTP
-    # routes derive the target from the vetted caller identity). An agent's
-    # auto-approved file tools would bypass that boundary sideways — any
-    # session could read or corrupt any other session's ledger straight off
-    # disk. Unlike the transcript files beside it, the ledger has no
-    # legitimate file-tool reader: every legitimate access goes through the
-    # backend module, which opens paths directly rather than through this
-    # gate, so nothing breaks by fencing the whole subtree.
-    "ledger",
-    # The optional Playwright extension token. It removes the browser-side approval
-    # click for an attach, so a process that could read it could attach to the
-    # operator's logged-in browser without them seeing a prompt. The gateway hands
-    # it to the CLI through the environment, so nothing legitimate opens the file.
-    "playwright-extension-token",
-    # Legacy SEL HMAC key location (pre-``trust/`` installs, and any stale file
-    # a backup restore resurrects). Kept alongside the ``trust``
-    # directory entry below so the key is gated at BOTH locations.
-    "sel_hmac.key",
-    # SEL trust-root directory: sel.py stores/migrates the audit chain's HMAC
-    # signing key at ``trust/sel_hmac.key`` — OUTSIDE the log's directory, so
-    # write access to the log dir no longer implies re-signing power. The whole
-    # dir is gated (like ``profiles``/``run``) so future trust-root material is
-    # covered without a new entry. sel.py opens the key directly, not through
-    # this gate.
-    #
-    # Spec Builder's decision record (``trust/spec-builder-decisions.json``) relies
-    # on that whole-directory gating. The app refuses a second answer for a decision
-    # it has recorded, so an agent able to write the file could erase an entry to
-    # make a settled decision answerable again, or forge one to lock a decision the
-    # user never answered. Gating the leaf alone was not enough: its parent under
-    # ``workspace/`` was itself replaceable with one ``ln -s``, and the app opens the
-    # path directly (as keystone writers must), so it would have followed the link.
-    "trust",
-    "security_events.jsonl",
-    # Rotated SEL segments. sel.py closes the live log at a size cap and renames
-    # it into this directory, so a segment holds exactly the same audit records
-    # the live file does and must be gated identically — a rotated log that the
-    # agent could read (or rewrite, then let the chain re-anchor from) would make
-    # rotation itself the way around the fence. Directory entry, so every
-    # segment is covered without a per-name matcher. sel.py opens segments
-    # directly, not through this gate.
-    "security_events.d",
-    "app_admission.json",
-    "security_policy.json",
-    "profiles",
-    "admission_policy.json",
-    "denied_commands.json",
-    # The cron store. It holds access-control state, not just scheduling data:
-    # ``session_key`` decides which session may manage a job through the MCP cron
-    # tools and where the job's output is delivered, ``approval_mode`` is a
-    # per-job auto-approval decision, and ``command``/``script`` decide what
-    # gets executed on the host on a schedule. While the store sat outside the
-    # protected leaves, an auto-approved shell could reassign ownership, flip a
-    # job to auto-approve, or rewrite what a scheduled job runs with an ordinary
-    # file edit — an open side door around the MCP tools' deliberate
-    # cannot-write-``session_key`` rule and the ``self-protection-cron-adopt``
-    # denied command, because those controls match command strings while the
-    # state lives in the file. The gateway's own writers open the store
-    # directly, not through this gate, so the cron service is unaffected; the
-    # cost is that a human hand-edit through an agent shell is refused, the
-    # same trade-off every other keystone leaf makes. The ``cron-history``
-    # sidecar directory (per-job records plus the index) sits on the same floor:
-    # it is a tamperable audit trail of those runs, and one directory rule
-    # covers the records, the index, and the lock/temp files — the same
-    # treatment ``webhooks`` and ``profiles`` already get.
-    "crons.json",
-    "cron-history",
-    # The operator's OAuth consent-endpoint extension
-    # ({additional_authorization_endpoints: [{host, path}]}). Each entry widens
-    # the banner-only OAuth entropy carve-out (_OAUTH_AUTHORIZATION_ENDPOINTS),
-    # so this is a trust boundary of the same class as ``denied_commands.json``
-    # directly above: an agent that could WRITE it could exempt an
-    # attacker-controlled host from the exfiltration heuristics — widening its
-    # own trust ceiling — and one that could READ it would learn which extra
-    # hosts are exempt and aim there. Read+write blocked on both the tool path
-    # (``is_sensitive_path``) and the shell forms. The only legitimate reader
-    # (``_load_operator_oauth_endpoints`` in this module) opens the file
-    # directly, not through this gate; the operator hand-edits it out-of-band
-    # (there is deliberately no dashboard writer).
-    "oauth_endpoints.json",
-    # Which checkout the gateway executes (Dev Fleet "Make live"). The pointer is
-    # resolved during startup and exec'd into, so a writable one is arbitrary
-    # code execution in the gateway's own identity — the agent must not be able
-    # to author it, and must not be able to read it back to discover a target to
-    # aim at either. Only the human-driven dashboard cutover writes it, and the
-    # gateway's own startup reader opens it directly rather than through this
-    # gate, so both keep working.
-    "live_target.json",
-    # The computer-use primary enable ({enabled, allowed_apps, extra_denied_apps}).
-    # Same class of control as ``denied_commands.json`` directly above, and here
-    # for the same reason: flipping ``enabled`` grants full desktop observation
-    # plus keystroke/click synthesis into the operator's real applications — a
-    # security ceiling, not a preference. Storing it in the agent-readable
-    # ``config.json`` would leave it writable by any auto-approved agent shell
-    # (verified: ``is_sensitive_bash_command("echo x > …/config.json")`` is None),
-    # so it lives here and gets read+write protection on BOTH the tool path
-    # (``is_sensitive_path``) and the shell forms (``cat``, ``>``, ``tee``,
-    # ``tar -C`` / ``unzip -d`` extraction into the trust root). The dashboard PUT
-    # handler is the only writer and it opens the path directly, not through this
-    # gate, so the operator's Settings toggle still works.
-    "computer_use.json",
-    # Browser Mode's durable ENABLE gate. Same class of control as
-    # ``computer_use.json`` directly above: while it is present the browse proxy
-    # is registered and the ``browser_*`` tools are in the agent's tool list,
-    # which lets the agent operate a real browser — and in attach mode that is
-    # the operator's own running, logged-in browser. Presence alone is the
-    # authorization, so a bare ``touch`` of this file would be a prompt-injected
-    # self-grant of browser operation. It gets read+write keystone protection on
-    # both the tool path (``is_sensitive_path``) and the shell forms (``touch``,
-    # ``>``, ``tee``, extraction verbs). The dashboard PUT handler is the only
-    # writer and opens the path directly, not through this gate, so the Settings
-    # toggle still works. The sibling ``browser-engine`` leaf is protected too:
-    # it selects the browser Playwright launches, so an agent-authored value
-    # could steer the launch, and it must not diverge from the enable beside it.
-    "browser-mode-enabled",
-    "browser-engine",
-    # Ops Mission Control's third-party provider tokens (PagerDuty / Datadog
-    # API + application keys). These are live credentials against a user's
-    # production incident tooling: a leaked one can acknowledge or resolve real
-    # pages. They are here rather than in ``config.json`` for two concrete
-    # reasons — an app's ``data/config.json`` is served over
-    # ``/api/apps/<name>/config`` WITHOUT session auth, and ``config.json``
-    # itself is writable by any auto-approved agent shell. The read+write
-    # keystone floor is the only placement where the agent can neither read the
-    # tokens nor overwrite them. The authenticated dashboard PUT handler is the
-    # sole writer and opens the path directly, so Settings still works.
-    "ops_mission_control_secrets.json",
-    # Ops Mission Control's AUTONOMY CEILING: the app mode (observe/propose/act) and
-    # the per-signal act-rules. This is the exact same class of control as
-    # ``computer_use.json`` above — flipping ``mode`` to ``act`` plus adding a matching
-    # rule is what authorizes a write against the user's production incident tooling —
-    # and it was living in the agent-writable ``data/config.json``. A prompt-injected
-    # agent could therefore mint the dashboard token, PUT ``mode=act`` with a rule
-    # matching a signal, and unlock provider actions the operator never granted, which
-    # defeats the app's central safety property (``effective = min(app_mode, rule_mode)``
-    # is only a ceiling if the agent cannot raise it). Here for the same
-    # reasons as the secrets leaf directly above — served unauthenticated over
-    # ``/config`` and writable by any auto-approved shell in ``config.json`` — so it moves
-    # to the read+write keystone floor. Dashboard PUT is the sole writer and opens the
-    # path directly.
-    "ops_mission_control_policy.json",
-    # Recorded consent to call a PAID AWS service (AWS Polly for TTS, AWS
-    # Transcribe for STT). Same class of control as ``computer_use.json`` above:
-    # the record is what AUTHORIZES billable requests against a specific AWS
-    # account, so an agent that could write it would consent on the operator's
-    # behalf to spending the operator's money — and one that could write it
-    # could also point the grant at an account of its choosing, which is the
-    # unintended-account outcome the gate exists to prevent. Reading it is
-    # fenced too: the file names the account id and caller ARN that a profile
-    # resolves to, which is reconnaissance an agent should not get for free from
-    # the shared gate. The authenticated dashboard ``/api/aws/consent`` handler
-    # and the ``warding aws-consent`` CLI are the only writers and open the
-    # path directly, not through this gate, so both keep working.
-    "aws_service_consent.json",
-    "token_signing.key",
-    "refresh_chains.json",
-    ".local_secret",
-    # Durable channel transport state: Teams' conversation -> serviceUrl and
-    # identity -> conversation maps, and Telegram's getUpdates cursor. Two shapes of
-    # the same control -- where a message GOES, and which messages are SEEN. Calling
-    # getUpdates with an offset is also the ack for everything below it, so an agent
-    # that could write that cursor would make the gateway skip every queued and
-    # future message, durably, past the restart that would otherwise clear it.
-    #
-    # Same class of control as ``workspace/md-notebook/vaults.json`` above: neither
-    # is a secret, both are PLUMBING. ``teams/transport.py`` resolves an explicit
-    # ``user:<upn>`` send target through the identity map, so an agent that could
-    # write it could point one operator's UPN at a different person's conversation
-    # and have the next cron result, subagent notice or ``send_message`` delivered
-    # there instead. The inbound path binds a ``serviceUrl`` to the JWT's own
-    # ``serviceurl`` claim and ``connector_host_allowed`` re-checks it wherever the
-    # Connector token is attached, but neither attestation survives PERSISTENCE,
-    # and no host check can tell one legitimate conversation id from another.
-    # Reading is fenced with writing because the file enumerates the operator's
-    # UPNs and the conversations they use.
-    #
-    # A DIRECTORY entry, not the file leaf, and that is the load-bearing part: a
-    # file leaf matches only its exact name, while ``atomic_write`` publishes
-    # through a ``tempfile.mkstemp`` sibling (``tmpXXXXXXXX.tmp``) in the same
-    # parent. With the store loose in the data-home root an agent watching that
-    # directory could overwrite the temp file in the window before the rename and
-    # have the rename publish its own routing. A directory entry covers every
-    # child, random temp names included. (``trust``, ``profiles`` and
-    # ``cron-history`` above are directories for the same reason among others.)
-    # ``ServiceUrlStore`` and ``TelegramClient`` open their paths directly, not
-    # through this gate, so
-    # proactive routing across a restart is unaffected.
-    "routing",
-    # Inbound-webhook credential store directory. It holds the bearer HASHES and
-    # the recoverable HMAC signing secrets for /api/hooks/agent, which is on the
-    # dashboard-auth bypass list because it authenticates itself. An agent that
-    # could WRITE this store could append a token hash it chose and then drive
-    # arbitrary agent turns through that route from outside; one that could READ
-    # it could sign requests as an existing integration. The store's own
-    # reader/writer (webhooks.WebhookTokenStore) opens it directly, not through
-    # this gate, so the feature is unaffected.
-    #
-    # The DIRECTORY is named, not the file, because the store is published with
-    # mkstemp + os.replace: gating only ``tokens.json`` left the not-yet-renamed
-    # ``*.tmp`` inode writable by a same-UID agent (0600 does not stop the same
-    # user), and the rename would then publish agent-chosen content as the live
-    # credential store. One directory rule covers the store, its lock file and
-    # every temp file — the same treatment ``profiles`` and ``run`` already get.
-    "webhooks",
-    # Pinned installer provenance authorizes an executable to receive staged
-    # Kiro identity credentials. Agent reads/writes must not be able to replace
-    # this trust decision.
-    ".kiro_cli_binary_trust.json",
-    # MCP Apps spool (SEP-1865). Defense-in-depth: the per-render callback
-    # capability (`callback_secret`) is delivered owner-WS-only and never
-    # written to model-visible text, but the spool records also hold app HTML
-    # and tool data, so the whole directory sits on the sensitive floor —
-    # agent file tools cannot read it. Legitimate readers (gatewayd writer,
-    # dashboard render/relay) open it directly in-process.
-    "mcp-apps",
-    # Runtime exec dir. ``run/`` holds paths the gateway executes OUTSIDE the
-    # agent sandbox: the sandbox launcher scripts (``sandbox.py`` execs
-    # ``python <home>/run/warding_sandbox_*.py``) and the remote-instance
-    # run-marker ``gateway-<port>.bin`` (``instances/run_marker.py``), whose
-    # contents the SSH token-mint reads and ``exec``s on the remote host. A
-    # prompt-injected / sandboxed agent that could WRITE into this dir could point
-    # a marker (or a launcher) at an attacker-controlled binary and, on the next
-    # routine token refresh, get it executed unsandboxed — a reachable sandbox
-    # escape (owner + ``-x`` checks don't help; agent writes run as the same user).
-    # Classify the whole dir read+write, like the other trust roots above. The
-    # gateway's own writers open these paths directly and do NOT route through this
-    # gate, so legitimate startup/spawn writes still work.
-    "run",
-    # Encrypted secret vault directory — denylists the entire subdirectory so
-    # the key file, ciphertext store, lock, and atomic-write temp files are all
-    # unreadable to the agent through any Warding-mediated channel. The verb-independent sensitive-path backstop covers a scripted
-    # ``python -c "open('~/.warding/.vault/...')"`` too.
-    ".vault",
-]
+_DATA_HOME_PREFIXES: tuple[str, ...] = protected_manifest.DATA_HOME_PREFIXES
+_DATA_HOME_SECRET_LEAVES: list[str] = protected_manifest.tool_gate_leaves()
 _SENSITIVE_HOME_DIRS += [
     f"{prefix}/{leaf}" for prefix in _DATA_HOME_PREFIXES for leaf in _DATA_HOME_SECRET_LEAVES
 ]
@@ -5567,6 +5265,7 @@ def _build_sensitive_regex() -> re.Pattern[str]:
     generic_home = r"/home/[^/\s]+|/Users/[^/\s]+"
     home_alts = f"(?:{home}|{tilde}|{home_var}|{generic_home})"
     escaped_dirs = [re.escape(d) for d in _SENSITIVE_HOME_DIRS]
+    manifest_wildcard_alt = "|".join(protected_manifest.wildcard_bash_patterns())
     dirs_pattern = "|".join(escaped_dirs)
     sensitive_path = rf"{home_alts}/(?:{dirs_pattern})(?:/|\s|$|['\"])"
     # Write-protected leaves (e.g. the on-call schedule): a full home-anchored
@@ -5831,6 +5530,9 @@ def _build_sensitive_regex() -> re.Pattern[str]:
         rf"{sensitive_path}"
         rf"|(?:^|.*[\s'\"=:,;]){sensitive_path}"
         rf"|(?:^|.*[\s'\"=:,;]){write_protected_path}"
+        # (3b) per-app manifest rows (``apps/*/.app_secret``): matched under ANY
+        # leading path, so a data home moved by ``WARDING_HOME`` is covered too.
+        rf"|(?:^|.*[\s'\"=:,;])(?:[^\s'\"]*/)?(?:{manifest_wildcard_alt})(?:\s|$|['\"])"
         # (4) Windows-native spelling, verb-independent (same token anchor):
         # covers quoted backslash paths AND embedded-script literals that the
         # tokenizing passes cannot see. (5) the %APPDATA% / %LOCALAPPDATA%
@@ -6253,7 +5955,28 @@ def is_sensitive_path(path_str: str, base_dir: str | None = None) -> bool:
     (:data:`_SENSITIVE_HOME_DIRS`). See :func:`_path_in_home_dirs` for the
     symlink/casefold matching contract.
     """
-    return _path_in_home_dirs(path_str, _SENSITIVE_HOME_DIRS, base_dir)
+    return _path_in_home_dirs(
+        path_str, _SENSITIVE_HOME_DIRS, base_dir
+    ) or _path_names_manifest_leaf(path_str, base_dir)
+
+
+def _path_names_manifest_leaf(path_str: str, base_dir: str | None = None) -> bool:
+    """Whether *path_str* names a per-app manifest leaf such as ``.app_secret``.
+
+    The manifest rows with a ``*`` segment (``apps/*/.app_secret``) cannot sit in the
+    literal ``_SENSITIVE_HOME_DIRS`` list, so they match by final segment under any
+    directory, casefolded and segment-exact. Every candidate form is checked
+    (:func:`_candidate_forms`), so a symlink that resolves onto one is caught too.
+    Over-matching an unrelated file with the same name is the safe direction.
+    """
+    if not path_str:
+        return False
+    names = protected_manifest.tool_gate_names()
+    for candidate in _candidate_forms(path_str, base_dir):
+        parts = [p for p in _PATH_SEGMENT_SPLIT_RE.split(candidate) if p]
+        if parts and parts[-1].casefold() in names:
+            return True
+    return False
 
 
 def path_contains_sensitive(dir_str: str, base_dir: str | None = None) -> bool:
@@ -6307,9 +6030,11 @@ def is_sensitive_write_path(path_str: str, base_dir: str | None = None) -> bool:
     Also covers the adapted harnesses' project-scope config and ``.claude.json``,
     which are matched by NAME wherever they sit (:func:`_path_names_harness_config`).
     """
-    return _path_in_home_dirs(
-        path_str, _SENSITIVE_HOME_DIRS + _WRITE_PROTECTED_HOME_PATHS, base_dir
-    ) or _path_names_harness_config(path_str, base_dir)
+    return (
+        _path_in_home_dirs(path_str, _SENSITIVE_HOME_DIRS + _WRITE_PROTECTED_HOME_PATHS, base_dir)
+        or _path_names_manifest_leaf(path_str, base_dir)
+        or _path_names_harness_config(path_str, base_dir)
+    )
 
 
 # Name tails of the harness config files that are matched wherever they sit on disk,
@@ -6370,8 +6095,12 @@ def sensitive_home_dirs() -> tuple[str, ...]:
     ``_SENSITIVE_HOME_DIRS`` name — the same rationale as
     :func:`get_credential_patterns`. Returned as a tuple so a caller cannot
     mutate the live blocklist.
+
+    Also lists the per-app manifest rows as patterns (``.warding/apps/*/.app_secret``).
+    The gate matches those by name (:func:`_path_names_manifest_leaf`), so the
+    posture view shows them but a caller must not use a pattern as a literal path.
     """
-    return tuple(_SENSITIVE_HOME_DIRS)
+    return tuple(_SENSITIVE_HOME_DIRS) + tuple(protected_manifest.wildcard_home_relative())
 
 
 def write_protected_home_paths() -> tuple[str, ...]:
