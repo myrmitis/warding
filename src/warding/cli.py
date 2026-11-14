@@ -2533,9 +2533,15 @@ The dashboard port is set with the WARDING_PORT env var, not a config key.
             url=getattr(args, "url", False),
         )
     elif args.command == "cron":
+        from warding.atomic_write import StoreUnreadableError
         from warding.cli_commands import _cron
 
-        _cron(args)
+        try:
+            _cron(args)
+        except StoreUnreadableError as exc:
+            # The store file was left as it was. Say why, with no traceback.
+            print(f"warding: {exc}", file=sys.stderr)
+            sys.exit(1)
     elif args.command == "spawn":
         from warding.cli_commands import _spawn
 

@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 from warding.acp.types import PROVIDER_LABEL_DEFAULT
+from warding.atomic_write import StoreUnreadableError, locked_update
 from warding.config.paths import data_home, kiro_sessions_dir
 from warding.providers.cleanup import _is_safe_path
 
@@ -151,14 +152,24 @@ def update_state(agent_id: str, **fields: object) -> bool:
     a silent no-op for success.
     """
     p = _agent_dir(agent_id) / "state.json"
+
+    def _merge(state: dict) -> dict:
+        state.update(fields)
+        state["updated_at"] = time.time()
+        return state
+
     try:
-        state = json.loads(p.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        logger.debug("update_state: cannot read state for %s, skipping", agent_id)
+        locked_update(p, _merge, expect=dict, indent=None, fsync=True, must_exist=True)
+    except FileNotFoundError:
+        logger.debug("update_state: no state for %s, skipping", agent_id)
         return False
-    state.update(fields)
-    state["updated_at"] = time.time()
-    _atomic_write(p, state)
+    except StoreUnreadableError as exc:
+        logger.error("update_state: skipped for %s: %s", agent_id, exc)
+        return False
+    except OSError:
+        # A lock that cannot be taken, a full disk. The record stays as it was.
+        logger.warning("update_state: could not update state for %s", agent_id, exc_info=True)
+        return False
     return True
 
 
