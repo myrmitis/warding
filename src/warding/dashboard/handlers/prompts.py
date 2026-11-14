@@ -36,8 +36,10 @@ from ._shared import (
     active_project_dir,
     collect_skills_blocking,
     list_skill_tree,
+    read_json_object,
     read_skill_file,
     requesting_slot_project,
+    require_str,
 )
 
 
@@ -51,6 +53,9 @@ def _list_prompts():
 logger = logging.getLogger(__name__)
 
 MAX_PROMPT_BYTES = 100_000  # 100 KB — public constant, imported across dashboard + gateway + tests
+# Longest skill name the create, pin and inject endpoints accept. A name is a
+# path under the skills root, so it stays under common 255-byte component limits.
+MAX_SKILL_NAME_CHARS = 200
 _CODE_DASHBOARD_OWNER_REQUIRED = "dashboard_owner_required"
 _CODE_SLOT_NOT_FOUND = "slot_not_found"
 
@@ -445,11 +450,8 @@ async def api_skills_trust_grant(request: web.Request) -> web.Response:
             },
             status=400,
         )
-    try:
-        body = await request.json()
-    except Exception:  # noqa: BLE001 — malformed/missing confirmation is refused below
-        body = {}
-    expected = (body or {}).get("expected_key") if isinstance(body, dict) else None
+    body = await read_json_object(request, allow_empty=True)
+    expected = body.get("expected_key")
     loop = asyncio.get_running_loop()
     try:
         # Confirmation AND grant in one offloaded call. Both halves touch the
@@ -916,14 +918,7 @@ async def api_skills_pending_dismiss_all(request: web.Request) -> web.Response:
     """
     state: DashboardState = request.app["state"]
     skills = _get_skills(state)
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    if not isinstance(body, dict):
-        return web.json_response(
-            {"error": "body must be a JSON object", "code": "invalid_body"}, status=400
-        )
+    body = await read_json_object(request, allow_empty=True)
     raw_slugs = body.get("slugs")
     if raw_slugs is not None and (
         not isinstance(raw_slugs, list) or not all(isinstance(s, str) for s in raw_slugs)
@@ -974,11 +969,8 @@ async def api_skill_pin(request: web.Request) -> web.Response:
     so the lifecycle never archives it."""
     state: DashboardState = request.app["state"]
     skills = _get_skills(state)
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    name = str(body.get("name", "")).strip()
+    body = await read_json_object(request, allow_empty=True)
+    name = require_str(body, "name", default="", max_len=MAX_SKILL_NAME_CHARS).strip()
     raw_pinned = body.get("pinned", True)
     if not isinstance(raw_pinned, bool):
         _sel().log_tool_invocation(
@@ -1052,7 +1044,9 @@ async def api_skill_inject_on_trigger(request: web.Request) -> web.Response:
         body = {}
     # `request.json()` yields whatever the body parsed to, and `[]` / `"x"` / `7`
     # are all valid JSON. Normalize any non-object to an empty one so validation
-    # answers with a 400 and a code instead of AttributeError -> 500.
+    # answers with a 400 and a code instead of AttributeError -> 500. This route
+    # audits every rejection, so it answers a bad body itself rather than leaving
+    # it to the request boundary.
     if not isinstance(body, dict):
         body = {}
     name = str(body.get("name", "")).strip()
@@ -1160,11 +1154,8 @@ async def api_skill_detail(request: web.Request) -> web.Response:
         return web.json_response({"ok": True})
 
     if request.method == "PUT":
-        try:
-            body = await request.json()
-        except Exception:
-            return web.json_response({"error": "invalid JSON"}, status=400)
-        content = body.get("content", "")
+        body = await read_json_object(request)
+        content = require_str(body, "content", default="")
         if not content:
             return web.json_response({"error": "content is required"}, status=400)
         ok = skills.update_skill(name, content)
@@ -1227,12 +1218,9 @@ async def api_skill_detail(request: web.Request) -> web.Response:
 async def api_skills_create(request: web.Request) -> web.Response:
     """POST /api/skills — create a new skill."""
     state: DashboardState = request.app["state"]
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
-    name = body.get("name", "").strip()
-    content = body.get("content", "").strip()
+    body = await read_json_object(request)
+    name = require_str(body, "name", default="", max_len=MAX_SKILL_NAME_CHARS).strip()
+    content = require_str(body, "content", default="").strip()
     if not name:
         return web.json_response({"error": "name is required"}, status=400)
     if not content:

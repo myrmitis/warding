@@ -24,6 +24,7 @@ import logging
 from aiohttp import web
 
 from warding.dashboard.handlers import mcp as _mcp
+from warding.dashboard.handlers._shared import read_json_object
 from warding.dashboard.handlers.mcp import (
     _find_server_spec_anywhere,
     _get_mcp_lock,
@@ -319,12 +320,7 @@ async def api_mcp_custom_add(request: web.Request) -> web.Response:
     Validates EVERY entry before writing ANY (no partial adds), and
     refuses to clobber existing servers (409 listing the conflicts).
     """
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON body"}, status=400)
-    if not isinstance(body, dict):
-        return web.json_response({"error": "body must be an object"}, status=400)
+    body = await read_json_object(request)
 
     servers = body.get("servers")
     if not isinstance(servers, dict) or not servers:
@@ -461,12 +457,7 @@ async def api_mcp_custom_update(request: web.Request) -> web.Response:
     if not _is_valid_mcp_name(name):
         return web.json_response({"error": f"invalid server name '{name[:64]}'"}, status=400)
 
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON body"}, status=400)
-    if not isinstance(body, dict):
-        return web.json_response({"error": "body must be an object"}, status=400)
+    body = await read_json_object(request)
     submitted = body.get("spec")
 
     async with _get_mcp_lock():

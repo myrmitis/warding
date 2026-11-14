@@ -18,7 +18,6 @@ freed space is lying to the user.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -26,7 +25,11 @@ from typing import Any
 
 from aiohttp import web
 
-from warding.dashboard.handlers._shared import _is_restricted_session, _read_session_key
+from warding.dashboard.handlers._shared import (
+    _is_restricted_session,
+    _read_session_key,
+    read_json_object,
+)
 from warding.dashboard.state import DashboardState
 from warding.history import transcript_stems
 from warding.security import redact_credentials, redact_exfiltration_urls
@@ -155,24 +158,6 @@ def _optional_str_list(body: dict[str, Any], key: str) -> list[str] | None:
     return list(value)
 
 
-async def _json_body(request: web.Request) -> dict[str, Any] | None:
-    """Parse a JSON object body; ``None`` when it is absent, empty, or malformed.
-
-    A parse failure must NOT become ``{}``. An empty object is a legitimate request
-    on these endpoints, so collapsing malformed input into it would let a truncated
-    or non-JSON body read as "no arguments given" — and on this surface "no
-    arguments" is what widens an operation.
-    """
-    raw = await request.read()
-    if not raw.strip():
-        return {}
-    try:
-        body = json.loads(raw.decode("utf-8"))
-    except (ValueError, UnicodeDecodeError):
-        return None
-    return body if isinstance(body, dict) else None
-
-
 def _report_payload() -> dict[str, Any]:
     index = _build_index()
     report = measure(index)
@@ -232,9 +217,7 @@ async def api_session_storage_cleanup(request: web.Request) -> web.Response:
     if _is_restricted_session(state, request):
         return _deny("session_storage.cleanup", request)
 
-    body = await _json_body(request)
-    if body is None:
-        return _bad_request("Request body must be a JSON object.", "invalid_body")
+    body = await read_json_object(request, allow_empty=True)
     raw_days = body.get("older_than_days")
     if not isinstance(raw_days, (int, float)) or isinstance(raw_days, bool):
         return web.json_response(
@@ -318,9 +301,7 @@ async def api_session_storage_restore(request: web.Request) -> web.Response:
     if _is_restricted_session(state, request):
         return _deny("session_storage.restore", request)
 
-    body = await _json_body(request)
-    if body is None:
-        return _bad_request("Request body must be a JSON object.", "invalid_body")
+    body = await read_json_object(request, allow_empty=True)
     batch_id = body.get("batch_id")
     if not isinstance(batch_id, str) or not batch_id:
         return web.json_response(
@@ -494,9 +475,7 @@ async def api_session_storage_empty(request: web.Request) -> web.Response:
     if _is_restricted_session(state, request):
         return _deny("session_storage.empty", request)
 
-    body = await _json_body(request)
-    if body is None:
-        return _bad_request("Request body must be a JSON object.", "invalid_body")
+    body = await read_json_object(request, allow_empty=True)
     batch_ids = _optional_str_list(body, "batch_ids")
     if batch_ids is _MALFORMED:
         return _bad_request("batch_ids must be a list of strings.", "invalid_batch")
@@ -882,9 +861,7 @@ async def api_session_inventory_trash(request: web.Request) -> web.Response:
     if _is_restricted_session(state, request):
         return _deny("session_storage.trash", request)
 
-    body = await _json_body(request)
-    if body is None:
-        return _bad_request("Request body must be a JSON object.", "invalid_body")
+    body = await read_json_object(request, allow_empty=True)
     uids = _optional_str_list(body, "uids")
     if uids is _MALFORMED:
         return _bad_request("uids must be a list of strings.", "invalid_selection")

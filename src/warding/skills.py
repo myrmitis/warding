@@ -129,6 +129,12 @@ _PROJECT_SKILL_MAX_DEPTH = 64
 # hand-authored skills.  Final path: ``~/.warding/skills/auto/<name>/SKILL.md``.
 AUTO_SKILL_NAMESPACE = "auto"
 
+# Filesystem limits a skill name must stay inside. A component past NAME_MAX
+# (255 bytes on Linux and macOS) fails to stat with ENAMETOOLONG. The total cap
+# sits well below PATH_MAX so the skills root still fits.
+_MAX_NAME_COMPONENT_BYTES = 255
+_MAX_SKILL_NAME_BYTES = 1024
+
 # Archive area for retired auto-skills. A dot-prefixed dir so it is pruned from
 # skill discovery (``_iter_skill_files``) — archived skills never trigger, but
 # stay on disk and are restorable. Layout: ``auto/.archive/<slug>/SKILL.md``.
@@ -2210,8 +2216,20 @@ class SkillsLoader:
 
     @staticmethod
     def _safe_name(name: str) -> bool:
-        """Return True if skill name is safe (no path traversal)."""
-        return bool(name) and ".." not in name and "\\" not in name
+        """Return True if skill name is safe: no traversal and a valid path name.
+
+        A name with a NUL byte, a component past the filesystem's 255-byte limit
+        or a total length past ``_MAX_SKILL_NAME_BYTES`` makes ``Path.exists``
+        raise ``ValueError`` or ``OSError(ENAMETOOLONG)`` (Python < 3.14). Every
+        load, create, update and delete call checks this first, so one check here
+        turns such a name into "not found" for all of them.
+        """
+        if not name or ".." in name or "\\" in name or "\0" in name:
+            return False
+        encoded = name.encode("utf-8", errors="replace")
+        if len(encoded) > _MAX_SKILL_NAME_BYTES:
+            return False
+        return all(len(part) <= _MAX_NAME_COMPONENT_BYTES for part in encoded.split(b"/"))
 
     def load_skill(
         self,

@@ -27,9 +27,15 @@ import pytest
 from aiohttp import web
 
 from warding.dashboard.handlers import mcp as mcp_mod
+from warding.dashboard.handlers._shared import request_boundary_middleware
 from warding.mcp_discovery import McpServerInfo
 
 # ── harness ─────────────────────────────────────────────────────────────
+
+
+async def _via_boundary(handler: Any, request: web.Request) -> web.StreamResponse:
+    """Run *handler* under the request-boundary middleware, as the gateway does."""
+    return await request_boundary_middleware(request, handler)
 
 
 def _request(
@@ -129,7 +135,7 @@ def _known(monkeypatch: pytest.MonkeyPatch, *names: str) -> None:
 class TestToggleServer:
     @pytest.mark.asyncio
     async def test_invalid_json_is_400(self, sandbox: SimpleNamespace) -> None:
-        resp = await mcp_mod.api_mcp_toggle(_request(ValueError("boom")))
+        resp = await _via_boundary(mcp_mod.api_mcp_toggle, _request(ValueError("boom")))
         assert resp.status == 400
         assert _payload(resp)["error"] == "invalid JSON"
 
@@ -241,7 +247,7 @@ class TestToggleServer:
 class TestToggleTool:
     @pytest.mark.asyncio
     async def test_invalid_json_is_400(self, sandbox: SimpleNamespace) -> None:
-        resp = await mcp_mod.api_mcp_toggle_tool(_request(ValueError("boom")))
+        resp = await _via_boundary(mcp_mod.api_mcp_toggle_tool, _request(ValueError("boom")))
         assert resp.status == 400
 
     @pytest.mark.asyncio
@@ -356,7 +362,7 @@ class TestToggleTool:
 class TestToggleAll:
     @pytest.mark.asyncio
     async def test_invalid_json_is_400(self, sandbox: SimpleNamespace) -> None:
-        resp = await mcp_mod.api_mcp_toggle_all(_request(ValueError("boom")))
+        resp = await _via_boundary(mcp_mod.api_mcp_toggle_all, _request(ValueError("boom")))
         assert resp.status == 400
 
     @pytest.mark.asyncio
@@ -432,7 +438,7 @@ def no_capability_manager(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 class TestRemove:
     @pytest.mark.asyncio
     async def test_invalid_json_is_400(self, sandbox: SimpleNamespace) -> None:
-        resp = await mcp_mod.api_mcp_remove(_request(ValueError("boom")))
+        resp = await _via_boundary(mcp_mod.api_mcp_remove, _request(ValueError("boom")))
         assert resp.status == 400
 
     @pytest.mark.asyncio
@@ -554,8 +560,9 @@ class TestServerDetail:
 
     @pytest.mark.asyncio
     async def test_put_invalid_json_is_400(self, sandbox: SimpleNamespace) -> None:
-        resp = await mcp_mod.api_mcp_server_detail(
-            _request(ValueError("boom"), match_info={"name": "srv"}, method="PUT")
+        resp = await _via_boundary(
+            mcp_mod.api_mcp_server_detail,
+            _request(ValueError("boom"), match_info={"name": "srv"}, method="PUT"),
         )
         assert resp.status == 400
         assert _payload(resp)["error"] == "invalid JSON"
@@ -1072,8 +1079,8 @@ class TestGatewayEnableErrors:
     @pytest.mark.asyncio
     async def test_invalid_json_is_400(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(mcp_mod, "sel", lambda: MagicMock())
-        resp = await mcp_mod.api_mcp_gateway_enable(
-            _request(ValueError("boom"), state=SimpleNamespace())
+        resp = await _via_boundary(
+            mcp_mod.api_mcp_gateway_enable, _request(ValueError("boom"), state=SimpleNamespace())
         )
         assert resp.status == 400
         assert _payload(resp)["error"] == "invalid JSON"
@@ -1726,8 +1733,8 @@ class TestGatewaySetStub:
     @pytest.mark.asyncio
     async def test_invalid_json_is_400(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(mcp_mod, "sel", lambda: MagicMock())
-        resp = await mcp_mod.api_mcp_gateway_set_stub(
-            _request(ValueError("boom"), state=SimpleNamespace())
+        resp = await _via_boundary(
+            mcp_mod.api_mcp_gateway_set_stub, _request(ValueError("boom"), state=SimpleNamespace())
         )
         assert resp.status == 400
 
@@ -1952,8 +1959,8 @@ class TestGatewaySetStubBatch:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(mcp_mod, "sel", lambda: MagicMock())
-        resp = await mcp_mod.api_mcp_gateway_set_stub(
-            _request(["a-mcp"], state=SimpleNamespace())
+        resp = await _via_boundary(
+            mcp_mod.api_mcp_gateway_set_stub, _request(["a-mcp"], state=SimpleNamespace())
         )
         assert resp.status == 400
         assert "object" in _payload(resp)["error"]

@@ -36,6 +36,7 @@ from warding.dashboard.chat_utils import (
     slot_history_key,
 )
 from warding.dashboard.handlers import api_mcp_server_detail
+from warding.dashboard.handlers._shared import request_boundary_middleware
 from warding.dashboard.state import _MAX_PENDING_CONTEXT, DashboardState, _ChatSlot
 
 # ---------------------------------------------------------------------------
@@ -139,7 +140,7 @@ class TestMcpServerRegistration:
 
     @asynccontextmanager
     async def _make_client(self):
-        app = web.Application()
+        app = web.Application(middlewares=[request_boundary_middleware])
         app.router.add_put("/api/mcp/servers/{name}", api_mcp_server_detail)
         app.router.add_delete("/api/mcp/servers/{name}", api_mcp_server_detail)
         async with TestClient(TestServer(app)) as c:
@@ -328,7 +329,7 @@ class TestContextInjection:
 
     @asynccontextmanager
     async def _make_client(self, state: DashboardState):
-        app = web.Application()
+        app = web.Application(middlewares=[request_boundary_middleware])
         app["state"] = state
         app.router.add_post(
             "/api/chat/slots/{slot}/context", api_chat_slot_context

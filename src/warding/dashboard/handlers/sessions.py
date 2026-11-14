@@ -28,6 +28,7 @@ from warding import session_ledger
 from warding.acp.client import _resolve_kiro_bin_for_spawn
 from warding.config.paths import kiro_agents_dir
 from warding.dashboard.handlers import kiro_usage_api
+from warding.dashboard.handlers._shared import read_json_object
 from warding.dashboard.kiro_readiness import (
     reject_if_kiro_unverified,
     runs_on_kiro_readiness,
@@ -1203,13 +1204,12 @@ async def api_sessions_summarize(request: web.Request) -> web.Response:
     state: DashboardState = request.app["state"]
     if not state.conversation_log:
         return web.json_response({"summaries": {}})
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON body"}, status=400)
-    keys = body.get("keys") if isinstance(body, dict) else None
+    body = await read_json_object(request)
+    keys = body.get("keys")
     if not isinstance(keys, list):
-        return web.json_response({"error": "keys must be a list"}, status=400)
+        return web.json_response(
+            {"error": "keys must be a list", "code": "invalid_field"}, status=400
+        )
     # Dedupe while preserving order, drop non-strings, then bound the count.
     seen: set[str] = set()
     ordered: list[str] = []

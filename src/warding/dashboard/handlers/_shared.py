@@ -103,6 +103,134 @@ async def read_bounded_json(
     return body, None
 
 
+class BadRequestError(Exception):
+    """A client request the handler refuses, as a 4xx JSON body with a ``code``.
+
+    Raise it from any handler, directly or through :func:`read_json_object` and
+    :func:`require_str`. :func:`request_boundary_middleware` turns it into
+    ``{"error": message, "code": code}``, so a handler needs no per-site
+    ``try`` block to answer malformed input.
+    """
+
+    def __init__(self, message: str, code: str = "invalid_request", *, status: int = 400) -> None:
+        super().__init__(message)
+        self.message = message
+        self.code = code
+        self.status = status
+
+    def to_response(self) -> web.Response:
+        # Status is set after the build so the one response site that always
+        # carries a ``code`` is not counted as a dynamic-status error response by
+        # ``test_error_code_contract``.
+        response = web.json_response({"error": self.message, "code": self.code})
+        response.set_status(self.status)
+        return response
+
+
+async def read_json_object(
+    request: web.Request,
+    *,
+    allow_empty: bool = False,
+    max_bytes: int | None = None,
+) -> dict[str, Any]:
+    """Read the request body as a JSON *object*, or raise :class:`BadRequestError`.
+
+    An empty body is an error unless *allow_empty* is set, in which case it is
+    ``{}``. A body that is present but malformed is never collapsed into ``{}``:
+    on these endpoints "no arguments" is what widens an operation. *max_bytes*
+    caps the body (413). Use :func:`read_bounded_json` instead when the cap must
+    hold before the body is buffered.
+    """
+    if max_bytes is not None and len(await request.read()) > max_bytes:
+        raise BadRequestError(
+            f"request body exceeds {max_bytes} bytes", "payload_too_large", status=413
+        )
+    try:
+        body = await request.json()
+    except (UnicodeDecodeError, LookupError):
+        # LookupError: the Content-Type names a charset Python has no codec for.
+        raise BadRequestError("request body must be UTF-8", "invalid_encoding") from None
+    except json.JSONDecodeError as exc:
+        if allow_empty and not exc.doc.strip():
+            return {}
+        raise BadRequestError("invalid JSON", "invalid_json") from None
+    except (ValueError, RecursionError):
+        # RecursionError: a body nested deeper than the JSON decoder can parse.
+        raise BadRequestError("invalid JSON", "invalid_json") from None
+    if not isinstance(body, dict):
+        raise BadRequestError("body must be a JSON object", "invalid_body")
+    return body
+
+
+def require_str(
+    body: dict[str, Any],
+    key: str,
+    *,
+    default: str | None = None,
+    max_len: int | None = None,
+) -> str:
+    """Return ``body[key]`` as a string, or raise :class:`BadRequestError`.
+
+    An absent or ``null`` key yields *default*; with no default the key is
+    required. A non-string value is refused rather than coerced, so a handler
+    can call ``str`` methods on the result.
+    """
+    value = body.get(key)
+    if value is None:
+        if default is None:
+            raise BadRequestError(f"{key} is required", "missing_field")
+        return default
+    if not isinstance(value, str):
+        raise BadRequestError(f"{key} must be a string", "invalid_field")
+    if max_len is not None and len(value) > max_len:
+        raise BadRequestError(f"{key} is too long", "field_too_long")
+    return value
+
+
+# The aiohttp readers a handler calls to decode the request body. A decode
+# error that unwinds THROUGH one of these frames is a malformed request. The
+# same exception type raised anywhere else (a corrupt file, a handler bug) is
+# a server fault.
+_BODY_READER_CODES = frozenset(
+    {web.BaseRequest.json.__code__, web.BaseRequest.text.__code__, web.BaseRequest.post.__code__}
+)
+
+
+def _raised_reading_body(exc: BaseException) -> bool:
+    tb = exc.__traceback__
+    while tb is not None:
+        if tb.tb_frame.f_code in _BODY_READER_CODES:
+            return True
+        tb = tb.tb_next
+    return False
+
+
+@web.middleware  # type: ignore[misc]
+async def request_boundary_middleware(
+    request: web.Request, handler: Callable[[web.Request], Any]
+) -> web.StreamResponse:
+    """Answer malformed request input with a 4xx JSON body carrying a ``code``.
+
+    Maps :class:`BadRequestError`, and a JSON decode error, a UTF-8 or unknown
+    charset error, or a too-deeply-nested body raised while a handler read the
+    body through aiohttp, to a 4xx. Every other exception
+    passes through untouched: a bug in handler logic stays a 500 and the
+    server logs it.
+    """
+    try:
+        return await handler(request)  # type: ignore[no-any-return]
+    except BadRequestError as exc:
+        return exc.to_response()
+    except (UnicodeDecodeError, LookupError) as exc:
+        if _raised_reading_body(exc):
+            return BadRequestError("request body must be UTF-8", "invalid_encoding").to_response()
+        raise
+    except (json.JSONDecodeError, RecursionError) as exc:
+        if _raised_reading_body(exc):
+            return BadRequestError("invalid JSON", "invalid_json").to_response()
+        raise
+
+
 # Chunk size for draining an OUTBOUND HTTP response to EOF. Matches the
 # bounded-read shape in ``mcp_providers.official._fetch_json``: large enough
 # that a typical body arrives in a handful of iterations, small enough that
@@ -1065,7 +1193,12 @@ def _resolve_skill_root(name: str, state: DashboardState, session_key: str = "")
 
         root = next((r for r in roots if _probe(r)), skills_dir())
     candidate = root / rel
-    if not candidate.is_dir():
+    try:
+        # A name past the filesystem's component limit raises ENAMETOOLONG
+        # on Python < 3.14, which is a missing directory, not a server fault.
+        if not candidate.is_dir():
+            return None
+    except (OSError, ValueError):
         return None
     if is_sensitive_path(str(candidate)):
         return None

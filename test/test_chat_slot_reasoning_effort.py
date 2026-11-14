@@ -9,11 +9,12 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from warding.dashboard.chat import api_chat_slot_reasoning_effort
+from warding.dashboard.handlers._shared import request_boundary_middleware
 from warding.dashboard.state import DashboardState, _ChatSlot
 
 
 def _make_app(state: DashboardState) -> web.Application:
-    app = web.Application()
+    app = web.Application(middlewares=[request_boundary_middleware])
     app["state"] = state
     app.router.add_post(
         "/api/chat/slots/{slot}/reasoning-effort", api_chat_slot_reasoning_effort

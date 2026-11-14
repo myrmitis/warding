@@ -644,6 +644,47 @@ Modular aiohttp package at `127.0.0.1:5476` (configurable). Split into:
   best-effort audited.
 - Static assets (`/assets/`, `/static/`) bypass auth check.
 
+### Request boundary (malformed input is a 4xx)
+
+A handler that reads its body through `read_json_object` answers malformed
+input with a 4xx, never a 500. Handlers that still read the body with their
+own checks keep their own responses, and some of those can still return a 500
+(for example, a non-string `agent` on a chat route). Three pieces in
+`dashboard/handlers/_shared.py` own the contract:
+
+- `read_json_object(request, allow_empty=False, max_bytes=None)` reads the body
+  and returns a `dict`. It raises `BadRequestError` for an empty body (unless
+  `allow_empty`), invalid JSON (including a body nested too deeply to parse), invalid UTF-8
+  or an unknown charset in `Content-Type`, a body that is not a JSON object,
+  and a body over `max_bytes` (413). It never turns a malformed body into `{}`:
+  on destructive endpoints "no arguments" widens the operation.
+- `require_str(body, key, default=None, max_len=None)` returns a string field.
+  It raises `BadRequestError` for a non-string value, a missing required key
+  and a value over `max_len`. Use it before any `.strip()` or dict-key use.
+- `BadRequestError(message, code, status=400)` is the one typed error. A handler
+  raises it directly for any other refusal of the request.
+
+`request_boundary_middleware` sits after token auth and before the SEL audit
+middleware, in both the dashboard and the headless server. It turns
+`BadRequestError` into `{"error": message, "code": code}`. It also maps a
+`json.JSONDecodeError`, `RecursionError`, `UnicodeDecodeError` or `LookupError`
+(unknown charset) to a 400 when the error unwinds through aiohttp's `request.json()`, `request.text()` or `request.post()`. The
+same exception raised anywhere else (a corrupt file, a handler bug) is not
+mapped. It stays a 500 and the server logs it.
+
+Codes from the helpers: `invalid_json`, `invalid_encoding`, `invalid_body`,
+`missing_field`, `invalid_field`, `field_too_long`, `payload_too_large`. The
+approval endpoint (`POST /api/chat/slots/{slot}/approve`) validates `action` and
+`request_id` as strings, because `request_id` keys the approval-future dicts.
+Skill-name resolution answers a name past the filesystem limit with `None`
+(404), not an `OSError`.
+
+Handlers that still read the body with their own `try`/`except` around
+`request.json()` keep their existing responses. Move one only together with the
+direct-call tests that pin its response, which then run the handler through
+`request_boundary_middleware`. `read_bounded_json` stays for the notification
+routes that must cap the body before buffering it.
+
 ### Session Lifecycle
 
 Each chat tab gets its own kiro-cli session keyed by `dashboard:{slot_key}` with a corresponding JSONL file (`~/.warding/history/dashboard:{key}.jsonl`). Sessions move between active and history:

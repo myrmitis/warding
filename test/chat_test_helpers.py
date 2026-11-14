@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from aiohttp import web
 
+from warding.dashboard.handlers._shared import request_boundary_middleware
 from warding.dashboard.state import DashboardState
 from warding.history import ConversationLog
 from warding.kiro_prerequisite import KiroPrerequisiteService
@@ -199,7 +200,7 @@ def _make_app(state: DashboardState) -> web.Application:
             request["user"] = "local-app"  # recognized as owner
         return await handler(request)
 
-    app = web.Application(middlewares=[_test_auth_middleware])
+    app = web.Application(middlewares=[_test_auth_middleware, request_boundary_middleware])
     app["state"] = state
     app.router.add_post("/api/chat", api_chat)
     app.router.add_get("/api/chat/slots", api_chat_slots)
