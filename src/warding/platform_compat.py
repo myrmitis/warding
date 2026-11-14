@@ -655,6 +655,38 @@ def try_acquire_lock(fd: int, *, exclusive: bool = False) -> bool:
         return False
 
 
+# errno values that mean "another holder has the lock" rather than "the lock call
+# failed". EACCES/EDEADLK cover the msvcrt non-blocking codes; EAGAIN/EWOULDBLOCK
+# cover ``flock(LOCK_NB)``.
+_LOCK_BUSY_ERRNOS = frozenset(
+    {errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK, getattr(errno, "EDEADLK", errno.EAGAIN)}
+)
+
+
+def try_acquire_lock_strict(fd: int, *, exclusive: bool = False) -> bool:
+    """Like :func:`try_acquire_lock`, but only contention returns False.
+
+    Returns True when the lock was taken and False when another holder has it. Any
+    other failure (``ENOLCK``, ``ENOSYS`` under a seccomp filter, ``EBADF``, a
+    filesystem without lock support) raises ``OSError``. :func:`try_acquire_lock`
+    folds those into False, so a caller that polls on False waits out its whole
+    deadline on a lock that can never be taken. Pair a True with
+    :func:`release_lock`.
+    """
+    try:
+        if IS_POSIX:
+            mode = (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB
+            fcntl.flock(fd, mode)
+        else:
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)  # type: ignore[attr-defined]
+        return True
+    except OSError as exc:
+        if exc.errno in _LOCK_BUSY_ERRNOS:
+            return False
+        raise
+
+
 def probe_file_persistence(directory: Path) -> str | None:
     """Verify that *directory* supports every primitive the Warding
     persistence paths depend on: creating a new file (``tempfile.mkstemp``),
