@@ -18,11 +18,11 @@ the consent act.  Editing a spec never changes the enabled state.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 
 from aiohttp import web
 
+from warding.atomic_write import load_json_store
 from warding.dashboard.handlers import mcp as _mcp
 from warding.dashboard.handlers.mcp import (
     _find_server_spec_anywhere,
@@ -279,23 +279,15 @@ def _load_warding_config_strict() -> dict | None:
     Returns ``{}`` when the file doesn't exist (a fresh add is fine), the
     parsed object when it's valid, and ``None`` when the file exists but
     is malformed or unreadable.  The batch-add path must refuse to write
-    in the None case: the lenient ``_load_json_or_empty`` coerces a broken
+    in the None case: a lenient read coerces a broken
     file to ``{}``, and the subsequent atomic write would then silently
     replace EVERY previously configured server with just the new batch
     while reporting success.
     """
-    try:
-        text = _mcp._warding_mcp_json().read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return {}
-    except OSError:
+    loaded = load_json_store(_mcp._warding_mcp_json(), default={}, expect=dict)
+    if loaded.unreadable:
         return None
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(data, dict):
-        return None
+    data = loaded.data
     if "mcpServers" in data and not isinstance(data["mcpServers"], dict):
         return None
     return data

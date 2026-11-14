@@ -355,6 +355,24 @@ jobs:
           python3 scripts/check_loop_bound_locks.py --test
           python3 scripts/check_loop_bound_locks.py
 
+  lenient-store-reads:
+    name: Lenient Store Reads Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check for new lenient reads of JSON store files
+        # A store that reads a failed load as "empty" loses all its data on the
+        # next save. The store modules load through load_json_store /
+        # locked_update in warding.atomic_write. This gate ratchets the
+        # remaining read-only lookups against
+        # scripts/lenient_store_reads_baseline.json: no new site, and the
+        # list only shrinks.
+        run: |
+          python3 scripts/check_lenient_store_reads.py --test
+          python3 scripts/check_lenient_store_reads.py
+
   harness-parity:
     name: Harness Parity Gate
     runs-on: ubuntu-24.04
