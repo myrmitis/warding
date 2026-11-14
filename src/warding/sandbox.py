@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from warding import platform_compat
-from warding.config.paths import CONFIG_DIR_NAME, config_dir
+from warding.config.paths import CONFIG_DIR_NAME, DESKTOP_CONFIG_DIR_NAME, config_dir
 from warding.constants import GITHUB_SLUG, WARDING_SPAWNED_ENV, WARDING_SPAWNED_VALUE
 from warding.platform import current_context
 
@@ -80,6 +80,7 @@ _STRICT_DIRS: list[str] = [
     # in ``_CC_FILES``. Without this a same-UID agent subprocess could read
     # ``.vault/.vault_key`` and decrypt the store.
     f"{CONFIG_DIR_NAME}/.vault",
+    f"{DESKTOP_CONFIG_DIR_NAME}/.vault",
 ]
 
 _STANDARD_DIRS: list[str] = [
@@ -91,6 +92,7 @@ _STANDARD_DIRS: list[str] = [
     ".docker",
     # Secret vault — hidden in every mode (see _STRICT_DIRS note above).
     f"{CONFIG_DIR_NAME}/.vault",
+    f"{DESKTOP_CONFIG_DIR_NAME}/.vault",
 ]
 
 # CC mode: hides all credential dirs including .aws, but selectively exposes
@@ -107,6 +109,7 @@ _CC_DIRS: list[str] = [
     ".kube",
     # Secret vault — hidden in every mode (see _STRICT_DIRS note above).
     f"{CONFIG_DIR_NAME}/.vault",
+    f"{DESKTOP_CONFIG_DIR_NAME}/.vault",
 ]
 
 # CC mode: files to expose read-only inside otherwise-hidden dirs.
@@ -124,6 +127,7 @@ _CC_FILES: list[str] = [
     ".git-credentials",
     # Warding's channel-credential file under the default data home.
     f"{CONFIG_DIR_NAME}/.env",
+    f"{DESKTOP_CONFIG_DIR_NAME}/.env",
 ]
 
 
@@ -182,6 +186,7 @@ _PYTHON_ENV_PREFIXES: list[str] = [
     "PYTHONPATH",
     "PYTHONHOME",
     "PYTHONPYCACHEPREFIX",
+    "PYTHONDONTWRITEBYTECODE",
 ]
 
 # Gateway-owned credentials must never reach agent-influenced subprocesses.
@@ -948,7 +953,7 @@ def _probe_unshare_via_spawn() -> tuple[bool, bool, str, str] | None:
         # by hand: the child gets only its standard streams, so an orphaned probe
         # cannot hold the gateway lock fd or the dashboard listen socket open.
         proc = subprocess.Popen(
-            [sys.executable, "-I", "-S", "-c", _PROBE_SHIM_CODE],
+            [sys.executable, "-I", "-B", "-S", "-c", _PROBE_SHIM_CODE],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -5205,7 +5210,8 @@ def spawn_shim_argv(profile: str = RLIMIT_PROFILE_TOOL) -> tuple[str, ...]:
         # pay ~10ms to exec a shim that would only exec again.
         _SHIM_ARGV_CACHE[key] = ()
         return ()
-    argv = [sys.executable, "-I", "-S", "-c", _SPAWN_SHIM_CODE]
+    # Isolated Python ignores the desktop gateway's PYTHONPYCACHEPREFIX.
+    argv = [sys.executable, "-I", "-B", "-S", "-c", _SPAWN_SHIM_CODE]
     if spec:
         argv.append(f"--rlimits={spec}")
     if bias:

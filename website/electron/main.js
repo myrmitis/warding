@@ -100,6 +100,12 @@ const { createBrowserOps } = require("./browser-ops");
 const { createAgentCommandChannel } = require("./browser-agent-channel");
 const { secretCandidates } = require("./home-dir");
 
+const packagedMac = app.isPackaged && process.platform === "darwin";
+if (packagedMac) {
+  process.env.WARDING_HOME ||= path.join(os.homedir(), ".warding-desktop");
+  process.env.PYTHONDONTWRITEBYTECODE = "1";
+}
+
 /**
  * Read the gateway's shared internal secret for machine-to-machine calls.
  *
@@ -187,12 +193,13 @@ const { fetchLocalToken: fetchTokenFromHome } = require("./local-token");
 const WARDING_HOME = resolveHome();
 
 function resolvePort() {
+  const defaultPort = packagedMac ? 15476 : 5476;
   const raw = process.env.WARDING_PORT;
   if (raw) {
     const n = parseInt(raw, 10);
     if (isNaN(n) || n < 1 || n > 65535) {
-      console.warn(`Invalid WARDING_PORT="${raw}", falling back to 5476`);
-      return 5476;
+      console.warn(`Invalid WARDING_PORT="${raw}", falling back to ${defaultPort}`);
+      return defaultPort;
     }
     return n;
   }
@@ -202,8 +209,7 @@ function resolvePort() {
   // dashboard/origin.parse_dashboard_url). Read it from the resolved data home.
   const configuredPort = findConfiguredDashboardPort(fs, path, [WARDING_HOME]);
   if (configuredPort) return configuredPort;
-  console.debug("No usable dashboard.url port in the data home, falling back to 5476");
-  return 5476;
+  return defaultPort;
 }
 
 const PORT = resolvePort();

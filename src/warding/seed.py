@@ -27,7 +27,7 @@ except ImportError:  # pragma: no cover — Warding targets py3.10.
 # would mean the Warding install itself is broken — there's no scenario
 # where it's optional. ``_safe_audit`` still handles *runtime* SEL failures
 # (read-only ``$HOME``, HMAC-key write failure) via its broad except.
-from warding.config.paths import default_home_paths
+from warding.config.paths import operator_home_paths
 from warding.sel import sel
 
 # Exit codes.
@@ -162,13 +162,12 @@ def _resolve_fixture(name: str) -> Path:
 def _protected_homes() -> set[Path]:
     """Return the resolved gateway homes we refuse to seed into, ever.
 
-    These are the paths that hold a dev's LIVE gateway state — the default
-    data home ``~/.warding`` — so seeding into them, even with
+    These paths hold live CLI and desktop gateway state. Seeding them, even with
     ``--seed-replace``, is the single most destructive outcome this tool could
     produce and is always refused. Each is ``.resolve()``-d to collapse
     symlinks along the way.
 
-    Uses ``default_home_paths()`` rather than ``config_dir()`` on purpose:
+    Uses ``operator_home_paths()`` rather than ``config_dir()`` on purpose:
     seeding requires ``$WARDING_HOME`` to be set, so ``config_dir()`` would
     return that override itself and the guardrail equality check would always
     fire. The guardrail must compare against the DEFAULT (non-override) home.
@@ -176,7 +175,7 @@ def _protected_homes() -> set[Path]:
     ``$HOME`` and exercise the guardrail on synthetic default-home paths.
     """
     homes: set[Path] = set()
-    for home in default_home_paths():
+    for home in operator_home_paths():
         try:
             homes.add(home.resolve())
         except OSError:

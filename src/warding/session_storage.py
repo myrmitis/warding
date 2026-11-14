@@ -78,6 +78,7 @@ from typing import IO, Any
 
 from warding import hooks, platform_compat
 from warding.config.paths import (
+    DESKTOP_CONFIG_DIR_NAME,
     KIRO_BASE_DIR_NAME,
     data_home,
     default_home_paths,
@@ -800,6 +801,13 @@ def cotenant_sids() -> tuple[frozenset[str], tuple[tuple[str, str], ...]]:
     """
     protected: set[str] = set()
     refusals: list[tuple[str, str]] = []
+    # A fresh desktop profile can claim a replay while a reclaim is in progress.
+    # Its session map may be empty at the instant we check.
+    user_home = Path.home()
+    if (user_home / DESKTOP_CONFIG_DIR_NAME).is_dir() and kiro_home().resolve() == (
+        user_home / KIRO_BASE_DIR_NAME
+    ).resolve():
+        refusals.append(("Warding desktop", "it can share the default kiro-cli replay store"))
     root = _pod_root()
     for name in _replay_store_cotenants():
         home = root / name
@@ -926,8 +934,7 @@ def reclaim_block_reason() -> str:
                 listed = "; ".join(f"{name} — {why}" for name, why in refusals[:3])
                 return (
                     f"{len(refusals)} other instance(s) sharing this kiro-cli session "
-                    f"store make reclaiming unsafe ({listed}). Evict them with "
-                    "`warding pod down <name>` to reclaim from here."
+                    f"store make reclaiming unsafe ({listed})."
                 )
         return ""
     # An isolated instance may reclaim only when its replay store is provably its

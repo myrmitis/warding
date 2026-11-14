@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # ``CONFIG_DIR_NAME`` is the segment appended to ``~/`` — a POSIX-style relative
 # literal so downstream string checks (the security keystone) can match it.
 CONFIG_DIR_NAME = ".warding"
+DESKTOP_CONFIG_DIR_NAME = ".warding-desktop"
 
 # kiro-cli's own home directory name (``~/.kiro``). It holds kiro-cli's agents,
 # settings and sessions and is a different directory from Warding's data home.
@@ -86,6 +87,11 @@ def default_home_paths() -> tuple[Path, ...]:
     ``~/.warding`` is still recognized as the real home.
     """
     return (_default_home(),)
+
+
+def operator_home_paths() -> tuple[Path, ...]:
+    """Well-known live data directories excluded from destructive test setup."""
+    return (*default_home_paths(), Path.home() / DESKTOP_CONFIG_DIR_NAME)
 
 
 def _select_default_home() -> Path:
