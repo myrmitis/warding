@@ -394,7 +394,7 @@ rules so they cannot be opted out of at all.
 | `~/.warding/.env` | Slack credentials |
 | `~/.warding/skills/` | User skills |
 | `~/.warding/crons.json` | Scheduled jobs |
-| `~/.warding/hooks.json` | Script hooks |
+| `~/.warding/hooks.json` | Script hooks. A hook runs with a minimal environment: `PATH`, `HOME`, user, locale, XDG and temp-directory variables, proxy and CA-bundle variables, `WARDING_HOME` (when set), `WARDING_HOOK_EVENT` and `WARDING_HOOK_CONTEXT`. Set any other variable, such as `SSH_AUTH_SOCK` or `PYTHONPATH`, inside the hook `command`. Hook output is redacted. |
 | `~/.warding/lessons.jsonl` | Learned corrections |
 | `~/.warding/notifications.jsonl` | Notification history |
 | `~/.warding/models/` | Embedding model, downloaded in the background at startup |

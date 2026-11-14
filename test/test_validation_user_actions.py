@@ -487,20 +487,28 @@ class TestMcpCronUserActions:
     # -- cron_remove_all --
 
     def test_remove_all(self):
+        # ``WARDING_CLI=1`` is set to prove it widens nothing: the store also
+        # holds another session's job and an ownerless one, and only the
+        # caller's own job may go.
         with patch("warding.mcp_cron.CronService") as mock_svc, patch.dict(
             "os.environ", {"WARDING_CLI": "1"}, clear=False
-        ) as env:
-            env.pop("WARDING_SESSION_KEY", None)
+        ):
             svc = mock_svc.return_value
             job = MagicMock()
             job.id = "x"
-            job.session_key = ""
-            svc.list_jobs.return_value = [job]
+            job.session_key = self._session_key
+            other = MagicMock()
+            other.id = "y"
+            other.session_key = "someone-else"
+            ownerless = MagicMock()
+            ownerless.id = "z"
+            ownerless.session_key = ""
+            svc.list_jobs.return_value = [job, other, ownerless]
             svc.remove_jobs_sync.return_value = (["x"], [])
             result = self._simulate_tool_call("cron_remove_all", {})
         assert "Removed 1" in result
         svc.remove_jobs_sync.assert_called_once_with(
-            ["x"], actor="mcp", source="mcp"
+            ["x"], actor=self._session_key, source="mcp"
         )
 
 
