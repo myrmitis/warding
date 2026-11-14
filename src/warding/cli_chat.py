@@ -30,6 +30,7 @@ from warding.constants import BANNER, DATA_WARNING, MIN_NODE_MAJOR
 from warding.hooks import (
     TOOL_DENY,
     HookManager,
+    attended_turn,
     hooks_config_from_config_dict,
     mcp_identity_ref,
     target_paths,
@@ -809,18 +810,22 @@ async def _answer_permission(
     # drain tasks -- on slow or network storage a synchronous call here stalls the
     # whole session, not just this prompt.
     try:
-        decision = await asyncio.to_thread(
-            gate.hooks.on_tool_call,
-            event.title,
-            session_key=gate.session_key,
-            agent=gate.agent,
-            tool_kind=_kind_text(event),
-            raw_params=event.raw_tool_params,
-            command=event.shell_command,
-            is_shell=event.is_shell,
-            mcp_server_name=event.mcp_server_name,
-            mcp_tool_name=event.tool_name,
-        )
+        # The operator is at this terminal and answers the prompt that follows, so the
+        # turn is attended. ``to_thread`` copies the context, so the marker reaches the
+        # worker thread that runs the gate.
+        with attended_turn(True):
+            decision = await asyncio.to_thread(
+                gate.hooks.on_tool_call,
+                event.title,
+                session_key=gate.session_key,
+                agent=gate.agent,
+                tool_kind=_kind_text(event),
+                raw_params=event.raw_tool_params,
+                command=event.shell_command,
+                is_shell=event.is_shell,
+                mcp_server_name=event.mcp_server_name,
+                mcp_tool_name=event.tool_name,
+            )
     except Exception:
         logger.warning("CLI permission gate failed; refusing the request", exc_info=True)
         await _reject_internal_failure(

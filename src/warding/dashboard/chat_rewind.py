@@ -32,6 +32,7 @@ from warding.dashboard.chat_utils import (
     slot_history_key,
 )
 from warding.dashboard.kiro_readiness import reject_if_agent_unverified
+from warding.dashboard.origin import request_is_dashboard_person
 from warding.dashboard.state import DashboardState
 from warding.security import redact_credentials, redact_exfiltration_urls
 from warding.sel import sel
@@ -260,6 +261,7 @@ async def api_chat_slot_rewind(request: web.Request) -> web.Response:
                 slot,
                 redacted_content,
                 _directive_user_origin=not bool(request_app),
+                _person_attended=request_is_dashboard_person(request),
             )
         )
         slot.task = task

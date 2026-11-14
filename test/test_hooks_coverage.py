@@ -1153,7 +1153,7 @@ class TestScriptHookGovernance:
         )
         assert _script_hooks_capability_denied() == "script hooks off"
 
-    def test_a_transient_governance_error_degrades_to_no_opinion(self, monkeypatch):
+    def test_a_transient_governance_error_gives_no_opinion_on_an_attended_turn(self, monkeypatch):
         import warding.platform.governance_profiles as gp
 
         def _boom(*a, **k):
@@ -1161,8 +1161,21 @@ class TestScriptHookGovernance:
 
         monkeypatch.setattr(gp, "governance_permits", _boom, raising=False)
         monkeypatch.setattr(gp, "audit_governance_degraded", _boom, raising=False)
-        # A glitch must not wedge every script hook.
-        assert _script_hooks_capability_denied() is None
+        # A person is present to see a refusal and retry, so a glitch steps aside.
+        with hooks_mod.attended_turn(True):
+            assert _script_hooks_capability_denied() is None
+
+    def test_a_transient_governance_error_refuses_on_an_unattended_turn(self, monkeypatch):
+        import warding.platform.governance_profiles as gp
+
+        def _boom(*a, **k):
+            raise RuntimeError("profile store glitch")
+
+        monkeypatch.setattr(gp, "governance_permits", _boom, raising=False)
+        monkeypatch.setattr(gp, "audit_governance_degraded", _boom, raising=False)
+        # Nobody is watching, so a check that could not decide is a refusal.
+        reason = _script_hooks_capability_denied()
+        assert isinstance(reason, str) and reason
 
     def test_composition_error_fails_closed(self, monkeypatch):
         import warding.platform.governance_profiles as gp
@@ -1479,7 +1492,7 @@ class TestGovernanceDenial:
         with pytest.raises(PlatformCompositionError):
             _governance_denial(object(), "some_tool", "", "", "")
 
-    def test_a_glitch_degrades_to_no_opinion(self, monkeypatch):
+    def test_a_glitch_gives_no_opinion_on_an_attended_turn(self, monkeypatch):
         import warding.platform.governance_profiles as gp
 
         def _boom(*a, **k):
@@ -1487,7 +1500,19 @@ class TestGovernanceDenial:
 
         monkeypatch.setattr(gp, "resolve_active_scope", _boom, raising=False)
         monkeypatch.setattr(gp, "audit_governance_degraded", _boom, raising=False)
-        assert _governance_denial(object(), "some_tool", "", "", "") is None
+        with hooks_mod.attended_turn(True):
+            assert _governance_denial(object(), "some_tool", "", "", "") is None
+
+    def test_a_glitch_refuses_on_an_unattended_turn(self, monkeypatch):
+        import warding.platform.governance_profiles as gp
+
+        def _boom(*a, **k):
+            raise RuntimeError("profile store glitch")
+
+        monkeypatch.setattr(gp, "resolve_active_scope", _boom, raising=False)
+        monkeypatch.setattr(gp, "audit_governance_degraded", _boom, raising=False)
+        reason = _governance_denial(object(), "some_tool", "", "", "")
+        assert isinstance(reason, str) and reason
 
     def test_ungoverned_host_is_a_fast_no_op(self, monkeypatch):
         import warding.platform.governance_profiles as gp

@@ -250,7 +250,7 @@ async def test_openai_compat_response_survives_a_turn_end_purge(tmp_path):
 
     tokens = ["Hello", ", ", "world", "!"]
 
-    async def fake_run_chat(_state, sl, _prompt, *, _directive_user_origin):
+    async def fake_run_chat(_state, sl, _prompt, *, _directive_user_origin, **_kw):
         assert _directive_user_origin is True
         for tok in tokens:
             sl.append("chunk", tok, "chunk", broadcast=False)

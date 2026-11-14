@@ -1456,6 +1456,12 @@ the chain). All four permission paths that can process PreToolUse script hooks
 (declarative auto-approve, normal gating, trusted/YOLO, and interactive approval)
 route `BLOCKED:` reasons through the same recovery funnel.
 
+A PreToolUse script hook that delivers no verdict also blocks the tool. Exit 0
+allows and exit 2 blocks. A timeout, crash, unexecutable command or any other exit
+code is refused as `BLOCKED:<hook>:no verdict: <detail>`, so deleting or breaking
+a deny hook cannot switch its policy off. See
+[security](security.md#fail-closed-verdicts-at-the-pretooluse-gate-hookspy).
+
 ### Reset-and-Requeue Recovery
 
 A reset-and-requeue path must not replay a turn that already emitted assistant

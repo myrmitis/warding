@@ -117,6 +117,22 @@ is **pure-Python and structural** (it does not depend on `jsonschema`, which is
 an optional, possibly-absent dependency) so a malformed policy never silently
 degrades to ungoverned.
 
+**One error type for every load failure.** `_fail_closed_load` wraps
+`load_security_policy`, `parse_policy` and `parse_profile`. Any exception that is
+not already a `PlatformCompositionError` becomes one, with the original as
+`__cause__`. Boot treats only that type as fatal, so a different type used to leak
+past boot and leave the host with no ceiling. A structural error from a file tier
+names the file. An unknown `sandbox.*` key lists the keys that are allowed.
+
+**What an operator sees at gateway start.** A bad policy file stops the gateway
+with a message that names the file and the problem, and says to edit or remove
+that file and then run `warding doctor`. `warding policy validate` is not named:
+the CLI boots the platform context first, so `validate` fails with the same error.
+`warding doctor` is the one command exempt from that re-raise, and it reports the
+failure. Removing the file returns the host to the editable defaults. The keystone
+keeps the agent from editing it, so only the operator can do this. A bad per-surface profile still falls back to the deny-all
+profile and does not stop boot.
+
 ## Update pins (`updates`) — policy-only
 
 Replacing the running code is the widest privileged action the host performs: a
@@ -1199,7 +1215,10 @@ below), `filesystem.read` / `filesystem.write` / `folders.*` and
 `network.egress` (host gate via tool kind + args), `channels` (per-transport at
 the messaging chokepoint AND at non-Slack transport startup), `apps` (app
 activation), `sandbox.min_level` (ordinal
-floor at `wrap_argv`), `approval_mode` (boot floor only), and every capability
+floor at `wrap_argv`; every other `sandbox.*` key raises at load, except the two
+reserved names `require_isolation` and `env_scrub_prefixes`, which load with a
+warning and enforce nothing because no code reads them), `approval_mode` (boot
+floor only), and every capability
 gate — `capabilities.spawn`, `capabilities.messaging`, `capabilities.cron`,
 `capabilities.memory_writes`, `capabilities.script_hooks`,
 `capabilities.browse` (the native `browser` MCP tool's dispatch chokepoint —

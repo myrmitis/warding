@@ -36,6 +36,7 @@ resolving it with zero evaluator edits.
 from __future__ import annotations
 
 import fnmatch
+import functools
 import hmac
 import json
 import logging
@@ -52,6 +53,7 @@ from typing import (
     Optional,
     Protocol,
     Tuple,
+    TypeVar,
     runtime_checkable,
 )
 
@@ -1562,9 +1564,14 @@ _STRUCTURAL_KEYS = frozenset(
 # WITHOUT editing this loader (the extensibility contract).
 _KEY_OPEN_NAMESPACES = frozenset({"capabilities"})
 
-# ``sandbox`` carries the ordinal ``min_level`` plus non-governed boot flags
-# (require_isolation, env_scrub_prefixes) kept raw under a reserved scope.
+# ``sandbox`` carries the ordinal ``min_level`` plus two reserved names kept raw
+# under ``_SANDBOX_FLAGS_SCOPE``. NOTHING reads that scope back: the two names are
+# accepted so a policy file written for an older schema still boots, and they
+# enforce nothing. Every other ``sandbox.*`` key raises, because a misspelled
+# ``min_level`` that lands in the flag bag leaves the sandbox floor ungoverned
+# while validation reports success.
 _SANDBOX_FLAGS_SCOPE = "sandbox._flags"
+_SANDBOX_RESERVED_FLAGS = frozenset({"require_isolation", "env_scrub_prefixes"})
 
 # Scope aliases: the provider doc names the profile's path scopes ``folders.read``/
 # ``folders.write`` but the policy names them ``filesystem.read``/``.write`` (App.
@@ -1730,12 +1737,22 @@ def _parse_controls(
                 dotted = f"{key}.{sub}"
                 if dotted in SCOPE_CATALOG:
                     take(dotted, sub_raw)
-                elif key == "sandbox":
-                    # Non-governed boot flags ride raw under a reserved scope.
+                elif key == "sandbox" and sub in _SANDBOX_RESERVED_FLAGS:
+                    logger.warning(
+                        "policy key %r is accepted but not enforced: no sandbox code reads it",
+                        dotted,
+                    )
                     controls.setdefault(_SANDBOX_FLAGS_SCOPE, {})  # type: ignore[arg-type]
                     controls[_SANDBOX_FLAGS_SCOPE][sub] = sub_raw  # type: ignore[index]
                 else:
-                    raise PlatformCompositionError(f"unknown governed key {dotted!r} (fail-closed)")
+                    known = sorted(
+                        k[len(key) + 1 :] for k in SCOPE_CATALOG if k.startswith(f"{key}.")
+                    )
+                    raise PlatformCompositionError(
+                        f"unknown governed key {dotted!r} (fail-closed). "
+                        f"Keys allowed under {key!r}: {', '.join(known) or 'none'}. "
+                        "Check the spelling in the policy file."
+                    )
         else:
             raise PlatformCompositionError(f"unknown governed key {key!r} (fail-closed)")
     return controls
@@ -1744,6 +1761,92 @@ def _parse_controls(
 # ──────────────────────────────────────────────────────────────────────────
 # Loader
 # ──────────────────────────────────────────────────────────────────────────
+_Loaded = TypeVar("_Loaded")
+
+
+def _active_policy_path() -> Path:
+    """The file a policy load error most likely refers to: the env override, else home."""
+    raw_env = os.environ.get(_POLICY_ENV, "").strip()
+    return Path(raw_env) if raw_env else _policy_home_path()
+
+
+def _policy_remedy(path: Path | None = None) -> str:
+    """The next step for a rejected policy, naming the file and a command that runs.
+
+    ``warding policy validate`` is not named: the CLI boots the platform context
+    first and re-raises this very error for every command except ``doctor``, so
+    ``validate`` fails with the error it was meant to explain. ``warding doctor``
+    is exempt from that re-raise and reports the composition failure.
+    """
+    target = path or _active_policy_path()
+    return (
+        "The gateway refuses to start rather than run ungoverned. "
+        f"Edit {target} to fix the problem named above, or remove that file to return "
+        "to the editable defaults. Then run `warding doctor` to confirm the error is gone."
+    )
+
+
+def _profile_remedy() -> str:
+    from warding.platform.governance_profiles import _profiles_dir
+
+    return (
+        f"Edit or remove the profile file under {_profiles_dir()}. A profile that fails to "
+        "load falls back to the deny-all profile; it does not stop boot. "
+        "Run `warding doctor` to see the current state."
+    )
+
+
+def _fail_closed_load(
+    subject: str, remedy: Callable[[], str]
+) -> Callable[[Callable[..., _Loaded]], Callable[..., _Loaded]]:
+    """Make a load step raise ``PlatformCompositionError`` for EVERY failure.
+
+    A governance loader that raises any other exception type leaks past the boot
+    handler, which only treats ``PlatformCompositionError`` as fatal, and the
+    later best-effort context read then degrades to "no ceiling". This decorator
+    is the one place a load failure changes type: the original exception rides
+    along as ``__cause__`` and the message names the subject and the next step.
+    """
+
+    def decorate(fn: Callable[..., _Loaded]) -> Callable[..., _Loaded]:
+        @functools.wraps(fn)
+        def guarded(*args: object, **kwargs: object) -> _Loaded:
+            try:
+                return fn(*args, **kwargs)
+            except PlatformCompositionError:
+                raise
+            except Exception as exc:
+                logger.error("%s load failed", subject, exc_info=True)
+                raise PlatformCompositionError(
+                    f"{subject} could not be loaded ({type(exc).__name__}: {exc}). " f"{remedy()}"
+                ) from exc
+
+        return guarded
+
+    return decorate
+
+
+def _parse_policy_source(
+    data: Mapping[str, object], *, signature_state: str, source: str
+) -> GovernanceCeiling:
+    """``parse_policy`` with the file it came from, and the next step, in a structural error."""
+    try:
+        return parse_policy(data, signature_state=signature_state)
+    except PlatformCompositionError as exc:
+        message = str(exc)
+        if "warding doctor" in message:  # already carries the remedy (a wrapped failure)
+            raise
+        if source.startswith("companion-bundled"):
+            remedy = (
+                "The gateway refuses to start rather than run ungoverned. Update or reinstall "
+                "the companion package that ships this policy, then run `warding doctor`."
+            )
+        else:
+            remedy = _policy_remedy(Path(source))
+        raise PlatformCompositionError(f"security policy {source}: {message} {remedy}") from exc
+
+
+@_fail_closed_load("security policy", _policy_remedy)
 def parse_policy(
     data: Mapping[str, object], *, signature_state: str = SIGNATURE_UNCHECKED
 ) -> GovernanceCeiling:
@@ -1818,6 +1921,7 @@ def parse_policy(
     )
 
 
+@_fail_closed_load("governance profile", _profile_remedy)
 def parse_profile(data: Mapping[str, object]) -> Profile:
     """Parse a profile mapping into a frozen ``Profile`` (narrow-only).
 
@@ -2090,6 +2194,7 @@ def _mark_policy_signature_incident(detail: str) -> None:
         logger.debug("governance health mark unavailable", exc_info=True)
 
 
+@_fail_closed_load("security policy", _policy_remedy)
 def load_security_policy(
     *, bundled_loader: Optional[Callable[[], Optional[Mapping[str, object]]]] = None
 ) -> Optional[GovernanceCeiling]:
@@ -2143,10 +2248,13 @@ def load_security_policy(
             data = _read_json_file(path)
         except Exception as exc:  # fail-closed: a fleet pointed here on purpose.
             raise PlatformCompositionError(
-                f"security policy at {path} (from {_POLICY_ENV}) is unreadable: {exc}"
+                f"security policy at {path} (from {_POLICY_ENV}) is unreadable: {exc}. "
+                "The gateway refuses to start rather than run ungoverned. Create or repair "
+                f"that file, or unset {_POLICY_ENV} to use the home policy or the editable "
+                "defaults. Then run `warding doctor` to confirm the error is gone."
             ) from exc
         state = _verify_policy_signature(data, source=str(path))
-        return parse_policy(data, signature_state=state)
+        return _parse_policy_source(data, signature_state=state, source=str(path))
 
     if bundled_loader is not None:
         bundled = bundled_loader()
@@ -2163,7 +2271,9 @@ def load_security_policy(
             # are unaffected; when require is ON the edition must sign its
             # bundled policy like any other governed tier.
             state = _verify_policy_signature(bundled, source="companion-bundled resource")
-            return parse_policy(bundled, signature_state=state)
+            return _parse_policy_source(
+                bundled, signature_state=state, source="companion-bundled resource"
+            )
 
     home_path = _policy_home_path()
     if home_path.exists():
@@ -2171,10 +2281,10 @@ def load_security_policy(
             data = _read_json_file(home_path)
         except Exception as exc:
             raise PlatformCompositionError(
-                f"security policy at {home_path} is unreadable: {exc}"
+                f"security policy at {home_path} is unreadable: {exc}. {_policy_remedy(home_path)}"
             ) from exc
         state = _verify_policy_signature(data, source=str(home_path))
-        return parse_policy(data, signature_state=state)
+        return _parse_policy_source(data, signature_state=state, source=str(home_path))
 
     # No policy at env, bundled, OR home tier → ungoverned (editable defaults).
     #

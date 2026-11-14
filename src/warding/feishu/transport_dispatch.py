@@ -167,6 +167,8 @@ class FeishuDispatcher:
         await drive_turn(
             ChannelTurn(
                 channel_type="feishu",
+                # A message this channel's client received from a person.
+                person_sent=True,
                 session_key=session_key,
                 # Session-directive consumer: monitor_start /
                 # autonudge_stop / ... return a marker TurnDriver decodes;

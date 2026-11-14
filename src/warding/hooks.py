@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import enum
 import errno
 import fnmatch
+import functools
 import json
 import logging
 import os
@@ -19,10 +21,12 @@ import tempfile
 import threading
 import time
 import uuid
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any, ParamSpec, cast
 
 from warding import platform_compat, security, webhooks
 from warding.config import paths as _config_paths
@@ -141,6 +145,186 @@ class ToolHookResult:
         a defect in what it attempted.
         """
         return ToolHookResult(action=TOOL_DENY, reason=reason, security_deny=False)
+
+
+# ── Fail-closed verdicts ──
+#
+# Every PreToolUse decision point answers with one of three values. A decision
+# point that cannot answer (it raised, timed out, exited with a code its contract
+# does not define, or returned ``None``) is UNDECIDED, and an UNDECIDED verdict
+# resolves to DENY unless the turn is explicitly marked attended. The refusal
+# exists because a missing verdict that counts as allow lets a crashed or deleted
+# policy component switch its own policy off.
+
+
+class Verdict(enum.Enum):
+    """The three outcomes of a gate decision point."""
+
+    ALLOW = "allow"
+    DENY = "deny"
+    UNDECIDED = "undecided"
+
+
+#: True only inside :func:`attended_turn`. The default is False, so a surface that
+#: never says "a person is watching" is judged as unattended and fails closed.
+_ATTENDED_TURN: ContextVar[bool] = ContextVar("warding_attended_turn", default=False)
+
+
+@contextmanager
+def attended_turn(person_sent: bool):
+    """Mark the gate calls made inside this block as an ATTENDED turn's.
+
+    ``person_sent`` is required and has no default: the only way to enter an
+    attended turn is to state positively that a person originated this turn and is
+    there to see a refusal and retry. A caller that cannot make that statement
+    passes ``False``, which makes the block unattended even inside an outer attended
+    block, or does not call this at all. Automation is never a person: an auto-nudge, a monitor wake, a cron or
+    heartbeat delivery, a sub-agent completion event, a bot-sent message and a
+    script or SDK client are all unattended.
+
+    This is the one soft path. It never turns a decided DENY into an allow. It
+    only lets a decision point that could not decide (see
+    :func:`settle_undecided`) step aside, so a transient fault does not refuse an
+    ordinary user action while the always-on deny floor and the surface's own
+    approval prompt still run.
+
+    A ContextVar reaches the tool-gate pool thread (which runs the call in a copy of
+    the caller's context) and nothing outside the block.
+    """
+    # Set the value to the argument in BOTH cases, so a nested ``attended_turn(False)``
+    # inside an attended block makes the inner turn unattended, and restore on exit.
+    token = _ATTENDED_TURN.set(bool(person_sent))
+    try:
+        yield
+    finally:
+        _ATTENDED_TURN.reset(token)
+
+
+def is_attended_turn() -> bool:
+    """True only inside :func:`attended_turn`."""
+    return _ATTENDED_TURN.get()
+
+
+def settle_undecided(
+    source: str, *, session_key: str = "", app: str = "", scope: str = ""
+) -> Verdict:
+    """Resolve a decision point that could not decide. Call from its ``except``.
+
+    Returns ALLOW on an attended turn and DENY on every other turn. Logs the fault
+    with its traceback either way and records a ``governance_degraded`` audit
+    entry, so the operator can see a gate that lost its opinion.
+    """
+    attended = is_attended_turn()
+    logger.error(
+        "gate decision point %s could not decide; %s",
+        source,
+        "attended turn, no opinion" if attended else "unattended turn, refusing the call",
+        exc_info=True,
+    )
+    # A broken or partially installed governance_profiles must not raise out of
+    # this except-branch and wedge an attended call that is allowed to step aside.
+    try:
+        from warding.platform.governance_profiles import audit_governance_degraded
+
+        audit_governance_degraded(
+            source, session_key=session_key, app=app, scope=scope, failed_closed=not attended
+        )
+    except Exception:
+        logger.debug("governance degrade audit unavailable", exc_info=True)
+    return Verdict.ALLOW if attended else Verdict.DENY
+
+
+def tool_result_verdict(result: object) -> Verdict:
+    """The verdict a ``ToolHookResult`` carries; anything else is UNDECIDED."""
+    if isinstance(result, ToolHookResult):
+        if result.action == TOOL_DENY:
+            return Verdict.DENY
+        if result.action in (TOOL_ALLOW, TOOL_AUTO_APPROVE):
+            return Verdict.ALLOW
+    return Verdict.UNDECIDED
+
+
+def script_hook_verdict(result: object) -> Verdict:
+    """The verdict a finished PreToolUse script hook delivered.
+
+    The contract has two values: exit 0 is a delivered allow and exit 2 a
+    delivered deny. Every other outcome is UNDECIDED: a timeout or crash (exit
+    code -1), an unexecutable command (126, 127, or a platform-specific code), a
+    signal death, an ordinary failure (exit 1), or a result with no integer exit
+    code. UNDECIDED is never an allow here: the hook is a gate, so breaking,
+    slowing or deleting it must not switch its policy off. A bool is not an exit
+    code even though ``True == 1``.
+
+    The result is read by its ``exit_code`` and not by its class, so a deny keeps
+    its own reason whatever object carries it.
+    """
+    code = getattr(result, "exit_code", None)
+    if isinstance(code, bool) or not isinstance(code, int):
+        return Verdict.UNDECIDED
+    if code == 0:
+        return Verdict.ALLOW
+    if code == 2:
+        return Verdict.DENY
+    return Verdict.UNDECIDED
+
+
+_GateP = ParamSpec("_GateP")
+
+
+def _fail_closed_gate(fn: Callable[_GateP, ToolHookResult]) -> Callable[_GateP, ToolHookResult]:
+    """The one wrapper at the PreToolUse gate.
+
+    A decision that is a ``ToolHookResult`` passes through unchanged. An exception
+    (``PlatformCompositionError`` included), ``None`` or any other return value is
+    a gate fault, and a gate fault is a DENY with a logged reason. The wrapper has
+    no attended soft path: the decision points inside the gate that may step aside
+    on an attended turn do so through :func:`settle_undecided` and return a real
+    result, so a fault that reaches this wrapper is not one of them.
+
+    The refusal is ``deny_policy`` (``security_deny`` False): a gate fault is a
+    state the same call can outlive, not a defect in what the call attempted, so
+    it must not count against a cron job's durable refusal budget.
+    """
+
+    @functools.wraps(fn)
+    def gated(*args: _GateP.args, **kwargs: _GateP.kwargs) -> ToolHookResult:
+        session_key = str(cast("dict[str, Any]", kwargs).get("session_key", "") or "")
+        try:
+            result = fn(*args, **kwargs)
+        except Exception as exc:
+            logger.error(
+                "PreToolUse gate raised %s; refusing the call", type(exc).__name__, exc_info=True
+            )
+            _audit_gate_fault("hooks.on_tool_call", session_key)
+            return ToolHookResult.deny_policy(_GATE_FAULT_REASON)
+        if tool_result_verdict(result) is Verdict.UNDECIDED:
+            logger.error(
+                "PreToolUse gate returned %r, which is not a verdict; refusing the call",
+                type(result).__name__,
+            )
+            _audit_gate_fault("hooks.on_tool_call", session_key)
+            return ToolHookResult.deny_policy(_GATE_FAULT_REASON)
+        return result
+
+    return gated
+
+
+#: Says plainly that the refusal is a gate defect and not a rule the call broke,
+#: so neither the operator nor the model reads it as a policy decision.
+_GATE_FAULT_REASON = (
+    "Blocked: the tool gate failed while judging this call, so the call was "
+    "refused rather than allowed. The failure is in the SEL and the gateway log."
+)
+
+
+def _audit_gate_fault(chokepoint: str, session_key: str) -> None:
+    """Best-effort durable record of a gate fault. Never raises."""
+    try:
+        from warding.platform.governance_profiles import audit_governance_degraded
+
+        audit_governance_degraded(chokepoint, session_key=session_key, failed_closed=True)
+    except Exception:
+        logger.debug("gate fault audit unavailable", exc_info=True)
 
 
 # ── Config Types ──
@@ -445,6 +629,7 @@ class HookManager:
 
     # ── Tool hooks ──
 
+    @_fail_closed_gate
     def on_tool_call(
         self,
         tool_name: str,
@@ -1173,10 +1358,12 @@ def _governance_denial(
     pays only an attribute read.  Emits a governance audit record on a deny.
 
     Fail-closed discipline mirrors the CPP shims: a ``PlatformCompositionError``
-    (a non-standalone host that could not compose) is re-raised, never swallowed;
-    any other unexpected error degrades to "no governance opinion" (None) so a
-    transient profile-load glitch cannot wedge every tool call — the always-on
-    deny floor above already ran.
+    (a non-standalone host that could not compose) is re-raised, never swallowed.
+    Any other unexpected error leaves the governance tier UNDECIDED, which
+    :func:`settle_undecided` resolves: a refusal on every turn except an explicit
+    :func:`attended_turn`, where it degrades to "no governance opinion" (None) so a
+    transient profile-load glitch cannot wedge an interactive tool call — the
+    always-on deny floor already ran and the surface's own approval path decides.
     """
     from warding.platform.context import PlatformCompositionError
 
@@ -1209,17 +1396,12 @@ def _governance_denial(
     except PlatformCompositionError:
         raise
     except Exception:
-        # Wrap the late import + audit so a broken/renamed/partially-installed
-        # governance_profiles cannot raise ImportError out of this except-branch
-        # and convert the intended soft fail-open into a hard fail-closed that
-        # wedges every tool call.
-        try:
-            from warding.platform.governance_profiles import audit_governance_degraded
-
-            audit_governance_degraded("hooks.on_tool_call", session_key=session_key, app=app)
-        except Exception:
-            logger.debug("governance degrade audit unavailable", exc_info=True)
-        return None
+        if (
+            settle_undecided("hooks.on_tool_call", session_key=session_key, app=app)
+            is Verdict.ALLOW
+        ):
+            return None
+        return "Blocked by governance policy: it could not be evaluated for this turn"
 
 
 def _app_owns_mcp_server(mcp_server_name: str, app: str) -> bool:
@@ -3275,8 +3457,9 @@ def _script_hooks_capability_denied(session_key: str = "") -> str | None:
     The ``capabilities.script_hooks`` gate (default OFF in the catalog) lets a
     policy/profile forbid firing them.  Best-effort beyond the always-on
     sandbox/redaction guards: a ``PlatformCompositionError`` propagates
-    (fail-closed CPP); any other error degrades to "no opinion" (None) so a
-    transient governance glitch cannot wedge every hook.
+    (fail-closed CPP). Any other error, and a decision with no ``permitted``
+    verdict, leaves the tier UNDECIDED and :func:`settle_undecided` resolves it as
+    in :func:`_governance_denial`: a refusal unless the turn is attended.
     """
     from warding.platform.context import PlatformCompositionError
 
@@ -3285,23 +3468,23 @@ def _script_hooks_capability_denied(session_key: str = "") -> str | None:
 
         # item="" → the CapabilityGate's ``enabled`` flag is what is queried.
         decision = governance_permits("capabilities.script_hooks", "", session_key=session_key)
-        if not getattr(decision, "permitted", True):
+        permitted = getattr(decision, "permitted", None)
+        if permitted is True:
+            return None
+        if permitted is False:
             return getattr(decision, "reason", "script_hooks capability disabled")
-        return None
+        raise TypeError("governance_permits returned no permitted verdict")
     except PlatformCompositionError:
         raise
     except Exception:
-        # Wrapped (see _governance_denial): a late-import failure must not turn the
-        # soft fail-open into a hard fail that wedges every script hook.
-        try:
-            from warding.platform.governance_profiles import audit_governance_degraded
-
-            audit_governance_degraded(
+        if (
+            settle_undecided(
                 "run_script_hook", session_key=session_key, scope="capabilities.script_hooks"
             )
-        except Exception:
-            logger.debug("governance degrade audit unavailable", exc_info=True)
-        return None
+            is Verdict.ALLOW
+        ):
+            return None
+        return "script hook governance could not be evaluated for this turn"
 
 
 def _audit_governance_hook_decision(

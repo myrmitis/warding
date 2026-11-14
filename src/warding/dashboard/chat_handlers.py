@@ -77,6 +77,7 @@ from warding.dashboard.chat_utils import (
     effective_session_key,
     slot_history_key,
 )
+from warding.dashboard.origin import request_is_dashboard_person
 from warding.dashboard.state import (
     DashboardState,
     _ChatSlot,
@@ -642,6 +643,7 @@ async def api_chat(request: web.Request) -> web.StreamResponse:
                 slot,
                 message,
                 _directive_user_origin=not bool(request_app),
+                _person_attended=request_is_dashboard_person(request),
             ),
         ),
     )

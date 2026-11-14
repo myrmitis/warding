@@ -236,6 +236,12 @@ class InboundMessage:
     thread_id: str | None = None
     attachments: list[Any] = field(default_factory=list)
     is_mention: bool = False
+    automated: bool = False
+    """True for a message the gateway builds itself (auto-nudge, monitor wake, cron or
+    heartbeat delivery). A person did not send it, so nobody is watching its turn and
+    its gate calls are never attended (see ``hooks.attended_turn``). Every place that
+    builds a synthetic message sets this explicitly; a message a person sent leaves it
+    False."""
 
     def to_dict(self) -> dict[str, Any]:
         return {
