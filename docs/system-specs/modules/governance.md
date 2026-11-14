@@ -45,7 +45,7 @@ can reorder strictness or redefine matching):
   which under `boot.fail_closed` aborts governance boot — so this list is
   load-bearing, not descriptive. Extend it only through
   `register_matcher`/`register_scope`, which validate the name.
-  The `path` matcher normalizes **only the queried item** (`_norm_item`: expand
+  The `path` matcher normalizes **only the queried item** (`path_forms.lexical_path`: expand
   `~`/`$VAR` → `os.path.abspath`, which anchors a relative path to the host CWD
   and collapses `.`/`..`) and matches it against the operator's pattern **expanded
   but otherwise verbatim**. This does two jobs and avoids one trap:
@@ -60,10 +60,26 @@ can reorder strictness or redefine matching):
   lexical (no filesystem `resolve()`), so it is mode-safe and adds no I/O; the
   `abspath` anchor cannot reconstruct an ACP backend's actual CWD, so the
   resolved `is_sensitive_path` keystone remains the separate, always-on,
-  authoritative block for the trust-root / credential dirs. `_norm_item` also
+  authoritative block for the trust-root / credential dirs. `lexical_path` also
   collapses a leading `//` to `/` (POSIX leaves a two-slash prefix
   implementation-defined and `normpath` preserves it, so `//etc/passwd` would
   otherwise dodge a `/etc/**` deny while the OS opens `/etc/passwd`).
+
+  **Path matcher — deny uses canonical forms.** A *deny* pattern is matched by
+  `_match_denied_path` (`_DENY_MATCHERS`), not by `_match_path`. It tests the item
+  in every spelling from `path_forms.canonical_path_forms` (no resolver, so it
+  stays lexical): the Windows extended-length, device, NT-object, alternate-stream
+  and loopback admin-share spellings, each as a candidate. The security gate calls
+  the same function, so the two gates fold the same spellings (see
+  [security.md](security.md) § Canonical path forms). A candidate is for matching
+  only and never becomes a path an operation uses. Two more readings widen a deny:
+  a Windows-shaped candidate meets the pattern with `\` and `/` read as one
+  separator (an operator writes `~/.ssh/**`, and Windows writes the item with
+  `\`), and a host whose default filesystem folds case (Windows, macOS) matches a
+  deny without regard to case, as does any Windows-shaped candidate. The
+  as-written comparison always stays beside them, so no deny loses a path it
+  covered. An **allow** never uses a folded form or folds case: a wider allow would
+  admit a path the operator did not name, and a directory can be case sensitive.
 
   **Path matcher — lexical-only contract.** The `path` matcher does **not**
   resolve symlinks (no `realpath`): a symlink lexically inside an allow-prefix
@@ -873,7 +889,7 @@ the client also recovers the arguments from the permission frame's own
 rawInput at all) and hands every touched file to the gate under a list-valued
 `paths` argument that `classify_tool_args` governs element by element — see
 [acp-client.md](acp-client.md) § Tool Permission Protocol. Without this the two
-arg-derived scopes would be inert in production. The mirrored readers cap distinct spellings and raw list entries at `MAX_TARGET_PATHS` (2048); an oversized `paths` list returns the shared overlong `PATH_LIMIT_SENTINEL` before iteration, including repeated or non-path entries. `hooks.on_tool_call` enforces that count/length hard deny before governance evaluates scopes, and ACP location/diff recovery preserves it across merges.
+arg-derived scopes would be inert in production. `_tool_arg_paths` and `hooks.target_paths` are one walker, `path_forms.iter_target_paths`, so the two gates cannot disagree about what a call targets. It finds a path nested in an array or object, and it is iterative. It caps distinct spellings and the raw entries of a path-bearing list at `MAX_TARGET_PATHS` (2048), containers that can carry a path at `MAX_TARGET_NODES`, and nesting at `MAX_TARGET_DEPTH`; past any cap it yields the shared overlong `PATH_LIMIT_SENTINEL`. An oversized path-bearing list is never iterated, including repeated or non-path entries. A large argument that cannot carry a path (an embedding, a long content list) is not counted and passes. `hooks.on_tool_call` enforces that count/length hard deny before governance evaluates scopes, and ACP location/diff recovery preserves it across merges.
 
 The `kind` field is **spec-optional**: some ACP backends omit it (it arrives
 `""`). `classify_tool_args` therefore falls back to the param SHAPE when the kind

@@ -56,7 +56,14 @@ from typing import (
 )
 
 from warding.config.paths import config_dir
-from warding.path_spellings import MAX_TARGET_PATHS, PATH_LIMIT_SENTINEL, path_spellings
+from warding.path_forms import (
+    canonical_path_forms,
+    casefold_match_needed,
+    expand_path,
+    is_windows_shaped,
+    iter_target_paths,
+    lexical_path,
+)
 from warding.platform.admission import (
     canonical_signing_bytes,
     hmac_signature,
@@ -151,7 +158,7 @@ def _match_path(item: str, pattern: str) -> bool:
     deny-oriented read block; callers wanting precise segment semantics should
     prefer narrower patterns.
 
-    Only the ITEM is normalized (``_norm_item``: expand → absolutize → lexically
+    Only the ITEM is normalized (``path_forms.lexical_path``: expand → absolutize → lexically
     collapse ``.``/``..``); the PATTERN is only ``~``/``$VAR``-expanded and is
     matched verbatim.  Normalizing the item — never the pattern — does two jobs
     and avoids one trap:
@@ -188,7 +195,50 @@ def _match_path(item: str, pattern: str) -> bool:
     prefix to confine writes in a directory that contains untrusted symlinks.
     See ``docs/system-specs/modules/governance.md`` → "Path matcher".
     """
-    return fnmatch.fnmatchcase(_norm_item(item), _expand(pattern))
+    return fnmatch.fnmatchcase(lexical_path(item), expand_path(pattern))
+
+
+def _match_denied_path(item: str, pattern: str) -> bool:
+    """``_match_path`` for a DENY pattern: the item is tested in every canonical form.
+
+    A deny may match more widely than an allow, because a wider deny only fails
+    closed. So a deny tests each spelling from ``canonical_path_forms``: the
+    Windows extended-length, device, NT-object, stream and loopback admin-share
+    spellings of the item, each as a candidate. A candidate is for matching only and
+    never becomes a path an operation uses. Matching stays lexical, with no
+    filesystem access, like ``_match_path``.
+
+    Two more readings widen the deny, and the as-written comparison stays beside
+    them, so no deny loses a path it covered before:
+
+    * A Windows-shaped candidate meets the pattern with ``\\`` and ``/`` read as one
+      separator, because an operator writes ``~/.ssh/**`` and Windows writes the
+      item with ``\\``.
+    * On a host whose default filesystem folds case (Windows, macOS) and for any
+      Windows-shaped candidate, a letter also meets its other case. Only a deny
+      folds: a directory can be case sensitive, and an allow that folded case could
+      admit a sibling the operator did not name.
+    """
+    glob = expand_path(pattern)
+    try:
+        base: str | None = os.getcwd()
+    except OSError:
+        base = None
+    for form in canonical_path_forms(item, base):
+        if fnmatch.fnmatchcase(form, glob):
+            return True
+        if is_windows_shaped(form):
+            if fnmatch.fnmatchcase(form.replace("\\", "/"), glob.replace("\\", "/")):
+                return True
+        if casefold_match_needed(form):
+            folded = form.casefold()
+            if fnmatch.fnmatchcase(folded, glob.casefold()):
+                return True
+            if is_windows_shaped(form) and fnmatch.fnmatchcase(
+                folded.replace("\\", "/"), glob.casefold().replace("\\", "/")
+            ):
+                return True
+    return False
 
 
 def _match_host(item: str, pattern: str) -> bool:
@@ -309,40 +359,11 @@ _MATCHERS: Dict[str, Callable[[str, str], bool]] = {
 }
 _DEFAULT_MATCHER = "identifier"
 
-
-def _expand(path_str: str) -> str:
-    """Expand ``~`` and ``$VAR`` without touching the filesystem (no resolve())."""
-    return os.path.expanduser(os.path.expandvars(path_str))
-
-
-def _norm_item(path_str: str) -> str:
-    """Expand, absolutize, then lexically collapse ``.``/``..`` in a queried item.
-
-    Applied to the queried ITEM only (never a pattern — see ``_match_path``).
-    Three steps, all purely lexical (no filesystem ``resolve()``, no I/O):
-
-    1. ``_expand`` — ``~`` / ``$VAR`` substitution.
-    2. ``os.path.abspath`` — anchor a relative path (e.g. ``../../etc/passwd`` or
-       ``etc/passwd``) to the host CWD so it cannot dodge an absolute DENY glob by
-       failing to match; ``abspath`` also runs ``normpath``, collapsing ``..``.
-       An already-absolute path is unchanged except for the collapse.
-    3. collapse a leading ``//`` to ``/`` — POSIX (4.13) leaves a path beginning
-       with exactly two slashes implementation-defined, and ``normpath`` PRESERVES
-       it (``normpath('//etc/passwd') == '//etc/passwd'``).  An item supplied as
-       ``//etc/passwd`` would then not match a ``/etc/**`` deny even though the OS
-       opens ``/etc/passwd`` — a deny bypass.  Collapse so the lexical form equals
-       what the OS resolves.  A leading ``///+`` already normalizes
-       to a single ``/``, so only the exact ``//`` case needs this.
-
-    Collapsing ``..`` is what stops a traversal from satisfying an allow-prefix
-    glob.  ``abspath`` cannot reconstruct an ACP backend's actual CWD, so it is a
-    best-effort anchor; the resolved ``is_sensitive_path`` keystone remains the
-    authoritative block for the trust-root / credential dirs.
-    """
-    p = os.path.abspath(_expand(path_str))
-    if p.startswith("//") and not p.startswith("///"):
-        p = p[1:]
-    return p
+# The strategy a DENY pattern is matched with, where it differs from ``_MATCHERS``.
+# A wider deny only fails closed, so a deny may test more spellings than an allow.
+_DENY_MATCHERS: Dict[str, Callable[[str, str], bool]] = {
+    "path": _match_denied_path,
+}
 
 
 def _reject_unknown_keys(d: Mapping[str, object], known: "set[str]", container: str) -> None:
@@ -441,50 +462,18 @@ _KIND_READ = "read"
 _KIND_EDIT = "edit"
 _KIND_FETCH = "fetch"
 
-_PATH_ARG_KEYS = ("path", "file_path", "filePath")
-
-# Argument names holding a LIST of paths (a multi-file edit, a batched read).
-# Mirrors ``hooks.TARGET_PATH_LIST_KEYS`` — the two gates must agree on what a
-# call targets, and this module cannot import ``hooks`` without a cycle.
-_PATH_LIST_ARG_KEYS = ("paths",)
-
 
 def _tool_arg_paths(raw_params: Mapping[str, object]) -> Tuple[str, ...]:
-    """Return every distinct, non-empty path carried under a supported alias.
+    """Return every distinct, non-empty path a tool call names, at any depth.
 
-    Tool backends use all three spellings, sometimes in the same payload.  Every
-    value must be governed: choosing the first truthy alias would let a benign
-    ``path`` mask a sensitive ``filePath`` (and a truthy non-string value could
-    mask every later alias entirely).  Every element of a list-valued alias is
-    governed the same way, and so is the trimmed spelling of a value a harness
-    would trim (``path_spellings``), because the harness opens that path.  The list is
-    bounded the way ``hooks.target_paths`` bounds it; the hooks gate denies a call past
-    the bound before governance sees it. An oversized raw list returns the same
-    denial sentinel without iterating, even when its elements repeat or are not paths.
+    ``path_forms.iter_target_paths`` is the one walker that this gate and the hooks
+    gate share, so the two cannot disagree about what a call targets. It reads every
+    accepted spelling (``path``, ``file_path``, ``filePath`` and the ``paths`` list),
+    nested inside arrays and objects too, and the trimmed spelling of a value a
+    harness would trim. It fails closed with ``PATH_LIMIT_SENTINEL`` past its bounds,
+    without iterating a list that is already too long.
     """
-    paths: list[str] = []
-    seen: set[str] = set()
-
-    def _add(value: object) -> None:
-        if isinstance(value, str) and value.strip():
-            for spelling in path_spellings(value):
-                if spelling not in seen:
-                    seen.add(spelling)
-                    paths.append(spelling)
-
-    for key in _PATH_ARG_KEYS:
-        _add(raw_params.get(key))
-    for key in _PATH_LIST_ARG_KEYS:
-        values = raw_params.get(key)
-        if not isinstance(values, (list, tuple)):
-            continue
-        if len(values) > MAX_TARGET_PATHS:
-            return (*paths, PATH_LIMIT_SENTINEL)
-        for value in values:
-            if len(paths) > MAX_TARGET_PATHS:
-                return tuple(paths)
-            _add(value)
-    return tuple(paths)
+    return tuple(iter_target_paths(raw_params))
 
 
 def classify_tool_args(
@@ -745,7 +734,8 @@ class ScopedRuleset:
                 rule="rule1-allow",
             )
         # deny mode: permitted unless explicitly denied.
-        hit = next((pat for pat in self.deny if match(item, pat)), None)
+        deny_match = _DENY_MATCHERS.get(self.matcher, match)
+        hit = next((pat for pat in self.deny if deny_match(item, pat)), None)
         if hit is not None:
             return Decision(False, f"{item!r} matches deny pattern {hit!r}", rule="rule1-deny")
         return Decision(True, f"{item!r} not denied", rule="rule1-deny")

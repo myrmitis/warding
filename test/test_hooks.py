@@ -1852,10 +1852,15 @@ class TestTargetPathSpellings:
         assert read.action != TOOL_DENY, "write-protection must not turn into read-protection"
 
     def test_path_list_and_scalar_spellings_stay_in_step_with_governance(self):
-        """The two gates must agree on what a call targets, and governance cannot
-        import this module without a cycle, so it mirrors the tuples."""
-        from warding.hooks import TARGET_PATH_KEYS, TARGET_PATH_LIST_KEYS
+        """The two gates must agree on what a call targets. Both read it through
+        ``path_forms.iter_target_paths``, so each accepted key gives the same paths."""
+        from warding import path_forms
+        from warding.hooks import target_paths
         from warding.platform import governance
 
-        assert tuple(governance._PATH_ARG_KEYS) == TARGET_PATH_KEYS
-        assert tuple(governance._PATH_LIST_ARG_KEYS) == TARGET_PATH_LIST_KEYS
+        for key in path_forms.TARGET_PATH_KEYS:
+            assert target_paths({key: "/a"}) == ["/a"]
+            assert governance._tool_arg_paths({key: "/a"}) == ("/a",)
+        for key in path_forms.TARGET_PATH_LIST_KEYS:
+            assert target_paths({key: ["/a", "/b"]}) == ["/a", "/b"]
+            assert governance._tool_arg_paths({key: ["/a", "/b"]}) == ("/a", "/b")
