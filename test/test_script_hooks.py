@@ -405,6 +405,75 @@ class TestRunScriptHook:
         assert HOOK_EVENT_USER_PROMPT_SUBMIT in result.stdout
 
     @pytest.mark.asyncio
+    async def test_hook_environment_is_an_allowlist(self, monkeypatch, tmp_path):
+        """A hook cannot read a gateway secret, and a hook that needs PATH still runs."""
+        monkeypatch.setenv("WARDING_TEST_GATEWAY_SECRET", "s3cr3t-value-do-not-leak")
+        monkeypatch.setenv("WARDING_CLI", "1")
+        monkeypatch.setenv("SSH_AUTH_SOCK", "/tmp/agent.sock")
+        monkeypatch.setenv("PYTHONPATH", "/tmp/injected")
+        monkeypatch.setenv("HTTPS_PROXY", "http://proxy.invalid:3128")
+        body = (
+            "import os, subprocess, sys\n"
+            "print('SSH=' + os.environ.get('SSH_AUTH_SOCK', 'absent'))\n"
+            "print('PYPATH=' + os.environ.get('PYTHONPATH', 'absent'))\n"
+            "print('PROXY=' + os.environ.get('HTTPS_PROXY', 'absent'))\n"
+            "print('SECRET=' + os.environ.get('WARDING_TEST_GATEWAY_SECRET', 'absent'))\n"
+            "print('CLI=' + os.environ.get('WARDING_CLI', 'absent'))\n"
+            "print('EVENT=' + os.environ.get('WARDING_HOOK_EVENT', 'absent'))\n"
+            "print('PATH=' + ('set' if os.environ.get('PATH') else 'absent'))\n"
+            "tool = ['cmd', '/c', 'exit 0'] if os.name == 'nt' else ['sh', '-c', 'exit 0']\n"
+            "print('PATHTOOL=' + str(subprocess.run(tool).returncode))\n"
+        )
+        hook = ScriptHook(
+            id="test-env-allowlist",
+            name="env-allowlist",
+            event=HOOK_EVENT_USER_PROMPT_SUBMIT,
+            command=_script_command(tmp_path / "env_probe.py", body),
+            timeout=30,
+            enabled=True,
+        )
+        result = await run_script_hook(hook, "test-context")
+        assert result.exit_code == 0, result.stderr
+        assert "SECRET=absent" in result.stdout
+        assert "CLI=absent" in result.stdout
+        assert "s3cr3t-value-do-not-leak" not in result.stdout
+        assert f"EVENT={HOOK_EVENT_USER_PROMPT_SUBMIT}" in result.stdout
+        assert "PATH=set" in result.stdout
+        assert "PATHTOOL=0" in result.stdout
+        assert "SSH=absent" in result.stdout
+        assert "PYPATH=absent" in result.stdout
+        assert "PROXY=http://proxy.invalid:3128" in result.stdout
+
+    @pytest.mark.asyncio
+    async def test_hook_keeps_a_relocated_data_home(self, monkeypatch, tmp_path):
+        """A hook that runs the product CLI must see the gateway's data home.
+
+        Without this, ``warding ...`` inside a hook reads and writes the default
+        home when the gateway runs under a ``WARDING_HOME`` override. An override
+        the loader refuses (a filesystem root) is not passed on.
+        """
+        home = tmp_path / "relocated-home"
+        home.mkdir()
+        body = "import os\nprint('HOME_SEEN=' + os.environ.get('WARDING_HOME', 'absent'))\n"
+        hook = ScriptHook(
+            id="test-env-home",
+            name="env-home",
+            event=HOOK_EVENT_USER_PROMPT_SUBMIT,
+            command=_script_command(tmp_path / "home_probe.py", body),
+            timeout=30,
+            enabled=True,
+        )
+        monkeypatch.setenv("WARDING_HOME", str(home))
+        result = await run_script_hook(hook, "test-context")
+        assert result.exit_code == 0, result.stderr
+        assert f"HOME_SEEN={home.resolve()}" in result.stdout
+
+        monkeypatch.setenv("WARDING_HOME", "/usr")
+        result = await run_script_hook(hook, "test-context")
+        assert result.exit_code == 0, result.stderr
+        assert "HOME_SEEN=absent" in result.stdout
+
+    @pytest.mark.asyncio
     async def test_hook_updates_metadata(self):
         """Hook execution updates last_run, last_status, run_count."""
         hook = ScriptHook(

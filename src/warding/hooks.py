@@ -3147,6 +3147,65 @@ _HOOK_STREAM_CAP_BYTES = 64 * 1024
 # truncation is visible rather than silent.
 _HOOK_TRUNCATION_MARKER = "\n…[output truncated]"
 
+# Environment a script hook may inherit from the gateway. A hook is operator
+# text, but it runs beside the gateway's credentials (API keys, tokens, the
+# product's own variables), so the child gets an allowlist, never a copy of
+# ``os.environ``. It starts from the shared base (``BASE_CHILD_ENV_KEYS``:
+# home, temp, shell, locale, XDG and Windows system variables) and adds what a
+# network or git command needs behind a proxy: proxy and CA-bundle variables.
+# It leaves out ``SSH_AUTH_SOCK``, ``PYTHONPATH`` and every ``WARDING_*``
+# variable except the data home and the two the runner adds itself. A proxy URL
+# can carry credentials, so these variables cross the boundary on purpose:
+# operators who need a hook without them can unset them for the gateway.
+_HOOK_ENV_ALLOWLIST = platform_compat.BASE_CHILD_ENV_KEYS | frozenset(
+    {
+        "SystemDrive",
+        "SYSTEMDRIVE",
+        "ProgramData",
+        "PROGRAMDATA",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
+        "NODE_EXTRA_CA_CERTS",
+    }
+)
+
+
+def _hook_child_env(event: str, context: str) -> dict[str, str]:
+    """Build the environment for a script hook child process.
+
+    Allowlisted gateway variables (any ``LC_*`` locale variable included), the
+    validated ``WARDING_HOME`` override, and ``WARDING_HOOK_EVENT`` /
+    ``WARDING_HOOK_CONTEXT``. Nothing else crosses the boundary.
+
+    ``WARDING_HOME`` is pinned the way the managed MCP environment pins it: a
+    child does not inherit it, so a hook that runs the product CLI under a
+    relocated data home would otherwise read and write the default home. An
+    override the loader refuses is not propagated.
+    """
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if platform_compat.env_key_allowed(k, _HOOK_ENV_ALLOWLIST) or k.startswith("LC_")
+    }
+    override = _config_paths._valid_override_home()
+    if override:
+        env["WARDING_HOME"] = str(override)
+    env["WARDING_HOOK_EVENT"] = event
+    env["WARDING_HOOK_CONTEXT"] = context
+    return env
+
 
 async def _read_capped_stream(
     reader: "asyncio.StreamReader | None", cap: int
@@ -3370,11 +3429,7 @@ async def run_script_hook(
         # full context still reaches the hook via the stdin JSON payload
         # (Stop -> hook_event["assistant_text"]) and drove matcher evaluation.
         env_context = context[:500] if hook.event == HOOK_EVENT_STOP else context
-        env = {
-            **os.environ,
-            "WARDING_HOOK_EVENT": hook.event,
-            "WARDING_HOOK_CONTEXT": env_context,
-        }
+        env = _hook_child_env(hook.event, env_context)
         # Shell per platform: POSIX /bin/sh -c, Windows cmd /c (no /bin/sh there).
         # The argv is what the sandbox/cgroup chokepoints below vet, on BOTH
         # platforms — only the eventual spawn form differs (see the Windows
@@ -3443,15 +3498,15 @@ async def run_script_hook(
                     pass
         elapsed = int((time.monotonic() - start) * 1000)
         exit_code = proc.returncode or 0
-        stdout_text = _decode_capped(stdout_b, stdout_trunc).strip()
-        stderr_text = _decode_capped(stderr_b, stderr_trunc).strip()
-        # Redact the FULL (capped) stderr through the canonical companion-aware
-        # shim before truncating, so a credential straddling the 500-char
-        # boundary cannot leak as an unredacted fragment. The field surfaces on
-        # the dashboard and must not expose secrets. Memory is already
-        # bounded upstream by the byte cap, so redaction never sees an
-        # unbounded string.
-        stderr_safe = redact_via_context(stderr_text)[:500] if stderr_text else ""
+        # Redact the FULL (capped) streams through the canonical companion-aware
+        # shim before anything truncates or returns them, so a credential
+        # straddling the 500-char boundary cannot leak as an unredacted
+        # fragment. Both streams reach the model and the dashboard, so both are
+        # redacted at the source. Memory is already bounded upstream by the
+        # byte cap, so redaction never sees an unbounded string.
+        stdout_text = redact_via_context(_decode_capped(stdout_b, stdout_trunc).strip())
+        stderr_text = redact_via_context(_decode_capped(stderr_b, stderr_trunc).strip())
+        stderr_safe = stderr_text[:500]
         hook.last_run = time.time()
         if exit_code == 2:
             hook.last_status = "blocked"

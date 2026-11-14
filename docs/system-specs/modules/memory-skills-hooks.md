@@ -1422,6 +1422,35 @@ a hook is therefore **not portable across platforms**:
 Both platforms receive the same `WARDING_HOOK_EVENT` / `WARDING_HOOK_CONTEXT`
 env vars and the same hook-event JSON on stdin.
 
+**The hook environment is an allowlist, not a copy of the gateway's.**
+`_hook_child_env()` builds it from `_HOOK_ENV_ALLOWLIST`, any `LC_*` variable,
+the data home and the two hook variables. `_HOOK_ENV_ALLOWLIST` is
+`platform_compat.BASE_CHILD_ENV_KEYS` (the same base the app install scripts in
+`apps/registry.py` use, so there is one list of location and shell hints) plus
+the proxy, CA-bundle and extra Windows variables below.
+
+- Base (POSIX): `PATH`, `HOME`, `USER`, `LOGNAME`, `SHELL`, `LANG`, `LC_ALL`,
+  `LC_CTYPE`, `TERM`, `TMPDIR`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`,
+  `XDG_CACHE_HOME`, `XDG_RUNTIME_DIR`.
+- Base (Windows): `TEMP`, `TMP`, `COMSPEC`, `PATHEXT`, `SystemRoot`, `WINDIR`,
+  `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `ProgramFiles`.
+- Hook extras: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` (and the
+  lower-case spellings), `SSL_CERT_FILE`, `SSL_CERT_DIR`, `REQUESTS_CA_BUNDLE`,
+  `CURL_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS`, and on Windows `SystemDrive`,
+  `ProgramData`, `HOMEDRIVE`, `HOMEPATH`. A proxy URL can carry credentials, so
+  these cross the boundary on purpose.
+- `WARDING_HOME`, when the gateway runs under an override the loader accepts
+  (`config.paths._valid_override_home()`), so a hook that runs the product CLI
+  uses the same data home. A refused override is not passed on.
+- `WARDING_HOOK_EVENT` and `WARDING_HOOK_CONTEXT`, added by the runner.
+
+Windows matching is case-insensitive (`platform_compat.env_key_allowed`). Every
+other gateway variable is dropped. That includes API keys, tokens,
+`SSH_AUTH_SOCK`, `PYTHONPATH` and every other `WARDING_*` variable. A hook that
+needs another variable must set it in its own `command`. The runner redacts both
+stdout and stderr (full capped text, before truncation) before they reach the
+model, the dashboard or the logs.
+
 **Windows spawns through `asyncio.create_subprocess_shell`, not an argv.** cmd.exe
 must receive the operator's command line verbatim: an argv spawn of
 `["cmd", "/c", command]` routes it through `subprocess.list2cmdline`, which

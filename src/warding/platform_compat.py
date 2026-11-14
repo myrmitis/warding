@@ -1227,6 +1227,44 @@ def env_key_allowed(key: str, allowed: frozenset[str] | tuple[str, ...]) -> bool
     return key in allowed
 
 
+#: The location and shell hints every child-process environment allowlist starts
+#: from: where the user's home, temp and config directories are, which shell and
+#: locale apply, and the Windows system variables a process needs to start. None
+#: of these is a credential. Each allowlist (app install scripts in
+#: ``apps/registry.py``, script hooks in ``hooks.py``) adds its own extras on top,
+#: so the base lives in exactly one place. Match with :func:`env_key_allowed`.
+BASE_CHILD_ENV_KEYS: frozenset[str] = frozenset(
+    {
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "PATH",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "TERM",
+        "TMPDIR",
+        # Windows equivalents. ``ProgramFiles`` is spelled both ways because the
+        # set is matched literally on POSIX and case-folded on Windows.
+        "APPDATA",
+        "COMSPEC",
+        "LOCALAPPDATA",
+        "PATHEXT",
+        "ProgramFiles",
+        "PROGRAMFILES",
+        "SystemRoot",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "WINDIR",
+        "XDG_RUNTIME_DIR",
+        "XDG_CONFIG_HOME",
+        "XDG_DATA_HOME",
+        "XDG_CACHE_HOME",
+    }
+)
+
 _TRUSTED_SYSTEM_BIN_DIRS = ("/usr/bin", "/bin", "/usr/sbin", "/sbin", "/run/current-system/sw/bin")
 
 # Windows argv carries a bare name (``taskkill``) while the file on disk carries

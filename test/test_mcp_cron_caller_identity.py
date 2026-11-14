@@ -164,16 +164,32 @@ def test_an_unidentified_caller_reads_nothing() -> None:
     assert owned not in listed
 
 
-def test_the_cli_keeps_its_admin_bypass(monkeypatch) -> None:
-    """The refusal never strands an operator; it names this route."""
+def test_the_cli_variable_grants_nothing(monkeypatch) -> None:
+    """``WARDING_CLI=1`` is not an admin grant, for any caller.
+
+    The human CLI manages jobs through ``CronService`` directly and never
+    reaches this server, so the server has no admin caller. With the variable
+    set, an unidentified caller is refused, and a caller holding another
+    session's key can neither list nor remove that session's job.
+    """
     _as_session("dashboard:owner")
-    job_id = _add_job(f"cli-{uuid.uuid4().hex[:8]}")
-    set_current_caller(None)
+    name = f"cli-{uuid.uuid4().hex[:8]}"
+    job_id = _add_job(name)
     monkeypatch.setenv("WARDING_CLI", "1")
 
-    assert "cannot determine which session is calling" not in _call_tool_inner(
+    set_current_caller(None)
+    assert "cannot determine which session is calling" in _call_tool_inner(
         "cron_pause", {"job_id": job_id}
     )
+    assert name not in _call_tool_inner("cron_list", {})
+
+    _as_session("dashboard:intruder")
+    assert name not in _call_tool_inner("cron_list", {})
+    assert "job not found" in _call_tool_inner("cron_remove", {"job_id": job_id}).lower()
+    assert "No cron jobs owned by this session." == _call_tool_inner("cron_remove_all", {})
+
+    _as_session("dashboard:owner")
+    assert name in _call_tool_inner("cron_list", {})
 
 
 # --- 4b: the gate the fix makes reachable at all --------------------------
