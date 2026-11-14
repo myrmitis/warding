@@ -5276,7 +5276,10 @@
       "voice_input": "Saisie vocale",
       "finishing": "Finalisation…",
       "keep_holding_to_record": "Maintenir pour enregistrer",
-      "harness": "Fonctionne avec {{name}}"
+      "harness": "Fonctionne avec {{name}}",
+      "harness_not_installed": "Non installé",
+      "harness_needs_sign_in": "Connexion requise",
+      "harness_stays_note": "Votre choix s'applique aux nouvelles discussions. Celle-ci reste sur {{name}}."
     },
     "chatPane": {
       "agent_list": "Liste des agents",

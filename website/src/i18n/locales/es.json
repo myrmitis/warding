@@ -5276,7 +5276,10 @@
       "voice_input": "Entrada de voz",
       "finishing": "Finalizando…",
       "keep_holding_to_record": "Mantén pulsado para grabar",
-      "harness": "Funciona con {{name}}"
+      "harness": "Funciona con {{name}}",
+      "harness_not_installed": "No instalado",
+      "harness_needs_sign_in": "Requiere iniciar sesión",
+      "harness_stays_note": "Tu elección se aplica a los chats nuevos. Este chat sigue en {{name}}."
     },
     "chatPane": {
       "agent_list": "Lista de agentes",

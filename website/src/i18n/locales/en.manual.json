@@ -1428,7 +1428,10 @@
       "steer_act_on_this_right_away_desc": "Act on this right away",
       "finishing": "Finishing…",
       "keep_holding_to_record": "Keep holding to record",
-      "harness": "Running on {{name}}"
+      "harness": "Running on {{name}}",
+      "harness_not_installed": "Not installed",
+      "harness_needs_sign_in": "Needs sign-in",
+      "harness_stays_note": "Your pick applies to new chats. This chat stays on {{name}}."
     },
     "chatPane": {
       "earlier_messages_load_failed": "Couldn't load earlier messages. Scroll to the top of the session to try again.",

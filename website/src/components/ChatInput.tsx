@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, useId, memo } from 'react'
-import { ArrowUpFromLine, ArrowUp, Loader2, RotateCw, Plus, Crop, Bot, Mic, Keyboard, Square, BookOpen, X, ClipboardList, CheckCircle, Ban, Sparkles, Target, Lock, Folder, FolderOpen, FileText, Cpu } from 'lucide-react'
+import { ArrowUpFromLine, ArrowUp, Loader2, RotateCw, Plus, Crop, Bot, Mic, Keyboard, Square, BookOpen, X, ClipboardList, CheckCircle, Ban, Sparkles, Target, Lock, Folder, FolderOpen, FileText } from 'lucide-react'
 import CopyBranchButton from './CopyBranchButton'
+import ComposerHarnessPicker from './ComposerHarnessPicker'
 import { usePointerDrag } from '../hooks/usePointerDrag'
 import { useScrollEdges } from '../hooks/useScrollEdges'
 import VoiceStatusBar from './VoiceStatusBar'
@@ -3582,18 +3583,7 @@ function ChatInput({
           )}
           </div>
           <div className="flex items-center shrink-0">
-          {harnessLabel && (
-            <span
-              className="inline-flex items-center h-7 px-2 text-[12px] text-muted shrink-0"
-              title={i18nT('components.chatInput.harness', { name: harnessLabel })}
-              data-testid="composer-harness"
-              {...(harnessMarkOnly ? { role: 'img', 'aria-label': i18nT('components.chatInput.harness', { name: harnessLabel }) } : {})}
-            >
-              {harnessMarkOnly
-                ? <Cpu className="lucide-inline" aria-hidden="true" />
-                : <span className="truncate max-w-[160px]">{harnessLabel}</span>}
-            </span>
-          )}
+          <ComposerHarnessPicker runningLabel={harnessLabel} markOnly={harnessMarkOnly} />
           {contextPct != null && (() => {
             const pct = Math.round(contextPct)
             const win = contextWindowTokens || 0

@@ -370,9 +370,13 @@ agent means running that agent's own login command, then probing it.
 
 ## Choosing the chat harness
 
-Chat runs one harness, `agent.acp_backend`. Settings ▸ **Agents & plans** opens
-with a **Chat harness** radio group that reads and writes it; routing (below it)
-only decides where subagent tasks go, and the description says so.
+Chat runs one harness, `agent.acp_backend`. Two dashboard surfaces read and write
+it. Settings ▸ **Agents & plans** opens with a **Chat harness** radio group;
+routing (below it) only decides where subagent tasks go, and the description says
+so. The composer's harness chip opens the same choice as a menu (see
+[the chat names its harness](#the-chat-names-its-harness) below). Both save
+through `useSetChatHarness` (`website/src/hooks/useChatHarness.ts`), so they share
+one write, one error wording and one refetch rule.
 
 **The list is the gateway's, never the page's.** `GET /api/routing/harnesses`
 carries a `chat` block, built by `HarnessRouter.chat_view`:
@@ -409,7 +413,9 @@ usual order and the harness reports its own failure on the turn. After the file
 write the handler calls `SessionManager.refresh_defaults()` (best effort: a failed
 rebuild is logged and the next cold start retries, see
 [session.md](session.md#harness-changes-on-disk)), so the models list and the
-warm pool follow at once and no restart is needed.
+warm pool follow at once and no restart is needed. After a successful save the
+dashboard refetches `['routing', 'harnesses']` and `['available-models']`, so a
+model picker never keeps the previous harness's list.
 
 **What changes, and what does not.** The setting applies to NEW chats. A chat
 that is open keeps the harness its process runs (an ACP session cannot be moved
@@ -417,7 +423,9 @@ to another agent) until it ends, and the page says so. The write lands in
 `config.json`; `config.local.json` outranks it, so the page re-reads the merged
 value after saving and says when an overlay kept a different harness.
 
-**The chat names its harness.** `DashboardState.serialize_slot` adds
+### The chat names its harness
+
+`DashboardState.serialize_slot` adds
 `harness: {"id", "label"} | null` to every slot, read from
 `_ChatSlot._harness_backend`: the backend of the slot's latest turn's live
 provider (`providers.acp.provider_backend`, positive on the client's backend
@@ -436,11 +444,24 @@ acquisition and from the eager spawn once its session has survived the
 deleted-slot and changed-binding checks (a session removed by either runs nothing,
 so it is never labelled); the browser's snapshot predates the session, and the
 next ordinary update could be the end of a long response. Not persisted; a
-restart has nothing to say until the next turn starts a process. The composer
-shows the label as plain text beside the model (`data-testid="composer-harness"`);
-on a shelf narrower than 440px it collapses to a `Cpu` mark whose accessible name
-and tooltip are the same "Running on {name}" string, so it never squeezes the
-agent and project chips.
+restart has nothing to say until the next turn starts a process.
+
+The composer shows the label in a chip beside the model
+(`data-testid="composer-harness"`, `ComposerHarnessPicker`). On a shelf narrower
+than 440px the chip collapses to a `Cpu` mark. Its accessible name and tooltip
+are "Running on {name}". A chat with no turn yet has no label, so the chip names
+`chat.selected` instead, with the tooltip "New chats start on {name}". A pick
+drains the warm pool, so that chat's first message starts on the new pick.
+
+The chip opens a menu (`composer-harness-menu`) with every `chat.choices` entry as
+a `menuitemradio` (`composer-harness-<id>`). Not-installed entries are disabled.
+A `needs_login` entry is marked "Needs sign-in" and stays selectable. `auto` shows
+the harness it resolves to. The menu stays open after a pick, so the check mark
+moves in view. When the chat already runs on a harness, the menu says that the
+pick applies to new chats and that this chat stays on its harness. The chip keeps
+naming the harness the chat actually runs on. When the gateway returns no `chat`
+block, the chip is the plain label with no menu. The E2E gate covers the menu in
+`website/playwright/composer-harness.spec.ts`.
 
 ## The dashboard on a non-Kiro agent
 

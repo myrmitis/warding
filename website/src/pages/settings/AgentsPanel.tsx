@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Bot, Check, CheckCircle2, Circle, Copy, ExternalLink, Loader2, LogIn, Download, RefreshCw, TimerReset } from 'lucide-react'
 
 import { SettingsCard, SettingsInput, SettingsSection, SettingsSelect, SettingsToggle } from '../../components/settings'
@@ -11,14 +11,13 @@ import {
   type RoutingChatChoice,
   type RoutingChatHarness,
   type RoutingHarnessRow,
-  type RoutingHarnessesView,
   type RoutingLaneEdit,
   type RoutingProbeStatus,
 } from '../../api/client'
 import { addTab as addDockTerminal } from '../../hooks/useBottomTerminal'
+import { ROUTING_HARNESSES_QUERY_KEY, useRoutingHarnesses, useSetChatHarness } from '../../hooks/useChatHarness'
 import { onTerminalReady, sendToTerminalSession, useTerminalEnabled } from '../../utils/terminalRegistry'
 import { copyToClipboard } from '../../utils/clipboard'
-import { parseErrorCode } from '../../utils/errorReport'
 import { fmtNumber, fmtRelative, fmtTime } from '../../i18n/format'
 import { i18nT } from '../../i18n/t'
 
@@ -34,7 +33,6 @@ import { i18nT } from '../../i18n/t'
  * harness picker writes `agent.acp_backend`, the one agent new chats start on.
  */
 
-export const ROUTING_HARNESSES_QUERY_KEY = ['routing', 'harnesses'] as const
 const QUERY_KEY = ROUTING_HARNESSES_QUERY_KEY
 const BILLING_OPTIONS: RoutingBilling[] = ['subscription', 'free', 'metered']
 // How long "Copied" / "Sent to terminal" stays on a button.
@@ -483,15 +481,10 @@ export function ChatHarnessPicker({ chat, pending, error, onPick }: {
 export function AgentsPanel({ compact = false }: { compact?: boolean } = {}) {
   const qc = useQueryClient()
   const [error, setError] = useState('')
-  const [chatError, setChatError] = useState('')
   const [checking, setChecking] = useState<Set<string>>(new Set())
 
-  const view = useQuery<RoutingHarnessesView | null>({
-    queryKey: QUERY_KEY,
-    // Partial `api/client` mocks are common in this suite; a missing method
-    // must not throw on mount.
-    queryFn: () => Promise.resolve(api.routingHarnesses?.()).then(v => v ?? null),
-  })
+  const view = useRoutingHarnesses()
+  const chatHarness = useSetChatHarness()
 
   const check = async (harness: string) => {
     setChecking(prev => new Set(prev).add(harness))
@@ -511,26 +504,6 @@ export function AgentsPanel({ compact = false }: { compact?: boolean } = {}) {
     onError: () => setError(i18nT('pages.settings.agentsPanel.save_failed')),
     onSuccess: () => setError(''),
     onSettled: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
-  })
-
-  const chatHarness = useMutation({
-    mutationFn: (harness: string) => api.setChatHarness(harness),
-    onError: err => {
-      // ApiError keeps the raw response body, where the backend's `code` lives.
-      const code = parseErrorCode((err as { body?: string }).body)
-      setChatError(code === 'unknown_harness'
-        ? i18nT('pages.settings.agentsPanel.chat_harness_unknown')
-        : i18nT('pages.settings.agentsPanel.chat_harness_save_failed'))
-    },
-    onSuccess: () => setChatError(''),
-    onSettled: async (_data, err, harness) => {
-      await qc.invalidateQueries({ queryKey: QUERY_KEY })
-      if (err) return
-      // A local overlay (config.local.json) outranks the file this write lands in.
-      // The view reads the merged value back, so a difference is said, not hidden.
-      const now = qc.getQueryData<RoutingHarnessesView | null>(QUERY_KEY)?.chat?.configured
-      if (now && now !== harness) setChatError(i18nT('pages.settings.agentsPanel.chat_harness_overridden'))
-    },
   })
 
   const resume = useMutation({
@@ -568,9 +541,9 @@ export function AgentsPanel({ compact = false }: { compact?: boolean } = {}) {
       {view.data?.chat && !compact && (
         <ChatHarnessPicker
           chat={view.data.chat}
-          pending={chatHarness.isPending ? chatHarness.variables ?? null : null}
-          error={chatError}
-          onPick={harness => chatHarness.mutate(harness)}
+          pending={chatHarness.pending}
+          error={chatHarness.error}
+          onPick={chatHarness.pick}
         />
       )}
       <SettingsSection

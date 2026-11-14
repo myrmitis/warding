@@ -116,8 +116,9 @@ Other installation paths are covered in the
 
 Here Claude is the primary chat agent. Use `codex` instead of `claude` in the
 config command to reverse that choice. The default remains `auto`; selecting an
-agent explicitly avoids another installed harness being chosen. Settings →
-Agents & plans → Chat harness changes the choice for new chats. Finish active
+agent explicitly avoids another installed harness being chosen. The harness
+menu beside the chat composer, or Settings → Agents & plans → Chat harness,
+changes the choice for new chats. Finish active
 work before switching; a new chat is the clearest way to check the new choice.
 
 Approvals default to **Auto**. The example opts into **Interactive** for gated

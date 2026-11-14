@@ -5102,7 +5102,10 @@
       "voice_input": "语音输入",
       "finishing": "收尾中…",
       "keep_holding_to_record": "按住才能录音",
-      "harness": "运行于 {{name}}"
+      "harness": "运行于 {{name}}",
+      "harness_not_installed": "未安装",
+      "harness_needs_sign_in": "需要登录",
+      "harness_stays_note": "你的选择只对新对话生效。此对话继续使用 {{name}}。"
     },
     "chatPane": {
       "agent_list": "代理列表",

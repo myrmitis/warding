@@ -5363,7 +5363,10 @@
       "voice_input": "Голосовой ввод",
       "finishing": "Завершение…",
       "keep_holding_to_record": "Удерживайте, чтобы записать",
-      "harness": "Работает на {{name}}"
+      "harness": "Работает на {{name}}",
+      "harness_not_installed": "Не установлен",
+      "harness_needs_sign_in": "Нужен вход",
+      "harness_stays_note": "Выбор действует для новых чатов. Этот чат остаётся на {{name}}."
     },
     "chatPane": {
       "agent_list": "Список агентов",

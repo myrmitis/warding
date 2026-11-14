@@ -5189,7 +5189,10 @@
       "voice_input": "ভয়েস ইনপুট",
       "finishing": "সম্পন্ন হচ্ছে…",
       "keep_holding_to_record": "রেকর্ড করতে চেপে ধরে রাখুন",
-      "harness": "{{name}}-এ চলছে"
+      "harness": "{{name}}-এ চলছে",
+      "harness_not_installed": "ইনস্টল করা নেই",
+      "harness_needs_sign_in": "সাইন ইন প্রয়োজন",
+      "harness_stays_note": "আপনার পছন্দ নতুন চ্যাটে প্রযোজ্য। এই চ্যাট {{name}}-এ থাকবে।"
     },
     "chatPane": {
       "agent_list": "এজেন্ট তালিকা",
