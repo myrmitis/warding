@@ -139,36 +139,8 @@ _STALE_CHECKOUT_RETENTION_DAYS = 7
 # ``kiro_prerequisite._SAFE_ENV_KEYS``; kept in the allowlist shape so the
 # credential-scrubbing property is unchanged — these are location hints, not
 # secrets.
-_SAFE_ENV_KEYS = frozenset(
+_SAFE_ENV_KEYS = platform_compat.BASE_CHILD_ENV_KEYS | frozenset(
     {
-        "HOME",
-        "USER",
-        "LOGNAME",
-        "SHELL",
-        "PATH",
-        "LANG",
-        "LC_ALL",
-        "LC_CTYPE",
-        "TERM",
-        "TMPDIR",
-        # Windows equivalents of the above. `ProgramFiles` is spelled both ways
-        # because Windows env lookups are case-insensitive while `os.environ` on
-        # other platforms is not, and this set is matched literally.
-        "APPDATA",
-        "COMSPEC",
-        "LOCALAPPDATA",
-        "PATHEXT",
-        "ProgramFiles",
-        "PROGRAMFILES",
-        "SystemRoot",
-        "TEMP",
-        "TMP",
-        "USERPROFILE",
-        "WINDIR",
-        "XDG_RUNTIME_DIR",
-        "XDG_CONFIG_HOME",
-        "XDG_DATA_HOME",
-        "XDG_CACHE_HOME",
         "SSH_AUTH_SOCK",
         "SSH_AGENT_PID",
         "JAVA_HOME",

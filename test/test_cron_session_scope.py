@@ -81,8 +81,14 @@ class TestCronRemoveAllScoped:
         assert len(remaining) == 1
         assert remaining[0].name == n2
 
-    def test_cli_removes_all(self, monkeypatch):
-        """With WARDING_CLI=1, cron_remove_all removes everything."""
+    def test_the_cli_variable_grants_nothing(self, monkeypatch):
+        """``WARDING_CLI=1`` is not an admin grant.
+
+        The human CLI manages jobs through ``CronService`` directly, so this
+        server has no admin caller. With the variable set, an unidentified caller
+        is refused, and a caller named by another session's key neither lists nor
+        removes that session's jobs.
+        """
         monkeypatch.delenv("WARDING_CHANNEL_ID", raising=False)
         n1, n2 = _unique_name(), _unique_name()
 
@@ -92,14 +98,28 @@ class TestCronRemoveAllScoped:
         monkeypatch.setenv("WARDING_SESSION_KEY", "sess-Y")
         _call_tool_inner("cron_add", {"name": n2, "message": "b", "every": 120})
 
-        # CLI admin removes everything
         monkeypatch.setenv("WARDING_CLI", "1")
+
+        # Unidentified caller: refused, nothing removed.
         monkeypatch.delenv("WARDING_SESSION_KEY", raising=False)
+        monkeypatch.setattr("warding.mcp_cron._authz_session_key", lambda: "")
         result = _call_tool_inner("cron_remove_all", {})
-        assert "Removed 2 job(s)" in result
+        assert "cannot determine which session is calling" in result
+        assert n1 not in _call_tool_inner("cron_list", {})
+
+        # Caller Y: sees and removes only its own job.
+        monkeypatch.setattr("warding.mcp_cron._authz_session_key", lambda: "sess-Y")
+        listed = _call_tool_inner("cron_list", {})
+        assert n2 in listed
+        assert n1 not in listed
+        assert "Removed 1 job(s)" in _call_tool_inner("cron_remove_all", {})
+
+        svc = CronService()
+        remaining = [j.name for j in svc.list_jobs() if j.name in (n1, n2)]
+        assert remaining == [n1]
 
     def test_no_session_key_no_cli_returns_error(self, monkeypatch):
-        """Without session key or CLI flag, returns error.
+        """Without a session key, returns error.
 
         Still an error, now the shared one every mutating tool gives an
         unidentifiable caller rather than a message unique to this tool.
@@ -109,17 +129,16 @@ class TestCronRemoveAllScoped:
         monkeypatch.delenv("WARDING_CLI", raising=False)
         name = _unique_name()
 
-        # Create a job via CLI so it exists
-        monkeypatch.setenv("WARDING_CLI", "1")
+        # Create a job as its owning session so it exists
         monkeypatch.setenv("WARDING_SESSION_KEY", "sess-owner")
         _call_tool_inner("cron_add", {"name": name, "message": "a", "every": 120})
 
-        # Try to remove without session key or CLI
+        # Try to remove without a session key
         monkeypatch.delenv("WARDING_SESSION_KEY", raising=False)
-        monkeypatch.delenv("WARDING_CLI", raising=False)
         monkeypatch.setattr("warding.mcp_cron._authz_session_key", lambda: "")
         result = _call_tool_inner("cron_remove_all", {})
         assert "cannot determine which session is calling" in result
+        assert [j.name for j in CronService().list_jobs() if j.name == name] == [name]
 
     def test_no_matching_jobs_returns_message(self, monkeypatch):
         """Session with no owned jobs gets appropriate message."""

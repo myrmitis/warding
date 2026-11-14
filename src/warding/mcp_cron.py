@@ -1481,11 +1481,6 @@ def _caller_channel_id() -> str:
     return ctx.channel_id if ctx is not None else ""
 
 
-def _caller_is_cli() -> bool:
-    """True for the admin CLI surface, which bypasses per-session ownership."""
-    return os.environ.get("WARDING_CLI", "") == "1"
-
-
 def _authz_session_key() -> str:
     """The session key an ownership decision may be made from, or ``""``.
 
@@ -1548,7 +1543,7 @@ def _unidentified_caller_refusal(tool_name: str) -> str:
     stub registers without a session key and peer resolution fails, so an
     unidentifiable caller can be sharing a pooled backend with identified ones.
     It is not necessarily alone, so it gets neither their rows nor authority over
-    them. The CLI keeps its admin bypass, so the refusal never strands an
+    them. The CLI never routes through this server, so the refusal never strands an
     operator -- it names that route.
     """
     try:
@@ -1640,8 +1635,6 @@ def _audit_list_scope(
 
 def _check_cron_job_ownership(svc: "CronService", job_id: str) -> str | None:
     """Return an error string if the caller doesn't own this job, else None."""
-    if _caller_is_cli():
-        return None  # CLI admin bypass
     session_key = _authz_session_key()
     if not session_key:
         return _unidentified_caller_refusal(f"cron:{job_id}")
@@ -1699,16 +1692,15 @@ def _call_tool_inner(name: str, args: dict[str, Any]) -> str:
         jobs = svc.list_jobs(include_disabled=True)
         if not jobs:
             return "No cron jobs."
-        # Ownership filter: a non-CLI caller sees ONLY the rows it owns. Not
+        # Ownership filter: every caller sees ONLY the rows it owns. Not
         # ownerless rows (they belong to the admin surface, and an identified
         # session is not necessarily the operator -- see _UNOWNED), and an
         # UNIDENTIFIABLE caller sees nothing rather than everything, because
         # gatewayd can forward caller=None on a pooled connection.
-        if not _caller_is_cli():
-            session_key = _authz_session_key()
-            jobs = _audit_list_scope(_owned_by(jobs, session_key), jobs, session_key)
-            if not jobs:
-                return "No cron jobs."
+        session_key = _authz_session_key()
+        jobs = _audit_list_scope(_owned_by(jobs, session_key), jobs, session_key)
+        if not jobs:
+            return "No cron jobs."
         # Drill-in: ids filter forces full bodies for matching jobs only.
         if ids_filter:
             id_set = set(ids_filter)
@@ -1809,12 +1801,12 @@ def _call_tool_inner(name: str, args: dict[str, Any]) -> str:
         silent = args.get("silent", False)
         approval_mode = args.get("approval_mode", "")
         session_key = _authz_session_key()
-        if not session_key and not _caller_is_cli():
+        if not session_key:
             # Refuse rather than mint another ownerless row. A job whose owner is
             # unknown is precisely what made the ownership gate unenforceable, and
             # every such row is then visible-but-not-mutable through MCP (see
-            # _UNOWNED). The CLI keeps creating jobs; so does any session the
-            # gateway can name.
+            # _UNOWNED). The CLI creates jobs through ``CronService`` directly,
+            # not through this server; so does any session the gateway can name.
             return _unidentified_caller_refusal("cron_add")
         persistent_session = args.get("persistent_session")
         minimal_context = args.get("minimal_context")
@@ -1971,36 +1963,25 @@ def _call_tool_inner(name: str, args: dict[str, Any]) -> str:
         if not jobs:
             return "No cron jobs to remove."
         session_key = _authz_session_key()
-        is_cli = _caller_is_cli()
-        if not is_cli:
-            if not session_key:
-                return _unidentified_caller_refusal("cron_remove_all")
-            jobs = _owned_by(jobs, session_key)
-            if not jobs:
-                return "No cron jobs owned by this session."
-            sel().log_tool_invocation(
-                session_key=session_key,
-                source="mcp",
-                tool_name="cron_remove_all",
-                tool_kind="authz",
-                outcome="scoped",
-                resources=f"session={session_key} count={len(jobs)}",
-            )
-        else:
-            sel().log_tool_invocation(
-                session_key="mcp_cron",
-                source="mcp",
-                tool_name="cron_remove_all",
-                tool_kind="authz",
-                outcome="cli_admin",
-                resources=f"count={len(jobs)}",
-            )
+        if not session_key:
+            return _unidentified_caller_refusal("cron_remove_all")
+        jobs = _owned_by(jobs, session_key)
+        if not jobs:
+            return "No cron jobs owned by this session."
+        sel().log_tool_invocation(
+            session_key=session_key,
+            source="mcp",
+            tool_name="cron_remove_all",
+            tool_kind="authz",
+            outcome="scoped",
+            resources=f"session={session_key} count={len(jobs)}",
+        )
         try:
             # Distinct from the ``removed: bool`` that ``cron_remove``'s
             # single-job path binds above: this is the batch's removed-id LIST,
             # and reusing the name would rebind one variable to two types.
             removed_ids, _missing = svc.remove_jobs_sync(
-                [j.id for j in jobs], actor=session_key or "mcp", source="mcp"
+                [j.id for j in jobs], actor=session_key, source="mcp"
             )
         except CronStoreBusy:
             return "Error: cron store busy, please retry"
