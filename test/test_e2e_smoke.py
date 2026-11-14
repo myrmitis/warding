@@ -980,3 +980,159 @@ def test_boot_sweep_keeps_only_records_of_agent_launchers(tmp_path: Path) -> Non
     finally:
         for child in children.values():
             _stop_child(child)
+
+
+# --- Request boundary: malformed input answers 4xx with a machine-readable code ---
+
+
+def _send_raw(
+    gateway,
+    method: str,
+    path: str,
+    data: bytes | None,
+    content_type: str = "application/json",
+) -> tuple[int, dict]:
+    """Send *data* verbatim and return ``(status, parsed JSON body)``.
+
+    ``_api_post`` encodes a dict, which cannot express a non-object body or
+    invalid UTF-8, so the boundary tests post raw bytes.
+    """
+    req = urllib.request.Request(f"http://localhost:{gateway.port}{path}", data=data, method=method)
+    if data is not None:
+        req.add_header("Content-Type", content_type)
+    try:
+        with _opener(gateway).open(req, timeout=30) as resp:
+            status, raw = resp.status, resp.read()
+    except urllib.error.HTTPError as err:
+        status, raw = err.code, err.read()
+    try:
+        return status, json.loads(raw)
+    except ValueError:
+        # A plain-text 500 from aiohttp lands here, and the caller's assertions
+        # on the status and ``code`` then fail with the raw text in view.
+        return status, {"_raw": raw[:200].decode("utf-8", "replace")}
+
+
+_BAD_BODIES: dict[str, tuple[bytes, str]] = {
+    "array": (b"[1, 2]", "invalid_body"),
+    "string": (b'"text"', "invalid_body"),
+    "number": (b"7", "invalid_body"),
+    "truncated": (b'{"name": ', "invalid_json"),
+    "invalid_utf8": (b'{"name": "\xff\xfe"}', "invalid_encoding"),
+}
+
+
+@pytest.mark.parametrize("kind", sorted(_BAD_BODIES))
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("POST", "/api/chat/slots/{slot}/approve"),
+        ("POST", "/api/skills"),
+        ("POST", "/api/skills/-/pin"),
+        ("PUT", "/api/skills/boundary-probe"),
+        ("POST", "/api/sessions/summarize"),
+        ("POST", "/api/system/session-storage/cleanup"),
+        ("POST", "/api/system/session-storage/restore"),
+        ("POST", "/api/system/session-storage/empty"),
+        ("POST", "/api/mcp/toggle"),
+    ],
+)
+def test_malformed_body_is_a_400_with_a_code(gateway, method, path, kind):
+    """A body that is not a JSON object, or not valid JSON or UTF-8, is a 400."""
+    slot = _api_post(gateway, "/api/chat/slots", {})["key"]
+    body, code = _BAD_BODIES[kind]
+    status, payload = _send_raw(gateway, method, path.format(slot=slot), body)
+    assert status == 400, payload
+    assert payload["code"] == code, payload
+
+
+@pytest.mark.parametrize(
+    ("path", "body", "code"),
+    [
+        # ``request_id`` keys the approval-future dicts, so a list or dict used to
+        # raise an unhashable-key TypeError.
+        ("/api/chat/slots/{slot}/approve", {"request_id": ["x"]}, "invalid_field"),
+        ("/api/chat/slots/{slot}/approve", {"request_id": {"a": 1}}, "invalid_field"),
+        ("/api/chat/slots/{slot}/approve", {"request_id": 5}, "invalid_field"),
+        ("/api/chat/slots/{slot}/approve", {"action": ["approved"]}, "invalid_field"),
+        ("/api/chat/slots/{slot}/approve", {"request_id": "r" * 5000}, "field_too_long"),
+        # ``.strip()`` ran on whatever type the client sent.
+        ("/api/skills", {"name": 5, "content": "x"}, "invalid_field"),
+        ("/api/skills", {"name": "ok", "content": ["x"]}, "invalid_field"),
+        ("/api/skills", {"name": "a" * 5000, "content": "x"}, "field_too_long"),
+        ("/api/skills/-/pin", {"name": ["a"]}, "invalid_field"),
+        ("/api/skills/-/pin", {"name": "a" * 5000}, "field_too_long"),
+        # Session endpoints.
+        ("/api/system/session-storage/cleanup", {"older_than_days": "30"}, "invalid_threshold"),
+        ("/api/system/session-storage/restore", {"batch_id": ["a"]}, "invalid_batch"),
+        ("/api/system/session-storage/restore", {"batch_id": "b", "uids": "u"}, "invalid_batch"),
+        ("/api/system/session-storage/empty", {"batch_ids": "b"}, "invalid_batch"),
+        ("/api/sessions/summarize", {"keys": "chat-1"}, "invalid_field"),
+    ],
+)
+def test_wrong_typed_field_is_a_400_with_a_code(gateway, path, body, code):
+    """A field of the wrong type, or past its length cap, is a 400."""
+    slot = _api_post(gateway, "/api/chat/slots", {})["key"]
+    status, payload = _send_raw(
+        gateway, "POST", path.format(slot=slot), json.dumps(body).encode("utf-8")
+    )
+    assert status == 400, payload
+    assert payload["code"] == code, payload
+
+
+@pytest.mark.parametrize("route", ["skills", "prompts"])
+def test_overlong_name_in_the_path_is_not_a_server_error(gateway, route):
+    """A name longer than the filesystem allows is "not found", never a 500."""
+    status, payload = _send_raw(gateway, "GET", f"/api/{route}/{'a' * 5000}", None)
+    assert status == 404, payload
+
+
+def test_well_formed_approval_still_reaches_the_handler(gateway):
+    """The boundary refuses malformed input only: a valid body for an idle slot is a 404."""
+    slot = _api_post(gateway, "/api/chat/slots", {})["key"]
+    status, payload = _send_raw(
+        gateway,
+        "POST",
+        f"/api/chat/slots/{slot}/approve",
+        json.dumps({"request_id": "no-such-request", "action": "approved"}).encode("utf-8"),
+    )
+    assert status == 404, payload
+    assert payload["error"] == "no pending approval"
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/api/chat/slots/{slot}/approve", "/api/skills", "/api/system/session-storage/empty"],
+)
+def test_unknown_charset_is_a_400_with_a_code(gateway, path):
+    """A ``Content-Type`` that names a charset with no codec is a 400, not a 500."""
+    slot = _api_post(gateway, "/api/chat/slots", {})["key"]
+    status, payload = _send_raw(
+        gateway,
+        "POST",
+        path.format(slot=slot),
+        b'{"name": "x"}',
+        content_type="application/json; charset=no-such-charset",
+    )
+    assert status == 400, payload
+    assert payload["code"] == "invalid_encoding", payload
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/api/chat/slots/{slot}/approve", "/api/skills", "/api/system/session-storage/empty"],
+)
+def test_deeply_nested_body_is_a_400_with_a_code(gateway, path):
+    """A body nested deeper than the JSON decoder can parse is a 400, not a 500."""
+    slot = _api_post(gateway, "/api/chat/slots", {})["key"]
+    status, payload = _send_raw(gateway, "POST", path.format(slot=slot), b"[" * 200_000)
+    assert status == 400, payload
+    assert payload["code"] == "invalid_json", payload
+
+
+@pytest.mark.parametrize("method", ["PUT", "DELETE"])
+def test_overlong_skill_name_on_write_routes_is_not_a_server_error(gateway, method):
+    """Update and delete of a name past the filesystem limit answer 404, never 500."""
+    data = json.dumps({"content": "x"}).encode("utf-8") if method == "PUT" else None
+    status, payload = _send_raw(gateway, method, f"/api/skills/{'a' * 5000}", data)
+    assert status == 404, payload

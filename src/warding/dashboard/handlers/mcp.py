@@ -24,6 +24,7 @@ from warding.config.loader import (
     _resolve_stub_servers,
 )
 from warding.config.paths import data_home, kiro_agents_dir
+from warding.dashboard.handlers._shared import read_json_object
 from warding.dashboard.state import DashboardState
 from warding.env import emit_env
 from warding.loop_lock import LoopBoundLock
@@ -1065,10 +1066,7 @@ async def api_mcp_toggle(request: web.Request) -> web.Response:
     1. Sets ``disabled`` in ``~/.kiro/settings/mcp.json`` (ACP runtime).
     2. Syncs ``tools``/``allowedTools`` in ``warding.json`` (non-ACP mode).
     """
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     name, err = _string_identifier(body, "name")
     if err is not None:
         return err
@@ -1129,10 +1127,7 @@ async def api_mcp_toggle_tool(request: web.Request) -> web.Response:
 
     Updates ``disabledTools`` in ``~/.kiro/settings/mcp.json``.
     """
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     server, err = _string_identifier(body, "server")
     if err is not None:
         return err
@@ -1192,10 +1187,7 @@ async def api_mcp_toggle_tool(request: web.Request) -> web.Response:
 
 async def api_mcp_toggle_all(request: web.Request) -> web.Response:
     """POST /api/mcp/toggle-all — enable or disable all MCP servers."""
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     enabled = body.get("enabled", True)
 
     async with _get_mcp_lock():
@@ -1236,10 +1228,7 @@ async def api_mcp_remove(request: web.Request) -> web.Response:
     warding.json.  When the edition's capability manager is available it is
     also asked to uninstall (best-effort); otherwise that step is skipped.
     """
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     name, err = _string_identifier(body, "name")
     if err is not None:
         return err
@@ -1338,10 +1327,7 @@ async def api_mcp_server_detail(request: web.Request) -> web.Response:
         return web.json_response(reply, status=status)
 
     # PUT — register or update
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
 
     command = body.get("command", "")
     if not command:
@@ -1860,10 +1846,7 @@ async def _do_mcp_apply(request: web.Request) -> web.Response:
     ``~/.claude/agents/warding.md`` + ``warding.mcp.json``) reflect the
     new merged state.  Returns a summary with per-change outcomes.
     """
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     changes = body.get("changes")
     if not isinstance(changes, list):
         return web.json_response({"error": "changes must be a list"}, status=400)
@@ -2340,10 +2323,7 @@ async def api_mcp_gateway_enable(request: web.Request) -> web.Response:
     from warding.config.loader import config_path  # circular import
     from warding.dashboard.handlers.agents import _get_config_lock  # circular import
 
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
+    body = await read_json_object(request)
     enabled = body.get("enabled")
     if not isinstance(enabled, bool):
         return web.json_response({"error": "enabled must be a boolean"}, status=400)
@@ -2870,14 +2850,7 @@ async def api_mcp_gateway_set_stub(request: web.Request) -> web.Response:
         update_config_locked,
     )
 
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
-    if not isinstance(body, dict):
-        return web.json_response(
-            {"error": "body must be an object", "code": "body_not_object"}, status=400
-        )
+    body = await read_json_object(request)
     name = str(body.get("name", "")).strip()
     raw_names = body.get("names")
     stub = body.get("stub")

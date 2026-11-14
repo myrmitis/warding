@@ -26,6 +26,7 @@ from aiohttp.test_utils import TestClient, TestServer, make_mocked_request
 from warding.acp.client import AcpModelUnavailable
 from warding.dashboard import chat_handlers as ch
 from warding.dashboard.chat_persistence import get_reasoning_effort_values
+from warding.dashboard.handlers._shared import request_boundary_middleware
 from warding.dashboard.state import _MAX_PENDING_CONTEXT, DashboardState, _ChatSlot
 from warding.providers.acp import AcpProvider
 from warding.providers.base import LLMProvider
@@ -58,7 +59,7 @@ def _state(slot: _ChatSlot | None = None) -> DashboardState:
 
 
 def _app(state: DashboardState, method: str, path: str, handler) -> web.Application:
-    app = web.Application()
+    app = web.Application(middlewares=[request_boundary_middleware])
     app["state"] = state
     app.router.add_route(method, path, handler)
     return app

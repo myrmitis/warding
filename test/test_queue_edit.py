@@ -17,6 +17,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from warding.dashboard.chat import api_chat_slot_queue_edit
 from warding.dashboard.chat_utils import _edit_queued_by_id
+from warding.dashboard.handlers._shared import request_boundary_middleware
 from warding.dashboard.state import DashboardState, _ChatSlot
 
 # ── Unit tests: _ChatSlot.queue_edit_by_id ──
@@ -119,7 +120,7 @@ def _make_state():
 
 
 def _make_app(state):
-    app = web.Application()
+    app = web.Application(middlewares=[request_boundary_middleware])
     app["state"] = state
     app.router.add_patch(
         "/api/chat/slots/{slot}/queue/{queue_id}",
