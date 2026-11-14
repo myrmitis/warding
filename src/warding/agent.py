@@ -61,6 +61,7 @@ from warding.config.paths import (
     ambient_agents_dir,
     isolated_agents_dir,
     kiro_agents_dir,
+    kiro_home,
 )
 from warding.env import (
     MCP_PATH_HINT,
@@ -241,7 +242,7 @@ def _background_cc_model() -> str:
     return m if m and m != "auto" else _BACKGROUND_CC_MODEL
 
 
-_KIRO_MCP_JSON = Path.home() / ".kiro" / "settings" / "mcp.json"
+_KIRO_MCP_JSON = kiro_home() / "settings" / "mcp.json"
 # Well-known Claude Code global MCP config. The core does not read this at
 # rebuild/discovery/apply time (OSS is Kiro-only); a companion contributes it as
 # a scope via the extra_mcp_scopes() CPP seam. Retained as the canonical path
@@ -1292,7 +1293,7 @@ _HOOK_EVENT_CANONICAL = {
 }
 
 # Default hooks directory matches kiro-cli's discovery path.
-_DEFAULT_KIRO_HOOKS_DIR = Path.home() / ".kiro" / "hooks"
+_DEFAULT_KIRO_HOOKS_DIR = kiro_home() / "hooks"
 
 # Recognize hook event from filename suffix when no "# event:" header is set.
 # Ordering matters: check more specific suffixes first.
@@ -2702,14 +2703,9 @@ def _decline_shared_agent_home(*, audit: bool = True) -> Path | None:
     test's ``tmp_path``), or it is EXACTLY ``isolated_agents_dir(own data home)``
     — the dedicated ``<data home>/kiro/agents`` this instance's teardown owns.
 
-    That second case is the *mechanism* by which a genuinely isolated instance will
-    own its specs; it is NOT advice to set ``KIRO_HOME`` today. Nothing in this
-    repo sets it (``build_pod_env`` deliberately does not) because it also
-    relocates kiro-cli's session storage while Warding still reads the host path
-    — see ``kiro_home()``'s scope caveat. The exemption is matched exactly rather
-    than by ancestry: "beneath the data home" reads the machine-wide
-    ``~/.kiro/agents`` as private the moment the data home is an ancestor of it
-    (``WARDING_HOME=$HOME`` is enough).
+    The packaged macOS app and pods use that dedicated Kiro directory. The
+    exemption matches the exact path so ``WARDING_HOME=$HOME`` alone cannot
+    make the default Kiro home private.
     """
     target = kiro_agents_dir_path().resolve()
     if target != ambient_agents_dir().resolve():
@@ -2805,10 +2801,7 @@ def _decline_shared_agent_home(*, audit: bool = True) -> Path | None:
             "Refusing to rewrite the shared agent home %s from an ephemeral instance "
             "(checkout %s, data home %s): it would repoint the real install's MCP "
             "servers at this instance's venv and data home, and break them outright "
-            "when it is torn down. This instance will use the existing specs instead. "
-            "Deliberately no remedy is suggested here: redirecting the agent home via "
-            "KIRO_HOME also relocates kiro-cli's session storage, which Warding still "
-            "reads from the host path -- see kiro_home()'s scope caveat.",
+            "when it is torn down. This instance will use the existing specs instead.",
             target,
             Path(__file__).resolve().parents[2],
             own_home or "default",

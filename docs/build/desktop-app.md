@@ -552,8 +552,9 @@ unit-testable without mocking globals.
   starts the bundled gateway on port `15476` by default. Opening Warding from
   Applications can run beside the CLI gateway on port `5476`. Each gateway
   keeps its own config and conversations. [Release issue #27](https://github.com/myrmitis/warding/issues/27)
-- Stores the desktop app's Kiro agent specs and replay data in
-  `~/.warding-desktop/kiro` by default. Existing Kiro replays stay in their
+- Stores the desktop app's Kiro agent specs, replay data, and settings in
+  `~/.warding-desktop/kiro` by default. The gateway reads the sandbox setting
+  and manages MCP servers in this Kiro home. Existing replays stay in their
   original store. If the desktop asks for Kiro sign-in, use its setup screen.
 - Treats both default data directories as live state. The CLI refuses to seed
   or enable test-only approvals in either directory. When the desktop directory

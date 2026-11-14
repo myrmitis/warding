@@ -48,6 +48,26 @@ esac
 test -f "$scratch/.warding-desktop/config.json"
 test -f "$scratch/.warding-desktop/kiro/agents/warding.json"
 test ! -e "$scratch/.kiro/agents/warding.json"
+
+ambient_mcp="$scratch/.kiro/settings/mcp.json"
+desktop_mcp="$scratch/.warding-desktop/kiro/settings/mcp.json"
+mkdir -p "${ambient_mcp%/*}" "${desktop_mcp%/*}"
+printf '%s\n' '{"mcpServers":{"ambient-smoke":{"command":"/usr/bin/true","disabled":true}}}' \
+  >"$ambient_mcp"
+cp "$ambient_mcp" "$scratch/ambient-original.json"
+printf '%s\n' '{"mcpServers":{"desktop-smoke":{"command":"/usr/bin/true"}}}' >"$desktop_mcp"
+
+curl --noproxy '*' -fsS --max-time 5 \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"desktop-smoke","enabled":false}' "http://127.0.0.1:$port/api/mcp/toggle" |
+  jq -e '.ok and (.enabled == false)' >/dev/null
+curl --noproxy '*' -fsS --max-time 5 "http://127.0.0.1:$port/api/mcp" |
+  jq -e 'any(.[]; .name == "desktop-smoke" and (.enabled == false))
+    and all(.[]; .name != "ambient-smoke")' >/dev/null
+jq -e '.mcpServers["desktop-smoke"].disabled == true' "$desktop_mcp" >/dev/null
+cmp "$ambient_mcp" "$scratch/ambient-original.json"
+test ! -e "${ambient_mcp%.json}.lock"
+
 env -u PYTHONDONTWRITEBYTECODE -u PYTHONPYCACHEPREFIX WARDING_HOME="$scratch/.warding-desktop" \
   "${gateway%/*}/warding" --version
 codesign --verify --deep --strict "$app"
