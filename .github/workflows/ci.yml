@@ -1678,7 +1678,11 @@ jobs:
 
   e2e:
     name: E2E (stub ACP backend, offline)
-    runs-on: ubuntu-latest
+    # Pinned, not `ubuntu-latest`. The Playwright version in package-lock.json
+    # ships Chromium builds for a fixed list of Ubuntu releases, and the install
+    # step fails on a release outside that list. Raise this pin together with
+    # the Playwright version.
+    runs-on: ubuntu-24.04
     # The frontend build, the render gate (head and base) and the smoke and
     # Playwright suites run back to back: about 16 minutes on a 4-vCPU runner,
     # and longer on 2-vCPU private-repository runners.
