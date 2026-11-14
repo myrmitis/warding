@@ -32,6 +32,7 @@ from urllib.parse import parse_qs, unquote, unquote_plus, urlparse
 from warding.config.paths import CONFIG_DIR_NAME
 from warding.constants import CLI_CONSOLE_STEMS
 from warding.executors import maintenance_executor
+from warding.path_forms import canonical_path_forms
 from warding.sel import SecurityEvent, SecurityEventLog
 from warding.trust_patterns import ENV_ASSIGNMENT_RE
 from warding.vector_memory_constants import _contains_injection
@@ -5870,60 +5871,11 @@ def _get_sensitive_re() -> re.Pattern[str]:
     return _SENSITIVE_RE
 
 
-#: Win32's extended-length path prefix and its UNC form.
-_EXTENDED_PATH_PREFIX = "\\\\?\\"
-_EXTENDED_UNC_PREFIX = "\\\\?\\UNC\\"
-
-
-def _without_extended_prefix(path: str) -> str | None:
-    """The plain spelling of an extended-length *path*, or ``None`` without a prefix.
-
-    For matching only. Win32 rewrites some plain spellings, such as a name that
-    ends in a dot or a space, so the plain spelling can name a different file.
-    It must never become a path that an operation uses. As one more candidate
-    for a deny check it can only widen the match, which is the safe direction.
-    """
-    if path.startswith(_EXTENDED_UNC_PREFIX):
-        return "\\\\" + path[len(_EXTENDED_UNC_PREFIX) :]
-    if path.startswith(_EXTENDED_PATH_PREFIX):
-        return path[len(_EXTENDED_PATH_PREFIX) :]
-    return None
-
-
-def _candidate_forms(path_str: str, base_dir: str | None = None) -> set[str]:
-    """Expand *path_str* into every candidate form the sensitive-path gates match.
-
-    Symlink-resolved forms defeat a link bypass; the lexical forms are the
-    fail-safe fallback when resolution cannot complete (over-matching a
-    sensitive-looking path is the safe direction). ``base_dir`` anchors a
-    relative input against the caller's known working directory. Shared by
-    :func:`_path_in_home_dirs` (is the path INSIDE a protected location?) and
-    :func:`path_contains_sensitive` (does the path CONTAIN one?) so the
-    symlink/anchoring hardening cannot drift between the two directions.
-
-    Windows' ``realpath`` keeps an extended-length (``\\\\?\\``) prefix that the
-    input already carried, and so does ``Path.resolve``. Every form above then
-    starts with the prefix, while no protected target does. So each prefixed
-    form also contributes its plain spelling, lexically: resolving it again
-    would only repeat a lookup that already ran.
-    """
-    # Expand ~ and $HOME
-    expanded = os.path.expanduser(os.path.expandvars(path_str))
-
-    # Anchor a relative input against the supplied workspace dir so it resolves
-    # to the real file rather than the gateway's CWD.  Absolutize base_dir
-    # itself first — if a caller passes a relative base_dir, os.path.join would
-    # re-anchor against the process CWD (the very thing the parameter exists to
-    # avoid), giving zero protection when CWD is unrelated to the workspace.
-    if base_dir and not os.path.isabs(expanded):
-        expanded = os.path.join(os.path.abspath(base_dir), expanded)
-
-    # Build the candidate forms.  Symlink-resolved forms defeat a link bypass;
-    # the lexical forms are the fail-safe fallback when resolution cannot
-    # complete (over-matching a sensitive-looking path is the safe direction).
-    candidates: set[str] = set()
+def _resolved_forms(form: str) -> tuple[str, ...]:
+    """The symlink-resolved spellings of one lexical *form*; empty when none resolve."""
+    resolved: list[str] = []
     try:
-        candidates.add(os.path.realpath(expanded))
+        resolved.append(os.path.realpath(form))
     except (OSError, ValueError):
         pass
     try:
@@ -5933,19 +5885,31 @@ def _candidate_forms(path_str: str, base_dir: str | None = None) -> set[str]:
         # py/path-injection here only because a new caller (artifact relocate)
         # reaches it with user input; the function's whole purpose is to vet that
         # input, so suppress the alert on the resolution step.
-        candidates.add(str(Path(expanded).resolve()))  # lgtm[py/path-injection]
+        resolved.append(str(Path(form).resolve()))  # lgtm[py/path-injection]
     except (OSError, ValueError, RuntimeError):
         pass
-    candidates.add(os.path.normpath(expanded))
-    candidates.add(expanded)
-    for form in list(candidates):
-        plain = _without_extended_prefix(form)
-        if plain:
-            candidates.add(plain)
-            # The OS leaves "." and ".." inside a prefixed path as they are, so
-            # the normalized spelling is one more fail-safe lexical form.
-            candidates.add(os.path.normpath(plain))
-    return candidates
+    return tuple(resolved)
+
+
+def _candidate_forms(path_str: str, base_dir: str | None = None) -> set[str]:
+    """Every candidate form the sensitive-path gates match for *path_str*.
+
+    The forms come from :func:`warding.path_forms.canonical_path_forms`, the one
+    primitive that the governance path matcher shares. It folds the Windows
+    extended-length, device, NT-object, alternate-data-stream and loopback
+    admin-share spellings, and this function adds the filesystem's answer: each
+    lexical form's symlink-resolved spellings. Symlink-resolved forms defeat a link
+    bypass. The lexical forms are the fail-safe fallback when resolution cannot
+    complete: over-matching a sensitive-looking path is the safe direction.
+
+    ``base_dir`` anchors a relative input against the caller's known working
+    directory. Shared by :func:`_path_in_home_dirs` (is the path INSIDE a protected
+    location?) and :func:`path_contains_sensitive` (does the path CONTAIN one?) so
+    the symlink and anchoring hardening cannot drift between the two directions.
+
+    The forms are for matching only. No operation uses one.
+    """
+    return canonical_path_forms(path_str, base_dir, resolve=_resolved_forms)
 
 
 _Roots = tuple[str, str | None, str | None, str | None, str | None]
@@ -5999,6 +5963,15 @@ def _home_dir_targets_uncached(
     home_real = os.path.realpath(home)
     if home_real.casefold() != home.casefold():
         sensitive_targets |= {_anchor(home_real, d) for d in home_dirs}
+    # Resolve each anchor, not only the home. A protected directory such as ``~/.ssh``
+    # or ``~/.aws`` can itself be a symlink. A path that reaches the directory by its
+    # real location never carries the lexical anchor, so matching only the home's own
+    # resolution would let it through.
+    for d in home_dirs:
+        try:
+            sensitive_targets.add(os.path.realpath(os.path.join(home, *d.split("/"))).casefold())
+        except (OSError, ValueError):
+            pass
     # When WARDING_HOME points to a non-default path, the keystone secrets
     # (token_signing.key, refresh_chains.json, .local_secret, sel_hmac.key,
     # security_policy.json etc.) live directly under it — NOT under the default
