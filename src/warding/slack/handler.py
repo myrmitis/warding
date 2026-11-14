@@ -65,6 +65,7 @@ from warding.hooks import (
     HOOK_REPLY,
     TOOL_AUTO_APPROVE,
     TOOL_DENY,
+    attended_turn,
     validate_file_path,
 )
 from warding.llm_helpers import (
@@ -2400,6 +2401,7 @@ async def maybe_route_linked_thread(
     reply_ts: str,
     target_slot: Any | None = None,
     route_pinned: bool = False,
+    from_trusted_bot: bool = False,
 ) -> bool:
     """Route a Slack message to a linked dashboard slot, if one is linked.
 
@@ -2471,7 +2473,10 @@ async def maybe_route_linked_thread(
                 _dashboard_state,  # type: ignore[arg-type]
                 _linked_slot,
                 text,
-                _directive_user_origin=True,
+                # A message a trusted bot sent is neither a person's directive nor an
+                # attended turn.
+                _directive_user_origin=not from_trusted_bot,
+                _person_attended=not from_trusted_bot,
             )
         )
         _linked_slot.task = _chat_task
@@ -2487,7 +2492,7 @@ async def maybe_route_linked_thread(
         _linked_slot.queue_append(
             text,
             meta=containment_meta(_dashboard_state, _linked_slot),  # type: ignore[arg-type]
-            directive_user_origin=True,
+            directive_user_origin=not from_trusted_bot,
         )
     _dashboard_state.push_slots_update()  # type: ignore[attr-defined]
     sel().log_tool_invocation(
@@ -2593,6 +2598,7 @@ async def handle_message(
         reply_ts,
         target_slot=_target_slot,
         route_pinned=route_pinned,
+        from_trusted_bot=from_trusted_bot,
     ):
         return
 
@@ -3298,12 +3304,16 @@ async def handle_message(
                 # A genuine deny-list / sensitive-path match still surfaces a
                 # (best-effort, non-enforcing) warning + audit.
                 if context_builder:
-                    tool_result = context_builder.hooks.on_tool_call(
-                        event.title,
-                        session_key=session_key,
-                        agent=_agent or "",
-                        command=event.shell_command,
-                    )
+                    # Non-enforcing, so a gate fault must not post a false "flagged"
+                    # warning into a person's thread. It follows the same rule as the
+                    # enforcing gate below: attended unless a trusted bot sent it.
+                    with attended_turn(not from_trusted_bot):
+                        tool_result = context_builder.hooks.on_tool_call(
+                            event.title,
+                            session_key=session_key,
+                            agent=_agent or "",
+                            command=event.shell_command,
+                        )
                     if tool_result.action == TOOL_DENY:
                         # event.title is LLM-authored (select_tool_title prefers
                         # the model's description) — never post it to Slack raw.
@@ -3398,15 +3408,16 @@ async def handle_message(
             elif event.kind == EVENT_PERMISSION_REQUEST:
                 # Check tool hooks for auto-approve
                 if context_builder:
-                    tool_result = context_builder.hooks.on_tool_call(
-                        event.title,
-                        session_key=session_key,
-                        agent=_agent or "",
-                        tool_kind=event.tool_kind,
-                        raw_params=event.raw_tool_params,
-                        command=event.shell_command,
-                        is_shell=event.is_shell,
-                    )
+                    with attended_turn(not from_trusted_bot):  # a person sent this message
+                        tool_result = context_builder.hooks.on_tool_call(
+                            event.title,
+                            session_key=session_key,
+                            agent=_agent or "",
+                            tool_kind=event.tool_kind,
+                            raw_params=event.raw_tool_params,
+                            command=event.shell_command,
+                            is_shell=event.is_shell,
+                        )
                     if tool_result.action == TOOL_AUTO_APPROVE:
                         await client.approve_tool(event.request_id)
                         Stats().inc_tool_auto_approved()

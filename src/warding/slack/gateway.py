@@ -5416,6 +5416,7 @@ class GatewayOrchestrator:
                 user_id=user_id,
                 conversation_id=conversation_id,
                 text=tagged,
+                automated=True,
             )
             await asyncio.wait_for(
                 dispatcher.handle_message(synthetic, interpret_commands=False),
@@ -5512,6 +5513,7 @@ class GatewayOrchestrator:
                 room_id=room_id,
                 text=tagged,
                 room_type=ROOM_DIRECT,
+                automated=True,
             )
             await asyncio.wait_for(
                 dispatcher.handle_message(synthetic, interpret_commands=False),

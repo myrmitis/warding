@@ -1410,6 +1410,13 @@ presence, but must not copy or register them.
 
 ### Script hooks (`ScriptHook`, `run_script_hook`) — the shell per platform
 
+**PreToolUse exit codes.** Exit 0 allows the call and exit 2 blocks it, with stderr
+as the reason. Any other exit code, a timeout or a crash blocks the call too: the
+hook delivered no verdict, and a gate that did not decide refuses. To turn the hook
+off, disable or delete it on the Hooks page or set `"enabled": false` in
+`~/.warding/hooks.json`. See
+[security](security.md#fail-closed-verdicts-at-the-pretooluse-gate-hookspy).
+
 A script hook's `command` is a single shell command line stored in
 `~/.warding/hooks.json`. It runs in that platform's native shell language, and
 a hook is therefore **not portable across platforms**:

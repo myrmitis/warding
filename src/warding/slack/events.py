@@ -1678,6 +1678,7 @@ async def _dispatch_queued(
                 # monitor directive on a dashboard-owned thread resolves its
                 # slot through orch.dashboard_state).
                 gateway=orch,
+                from_trusted_bot=bool(kwargs.get("from_trusted_bot", False)),
             )
             return
         await handle_message(
@@ -1698,6 +1699,7 @@ async def _dispatch_queued(
             task_runner=orch.task_runner,
             channel_agent=kwargs.get("agent_override"),
             user_display_name=kwargs.get("user_display_name"),
+            from_trusted_bot=bool(kwargs.get("from_trusted_bot", False)),
         )
     finally:
         # The enqueue path deferred temp-image cleanup to here so the queued
@@ -2474,6 +2476,7 @@ async def _route_message(
                         team_id=team_id,
                         agent_override=agent_override,
                         user_display_name=_sender_display,
+                        from_trusted_bot=from_trusted_bot,
                         image_temp_paths=list(_image_temp_paths),
                     ),
                 )
@@ -2502,6 +2505,7 @@ async def _route_message(
         team_id=team_id,
         agent_override=agent_override,
         user_display_name=_sender_display,
+        from_trusted_bot=from_trusted_bot,
         image_temp_paths=list(_image_temp_paths),
     ):
         logger.info("Message %s queued for busy session %s", msg_ts, session_key)
@@ -2576,6 +2580,7 @@ async def _route_message(
                 # monitor directive on a dashboard-owned thread resolves its
                 # slot through orch.dashboard_state).
                 gateway=orch,
+                from_trusted_bot=from_trusted_bot,
             )
         )
         orch._session_tasks[session_key] = t

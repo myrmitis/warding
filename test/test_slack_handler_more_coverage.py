@@ -1243,7 +1243,7 @@ class TestLinkedThreadRouting:
 
         ran: list[str] = []
 
-        async def _fake_run_chat(state, slot, text, *, _directive_user_origin):
+        async def _fake_run_chat(state, slot, text, *, _directive_user_origin, **_kw):
             assert _directive_user_origin is True
             ran.append(text)
 

@@ -83,6 +83,21 @@ _PROXY_FORWARD_HEADERS = (
 )
 
 
+def request_is_dashboard_person(request: web.Request) -> bool:
+    """True only for a request that a person at the dashboard browser sent.
+
+    The browser authenticates with its cookie and never holds the internal secret.
+    Every script, CLI helper, MCP server and SDK client that reaches a mixed path
+    presents ``X-Internal-Secret``, and an app-scoped request carries an app
+    identity. Either one makes the request NOT a person at the dashboard. The
+    header grants nothing here; it only names the caller as a client. A script that
+    replays a browser cookie cannot be told apart from the browser, and that limit is
+    accepted: a fault then lets that one call step aside, and the deny floor still
+    runs.
+    """
+    return not request.get("app", "") and request.headers.get("X-Internal-Secret") is None
+
+
 def is_direct_local_request(request: web.Request) -> bool:
     """Return ``True`` only for a request made directly from this machine.
 

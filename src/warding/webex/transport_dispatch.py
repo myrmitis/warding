@@ -62,6 +62,7 @@ from warding.messaging.dispatch import (
     build_directive_consumer,
     drive_turn,
     inbound_permitted,
+    skip_automated_while_busy,
 )
 from warding.messaging.driver import APPROVAL_INTERACTIVE
 from warding.messaging.link import (
@@ -497,6 +498,8 @@ class WebexDispatcher:
             await drive_turn(
                 ChannelTurn(
                     channel_type="webex",
+                    # False for the gateway's own auto-nudge turn; True for a person's message.
+                    person_sent=not inbound.automated,
                     session_key=session_key,
                     # Session-directive consumer: monitor_start / autonudge_stop /
                     # ... return a marker TurnDriver decodes; apply it against THIS
@@ -576,6 +579,8 @@ class WebexDispatcher:
         """
         if not self.sessions.is_busy(session_key):
             await self.handle_message(inbound)
+            return
+        if skip_automated_while_busy(inbound, channel_type="webex", session_key=session_key):
             return
         mode = override_mode or self.cfg.messaging.queue_mode
         # Steer forwards TEXT ONLY, so steering a message that carries files would

@@ -216,6 +216,9 @@ class WebexInbound:
     #: Card-action inputs, when this envelope came from an Adaptive Card submit
     #: rather than a typed message. Empty for an ordinary message.
     card_inputs: Mapping[str, Any] | None = None
+    #: True for a message the gateway builds itself (auto-nudge). A person did not
+    #: send it, so its turn is unattended. See ``InboundMessage.automated``.
+    automated: bool = False
 
 
 def hydra_id(raw_id: str, resource_type: str = "MESSAGE", cluster: str = _DEFAULT_CLUSTER) -> str:

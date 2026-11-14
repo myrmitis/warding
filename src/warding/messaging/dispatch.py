@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 
 from warding.executors import run_in_embed_pool
-from warding.hooks import HOOK_REPLY, TOOL_AUTO_APPROVE, TOOL_DENY
+from warding.hooks import HOOK_REPLY, TOOL_AUTO_APPROVE, TOOL_DENY, attended_turn
 from warding.messaging.driver import DirectiveConsumer, TurnDriver
 from warding.messaging.identity import channel_inbound_permitted, publish_turn_identity
 from warding.messaging.link import (
@@ -124,6 +124,17 @@ class ChannelTurn:
     policy, a group member) has the same exposure, which is why the switch lives
     on the shared seam rather than in one dispatcher. Defaults False, so every
     existing adopter is byte-identical."""
+
+    person_sent: bool = False
+    """True only when a person sent the inbound message that started this turn.
+
+    This is the one statement that lets the turn's gate calls be attended (see
+    ``hooks.attended_turn``). It defaults to False so a channel adapter that does not
+    set it is judged unattended. An adapter sets it True for a message its client
+    received from a person, and False for a message the gateway built itself (an
+    auto-nudge or monitor wake) or that a bot sent. Replays of a person's own
+    messages (queue drain, a button press) keep True.
+    """
 
     deny_all_tools: bool = False
     """Reject every tool this turn asks for, ahead of every auto-approve path.
@@ -272,7 +283,29 @@ async def inbound_permitted(
     return False
 
 
-def build_tool_gate(ctx_builder: Any, *, session_key: str, agent: str) -> Callable[[Any], str]:
+def skip_automated_while_busy(msg: Any, *, channel_type: str, session_key: str) -> bool:
+    """True when *msg* is a gateway-built message that must not be queued or steered.
+
+    A busy session cannot take the message now. The queue stores bare text, so a
+    queued message loses its ``automated`` flag and the drain replays it as a turn a
+    person sent (attended). The nudge fire path already skips a busy session and
+    retries on the next cycle; this applies the same rule to the race where a
+    person's turn starts after that check. Every dispatcher with a busy/queue path
+    calls it first, so an automated message is dropped, never queued.
+    """
+    if not getattr(msg, "automated", False):
+        return False
+    logger.info(
+        "%s: dropped an automated message for busy session %s (it is retried next cycle)",
+        channel_type,
+        session_key,
+    )
+    return True
+
+
+def build_tool_gate(
+    ctx_builder: Any, *, session_key: str, agent: str, attended: bool
+) -> Callable[[Any], str]:
     """PreToolUse security gate, channel-neutral (off ``ctx_builder.hooks``).
 
     Sensitive-path keystone + governance ceiling + deny-list. Returns ``"deny"``
@@ -281,15 +314,18 @@ def build_tool_gate(ctx_builder: Any, *, session_key: str, agent: str) -> Callab
     """
 
     def _tool_gate(event: Any) -> str:
-        result = ctx_builder.hooks.on_tool_call(
-            getattr(event, "title", "") or "",
-            session_key=session_key,
-            agent=agent,
-            tool_kind=getattr(event, "tool_kind", "") or "",
-            raw_params=getattr(event, "raw_tool_params", None),
-            command=getattr(event, "shell_command", None),
-            is_shell=bool(getattr(event, "is_shell", False)),
-        )
+        # ``attended`` is False for a bot-sent turn: nobody is there to see a refusal,
+        # so a decision point that cannot decide refuses (see ``hooks.attended_turn``).
+        with attended_turn(attended):
+            result = ctx_builder.hooks.on_tool_call(
+                getattr(event, "title", "") or "",
+                session_key=session_key,
+                agent=agent,
+                tool_kind=getattr(event, "tool_kind", "") or "",
+                raw_params=getattr(event, "raw_tool_params", None),
+                command=getattr(event, "shell_command", None),
+                is_shell=bool(getattr(event, "is_shell", False)),
+            )
         if result.action == TOOL_DENY:
             return "deny"
         if result.action == TOOL_AUTO_APPROVE:
@@ -625,7 +661,12 @@ async def drive_turn(turn: ChannelTurn, *, sessions: Any, ctx_builder: Any) -> N
             auto_approve_session=turn.auto_approve_session,
             deny_all_tools=turn.deny_all_tools,
             auto_approve_tool=build_auto_approve(ctx_builder),
-            tool_gate=build_tool_gate(ctx_builder, session_key=session_key, agent=turn.agent),
+            tool_gate=build_tool_gate(
+                ctx_builder,
+                session_key=session_key,
+                agent=turn.agent,
+                attended=turn.person_sent,
+            ),
             directive_consumer=turn.directive_consumer,
         )
         accumulated = await driver.run(full_message)

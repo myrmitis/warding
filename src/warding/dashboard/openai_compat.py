@@ -404,6 +404,9 @@ async def api_completions(request: web.Request) -> web.StreamResponse:
                     slot,
                     prompt,
                     _directive_user_origin=is_dashboard_caller,
+                    # An OpenAI-compatible endpoint serves SDK clients and scripts, never
+                    # the dashboard UI, so no caller here is a person at the dashboard.
+                    _person_attended=False,
                 ),
                 timeout=chat_turn_timeout_secs(),
             )
