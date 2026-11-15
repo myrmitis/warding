@@ -30,7 +30,7 @@ from typing import Any
 import aiohttp
 
 from warding import platform_compat
-from warding.config.paths import data_home, kiro_agents_dir
+from warding.config.paths import data_home, kiro_agents_dir, kiro_home
 from warding.env import (
     MCP_PATH_HINT,
     denied_spec_env_keys,
@@ -294,7 +294,7 @@ def _mcp_sources() -> tuple[tuple[Path, str], ...]:
         return _MCP_SOURCES
     return (
         (data_home() / "mcp.json", SCOPE_WARDING),
-        (Path.home() / ".kiro" / "settings" / "mcp.json", SCOPE_KIRO_GLOBAL),
+        (kiro_home() / "settings" / "mcp.json", SCOPE_KIRO_GLOBAL),
     )
 
 

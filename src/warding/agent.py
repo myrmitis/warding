@@ -61,6 +61,7 @@ from warding.config.paths import (
     ambient_agents_dir,
     isolated_agents_dir,
     kiro_agents_dir,
+    kiro_home,
 )
 from warding.env import (
     MCP_PATH_HINT,
@@ -241,7 +242,7 @@ def _background_cc_model() -> str:
     return m if m and m != "auto" else _BACKGROUND_CC_MODEL
 
 
-_KIRO_MCP_JSON = Path.home() / ".kiro" / "settings" / "mcp.json"
+_KIRO_MCP_JSON: Path | None = None
 # Well-known Claude Code global MCP config. The core does not read this at
 # rebuild/discovery/apply time (OSS is Kiro-only); a companion contributes it as
 # a scope via the extra_mcp_scopes() CPP seam. Retained as the canonical path
@@ -1292,7 +1293,7 @@ _HOOK_EVENT_CANONICAL = {
 }
 
 # Default hooks directory matches kiro-cli's discovery path.
-_DEFAULT_KIRO_HOOKS_DIR = Path.home() / ".kiro" / "hooks"
+_DEFAULT_KIRO_HOOKS_DIR: Path | None = None
 
 # Recognize hook event from filename suffix when no "# event:" header is set.
 # Ordering matters: check more specific suffixes first.
@@ -1674,7 +1675,7 @@ def _apply_user_kiro_hooks(config: dict, mc_cfg: dict) -> None:
     agent_cfg = mc_cfg.get("agent") if isinstance(mc_cfg.get("agent"), dict) else {}
     user_hooks = agent_cfg.get("kiro_hooks") if isinstance(agent_cfg, dict) else None
     autoimport_enabled = True
-    hooks_dir = _DEFAULT_KIRO_HOOKS_DIR
+    hooks_dir = _DEFAULT_KIRO_HOOKS_DIR or kiro_home() / "hooks"
     if isinstance(agent_cfg, dict):
         if "kiro_hooks_autoimport" in agent_cfg:
             autoimport_enabled = bool(agent_cfg.get("kiro_hooks_autoimport"))
@@ -1720,7 +1721,7 @@ def _apply_user_kiro_hooks(config: dict, mc_cfg: dict) -> None:
                     "falling back to %s",
                     custom_dir,
                     home,
-                    _DEFAULT_KIRO_HOOKS_DIR,
+                    hooks_dir,
                 )
                 _sel_hook_rejected(
                     "autoimport", str(requested), "kiro_hooks_dir outside HOME or sensitive"
@@ -2702,14 +2703,9 @@ def _decline_shared_agent_home(*, audit: bool = True) -> Path | None:
     test's ``tmp_path``), or it is EXACTLY ``isolated_agents_dir(own data home)``
     — the dedicated ``<data home>/kiro/agents`` this instance's teardown owns.
 
-    That second case is the *mechanism* by which a genuinely isolated instance will
-    own its specs; it is NOT advice to set ``KIRO_HOME`` today. Nothing in this
-    repo sets it (``build_pod_env`` deliberately does not) because it also
-    relocates kiro-cli's session storage while Warding still reads the host path
-    — see ``kiro_home()``'s scope caveat. The exemption is matched exactly rather
-    than by ancestry: "beneath the data home" reads the machine-wide
-    ``~/.kiro/agents`` as private the moment the data home is an ancestor of it
-    (``WARDING_HOME=$HOME`` is enough).
+    The packaged macOS app and pods use that dedicated Kiro directory. The
+    exemption matches the exact path so ``WARDING_HOME=$HOME`` alone cannot
+    make the default Kiro home private.
     """
     target = kiro_agents_dir_path().resolve()
     if target != ambient_agents_dir().resolve():
@@ -2805,10 +2801,7 @@ def _decline_shared_agent_home(*, audit: bool = True) -> Path | None:
             "Refusing to rewrite the shared agent home %s from an ephemeral instance "
             "(checkout %s, data home %s): it would repoint the real install's MCP "
             "servers at this instance's venv and data home, and break them outright "
-            "when it is torn down. This instance will use the existing specs instead. "
-            "Deliberately no remedy is suggested here: redirecting the agent home via "
-            "KIRO_HOME also relocates kiro-cli's session storage, which Warding still "
-            "reads from the host path -- see kiro_home()'s scope caveat.",
+            "when it is torn down. This instance will use the existing specs instead.",
             target,
             Path(__file__).resolve().parents[2],
             own_home or "default",
@@ -3194,7 +3187,8 @@ def rebuild_agent_config(*, clean: bool = False) -> Path:
             # @ref if it ever lands there.
             config.setdefault("tools", []).append(f"@{_app_srv}")
 
-    shared_mcp = _load_json(_KIRO_MCP_JSON).get("mcpServers", {})
+    kiro_mcp_json = _KIRO_MCP_JSON or kiro_home() / "settings" / "mcp.json"
+    shared_mcp = _load_json(kiro_mcp_json).get("mcpServers", {})
     for name, spec in shared_mcp.items():
         if isinstance(spec, dict) and name not in managed_names:
             # Copy so config never aliases the source dict — a later update()

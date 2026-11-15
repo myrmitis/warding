@@ -11,7 +11,7 @@ from collections.abc import Collection
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, TextIO
 
 from aiohttp import web
 
@@ -23,7 +23,7 @@ from warding.config.loader import (
     WardingConfig,
     _resolve_stub_servers,
 )
-from warding.config.paths import data_home, kiro_agents_dir
+from warding.config.paths import data_home, kiro_agents_dir, kiro_home
 from warding.dashboard.state import DashboardState
 from warding.env import emit_env
 from warding.loop_lock import LoopBoundLock
@@ -76,10 +76,12 @@ def _is_valid_mcp_name(name: str) -> bool:
     return bool(_VALID_MCP_NAME_RE.match(name))
 
 
-_GLOBAL_MCP_JSON = Path.home() / ".kiro" / "settings" / "mcp.json"
-# Surface label carried into the provenance decision so a declined rewrite names
-# the file it declined to touch.
-_KIRO_GLOBAL_SURFACE = "~/.kiro/settings/mcp.json"
+_GLOBAL_MCP_JSON: Path | None = None
+
+
+def _global_mcp_json() -> Path:
+    return _GLOBAL_MCP_JSON or kiro_home() / "settings" / "mcp.json"
+
 
 # Max per-request changes accepted by /api/mcp/apply. The capability-manager
 # uninstalls run OFF the MCP file lock (deferred, bounded-concurrent, under one
@@ -107,22 +109,27 @@ _MCP_DEFERRED_UNINSTALL_MAX_BUDGET = 300
 # File-based lock for mcp.json — shared with bridges.py so that app
 # registration and dashboard MCP handlers coordinate properly.
 # Uses fcntl.flock on a sidecar .lock file (works cross-process too).
-_MCP_LOCK_PATH = _GLOBAL_MCP_JSON.with_suffix(".lock")
+_MCP_LOCK_PATH: Path | None = None
+
+
+def _open_mcp_lock() -> TextIO:
+    path = _MCP_LOCK_PATH or _global_mcp_json().with_suffix(".lock")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch(exist_ok=True)
+    return open(path, "r+")
 
 
 class _McpFileLock:
     """Async context manager wrapping a cross-platform file lock for mcp.json."""
 
     async def __aenter__(self) -> None:
-        _GLOBAL_MCP_JSON.parent.mkdir(parents=True, exist_ok=True)
-        _MCP_LOCK_PATH.touch(exist_ok=True)
         # Open the lock fd WRITABLE. Windows msvcrt.locking() requires write
         # access on the handle — an "r" fd fails with EACCES and
         # platform_compat.acquire_lock swallows that (best-effort semantics),
         # silently degrading this to a no-op and letting concurrent
         # /api/mcp/toggle requests race the atomic-rename write of mcp.json
         # (one flip is lost). "r+" keeps the shared file present (no truncate).
-        fd = open(_MCP_LOCK_PATH, "r+")
+        fd = _open_mcp_lock()
         # Run blocking lock acquire in a thread to avoid blocking the event
         # loop. Bind self._fd ONLY AFTER a successful acquire — otherwise a
         # raise inside run_in_executor (executor shutdown RuntimeError,
@@ -167,9 +174,7 @@ class _McpFileLockSync:
     """
 
     def __enter__(self) -> None:
-        _GLOBAL_MCP_JSON.parent.mkdir(parents=True, exist_ok=True)
-        _MCP_LOCK_PATH.touch(exist_ok=True)
-        fd = open(_MCP_LOCK_PATH, "r+")
+        fd = _open_mcp_lock()
         try:
             platform_compat.acquire_lock(fd.fileno(), exclusive=True)
         except BaseException:
@@ -209,8 +214,9 @@ def _get_apply_lock() -> LoopBoundLock:
 
 def _write_mcp_json(data: dict) -> None:
     """Atomically write global mcp.json to prevent partial reads."""
-    _GLOBAL_MCP_JSON.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_json_write(_GLOBAL_MCP_JSON, data)
+    path = _global_mcp_json()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_json_write(path, data)
 
 
 # ── MCP Servers ──
@@ -265,7 +271,7 @@ def _sync_mcp_to_agent_unlocked(name: str, enabled: bool, *, remove: bool = Fals
         if alias not in mcp_servers:
             # Copy spec from global mcp.json (looked up by original name)
             try:
-                gdata = json.loads(_GLOBAL_MCP_JSON.read_text(encoding="utf-8"))  # strict-store-ok: lookup only; the write targets the agent config
+                gdata = json.loads(_global_mcp_json().read_text(encoding="utf-8"))  # strict-store-ok: lookup only; the write targets the agent config
                 spec = gdata.get("mcpServers", {}).get(name, {})
                 if isinstance(spec, dict) and spec:
                     entry = {k: v for k, v in spec.items() if k != "disabled"}
@@ -384,7 +390,7 @@ def _sync_mcp_to_agent_batch_unlocked(names: list[str], enabled: bool) -> None:
         # Ensure all servers exist in warding.json mcpServers
         mcp_servers = cfg.setdefault("mcpServers", {})
         try:
-            gdata = json.loads(_GLOBAL_MCP_JSON.read_text(encoding="utf-8"))  # strict-store-ok: lookup only; the write targets the agent config
+            gdata = json.loads(_global_mcp_json().read_text(encoding="utf-8"))  # strict-store-ok: lookup only; the write targets the agent config
         except (FileNotFoundError, json.JSONDecodeError):
             gdata = {}
         granted_refs: list[str] = []
@@ -522,7 +528,7 @@ async def _run_mcp_probe() -> None:
 
         global_mcps: dict[str, Any] = {}
         try:
-            data = json.loads(_GLOBAL_MCP_JSON.read_text(encoding="utf-8"))
+            data = json.loads(_global_mcp_json().read_text(encoding="utf-8"))
             global_mcps = data.get("mcpServers", {})
         except (FileNotFoundError, json.JSONDecodeError):
             pass
@@ -607,7 +613,7 @@ async def api_mcp_servers(request: web.Request) -> web.Response:
     # Read global mcp.json for disabled state
     global_mcps: dict[str, Any] = {}
     try:
-        data = json.loads(_GLOBAL_MCP_JSON.read_text(encoding="utf-8"))
+        data = json.loads(_global_mcp_json().read_text(encoding="utf-8"))
         global_mcps = data.get("mcpServers", {})
     except (FileNotFoundError, json.JSONDecodeError):
         pass
@@ -684,7 +690,7 @@ async def api_mcp_active(request: web.Request) -> web.Response:
 
     global_mcps: dict[str, Any] = {}
     try:
-        data = json.loads(_GLOBAL_MCP_JSON.read_text(encoding="utf-8"))
+        data = json.loads(_global_mcp_json().read_text(encoding="utf-8"))
         global_mcps = data.get("mcpServers", {})
     except (FileNotFoundError, json.JSONDecodeError):
         pass
@@ -726,7 +732,7 @@ async def api_mcp_probe(request: web.Request) -> web.Response:
     # Read global mcp.json for enabled/disabledTools state
     global_mcps: dict[str, Any] = {}
     try:
-        data = json.loads(_GLOBAL_MCP_JSON.read_text(encoding="utf-8"))
+        data = json.loads(_global_mcp_json().read_text(encoding="utf-8"))
         global_mcps = data.get("mcpServers", {})
     except (FileNotFoundError, json.JSONDecodeError):
         pass
@@ -890,8 +896,9 @@ async def api_mcp_sync(request: web.Request) -> web.Response:
     if to_sync:
         # Also add to global mcp.json (what ACP actually reads)
         async with _get_mcp_lock():
+            global_mcp_json = _global_mcp_json()
             try:
-                gdata = _load_mcp_json_for_write(_GLOBAL_MCP_JSON)
+                gdata = _load_mcp_json_for_write(global_mcp_json)
             except StoreUnreadableError:
                 return web.json_response({"error": _GLOBAL_MCP_UNREADABLE, "code": "store_unreadable"}, status=500)
             gservers = gdata.setdefault("mcpServers", {})
@@ -986,7 +993,7 @@ async def api_mcp_sync(request: web.Request) -> web.Response:
                         on_disk=gservers.get(s.name, ABSENT),
                         candidate=entry,
                         store_managed=s.name in _managed,
-                        surface=_KIRO_GLOBAL_SURFACE,
+                        surface=str(global_mcp_json),
                     )
                     if resolved is not None and current != resolved:
                         gservers[s.name] = resolved
@@ -1007,7 +1014,7 @@ async def api_mcp_sync(request: web.Request) -> web.Response:
                     # to gate -- but the entry is still ours, and marking it now is
                     # what lets a later slice re-sync it without guessing.
                     gservers[s.name] = stamp(entry) if s.name in _managed else entry
-            _GLOBAL_MCP_JSON.parent.mkdir(parents=True, exist_ok=True)
+            _global_mcp_json().parent.mkdir(parents=True, exist_ok=True)
             _write_mcp_json(gdata)
 
         # Ensure newly-synced servers are added to tools/allowedTools so
@@ -1079,7 +1086,7 @@ async def api_mcp_toggle(request: web.Request) -> web.Response:
     async with _get_mcp_lock():
         # 1. Update global mcp.json
         try:
-            data = _load_mcp_json_for_write(_GLOBAL_MCP_JSON)
+            data = _load_mcp_json_for_write(_global_mcp_json())
         except StoreUnreadableError:
             return web.json_response({"error": _GLOBAL_MCP_UNREADABLE, "code": "store_unreadable"}, status=500)
 
@@ -1145,7 +1152,7 @@ async def api_mcp_toggle_tool(request: web.Request) -> web.Response:
 
     async with _get_mcp_lock():
         try:
-            data = _load_mcp_json_for_write(_GLOBAL_MCP_JSON)
+            data = _load_mcp_json_for_write(_global_mcp_json())
         except StoreUnreadableError:
             return web.json_response({"error": _GLOBAL_MCP_UNREADABLE, "code": "store_unreadable"}, status=500)
 
@@ -1200,7 +1207,7 @@ async def api_mcp_toggle_all(request: web.Request) -> web.Response:
 
     async with _get_mcp_lock():
         try:
-            data = _load_mcp_json_for_write(_GLOBAL_MCP_JSON)
+            data = _load_mcp_json_for_write(_global_mcp_json())
         except StoreUnreadableError:
             return web.json_response({"error": _GLOBAL_MCP_UNREADABLE, "code": "store_unreadable"}, status=500)
 
@@ -1265,7 +1272,7 @@ async def api_mcp_remove(request: web.Request) -> web.Response:
 
     # Remove from global mcp.json
     async with _get_mcp_lock():
-        loaded = load_json_store(_GLOBAL_MCP_JSON, default={"mcpServers": {}}, expect=dict)
+        loaded = load_json_store(_global_mcp_json(), default={"mcpServers": {}}, expect=dict)
         data = {"mcpServers": {}} if loaded.unreadable else loaded.data
         removed = data.get("mcpServers", {}).pop(name, None) is not None
         if removed:
@@ -1312,7 +1319,7 @@ async def api_mcp_server_detail(request: web.Request) -> web.Response:
     if request.method == "DELETE":
         # Remove from global mcp.json
         async with _get_mcp_lock():
-            loaded = load_json_store(_GLOBAL_MCP_JSON, default={"mcpServers": {}}, expect=dict)
+            loaded = load_json_store(_global_mcp_json(), default={"mcpServers": {}}, expect=dict)
             data = {"mcpServers": {}} if loaded.unreadable else loaded.data
             removed = data.get("mcpServers", {}).pop(name, None) is not None
             if removed:
@@ -1365,11 +1372,11 @@ async def api_mcp_server_detail(request: web.Request) -> web.Response:
     # Write to global mcp.json
     async with _get_mcp_lock():
         try:
-            data = _load_mcp_json_for_write(_GLOBAL_MCP_JSON)
+            data = _load_mcp_json_for_write(_global_mcp_json())
         except StoreUnreadableError:
             return web.json_response({"error": _GLOBAL_MCP_UNREADABLE, "code": "store_unreadable"}, status=500)
         data.setdefault("mcpServers", {})[name] = entry
-        _GLOBAL_MCP_JSON.parent.mkdir(parents=True, exist_ok=True)
+        _global_mcp_json().parent.mkdir(parents=True, exist_ok=True)
         _write_mcp_json(data)
 
     # Sync to warding.json (enable by default). Config lock across the offloaded
@@ -1527,7 +1534,7 @@ def _find_server_spec_anywhere(name: str) -> dict | None:
     candidates = [
         kiro_agents_dir() / "warding.json",
         _warding_mcp_json(),
-        _GLOBAL_MCP_JSON,
+        _global_mcp_json(),
         *[s.global_json for s in _extra_mcp_scopes()],
     ]
     for p in candidates:
@@ -1694,7 +1701,7 @@ def _purge_server_config(name: str) -> dict[str, str]:
     """
     actions: dict[str, str] = {}
     actions["warding"] = "removed" if _remove_warding_entry(name) else "noop"
-    actions["kiroGlobal"] = _set_scope_entry(_GLOBAL_MCP_JSON, name, enabled=False)
+    actions["kiroGlobal"] = _set_scope_entry(_global_mcp_json(), name, enabled=False)
     for scope in _extra_mcp_scopes():
         actions[f"{scope.id}Global"] = _set_scope_entry(scope.global_json, name, enabled=False)
     # Also strip the entry directly from the rendered agent files so the next
@@ -2049,7 +2056,7 @@ async def _do_mcp_apply(request: web.Request) -> web.Response:
                 resolved_spec = _find_server_spec_anywhere(name)
                 outcome["actions"]["kiroGlobal"] = await _offload_config_write(
                     _set_scope_entry,
-                    _GLOBAL_MCP_JSON,
+                    _global_mcp_json(),
                     name,
                     enabled=desired_kiro,
                     spec=resolved_spec,

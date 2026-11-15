@@ -376,6 +376,8 @@ KEYSTONE = [
     "~/.warding/profiles/team.json",
     "~/.warding/admission_policy.json",
     "~/.warding/computer_use.json",
+    "~/.warding-desktop/security_policy.json",
+    "~/.warding-desktop/token_signing.key",
 ]
 
 

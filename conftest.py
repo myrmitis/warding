@@ -1711,15 +1711,7 @@ _SHARED_KIRO_PATHS: tuple[tuple[str, str, str], ...] = (
     ("warding.agent", "_DEFAULT_KIRO_HOOKS_DIR", ".kiro/hooks"),
     ("warding.learn", "_DEFAULT_DIR", ".warding"),
     ("warding.dashboard.handlers.mcp", "_GLOBAL_MCP_JSON", ".kiro/settings/mcp.json"),
-    # A DERIVED sibling (`_GLOBAL_MCP_JSON.with_suffix(".lock")`), and it has to move
-    # WITH its json or the pair is worse than either alone: `_McpFileLockSync.__enter__`
-    # creates `_GLOBAL_MCP_JSON.parent` and then touches `_MCP_LOCK_PATH`, so redirecting
-    # only the json makes the code create a tmp directory and then touch a lock in the
-    # REAL one -- whose parent nothing created, giving `FileNotFoundError` on any host
-    # where `~/.kiro/settings` does not already exist. It passed on a developer box only
-    # because that directory was there, and on CI only because an earlier test had
-    # leaked into it. This is the sibling-binding case the ratchet's own docstring says
-    # it cannot see, which is why the set is enumerated here by hand.
+    # The lock shares the isolated MCP registry directory.
     ("warding.dashboard.handlers.mcp", "_MCP_LOCK_PATH", ".kiro/settings/mcp.lock"),
 )
 

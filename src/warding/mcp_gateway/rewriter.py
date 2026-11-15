@@ -61,7 +61,7 @@ _FINGERPRINT_NAME = ".rewrite-fingerprint"
 # of serving overlays produced by older logic. The package version is also in
 # the fingerprint, so a release bump invalidates regardless; this constant is
 # the explicit knob for in-development changes.
-_FINGERPRINT_SCHEMA = 3
+_FINGERPRINT_SCHEMA = 4
 
 
 @dataclass
@@ -513,12 +513,11 @@ def _build_stub_entry(
     wrapped.update({
         _WRAPPER_MARKER: True,
         "command": sys.executable,
-        # ``-m warding.mcp_gateway.stub`` leads; the stub's own flags follow.
         # channel_id is NOT here: the overlay is written once at startup and is
         # session-agnostic, so it is appended per session by
         # ``session_servers.pooled_session_servers`` at ACP injection time,
         # where the value is in scope.
-        "args": ["-m", _STUB_MODULE, *stub_args],
+        "args": ["-B", "-m", _STUB_MODULE, *stub_args],
         # autoApprove must stay on the wrapper — kiro-cli reads it at the
         # permission-prompt UI layer, separately from the backend.
         "autoApprove": auto_approve,

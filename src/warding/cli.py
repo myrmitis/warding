@@ -51,7 +51,7 @@ from warding.config.loader import (
     DASHBOARD_PORT,
     build_provider_factory,
 )
-from warding.config.paths import default_home_paths
+from warding.config.paths import operator_home_paths
 from warding.constants import (
     BANNER,
     CLI_BIN,
@@ -513,19 +513,15 @@ def _resolve_gateway_args(args: argparse.Namespace) -> dict:
         if not home_env:
             print(
                 "--approval yolo refused: WARDING_HOME must be explicitly set "
-                "to an isolated path (not the default ~/.warding).",
+                "to an isolated path outside the live CLI and desktop homes.",
                 file=sys.stderr,
             )
             sys.exit(2)
         try:
             home_resolved = Path(home_env).expanduser().resolve()
-            # Compare against the default (non-override) gateway home. Do NOT use
-            # config_dir() here: WARDING_HOME is already set, so config_dir() would
-            # return the override itself and the rail would always fire. Spelling
-            # out WARDING_HOME=~/.warding must still be refused, because that is
-            # the live gateway home. Mirrors seed.py's _protected_homes().
+            # The live homes remain protected when explicitly selected by WARDING_HOME.
             protected_homes: set[Path] = set()
-            for home in default_home_paths():
+            for home in operator_home_paths():
                 try:
                     protected_homes.add(home.resolve())
                 except OSError:
@@ -1078,7 +1074,7 @@ Examples:
                 "gateway (dev tool). Fixture must exist under "
                 "src/warding/tests_fixtures/. The gateway then runs normally "
                 "against the populated $WARDING_HOME. Refuses when "
-                "$WARDING_HOME is the main gateway home (~/.warding) or "
+                "$WARDING_HOME is a live gateway home (~/.warding or ~/.warding-desktop) or "
                 "when the target is non-empty (use --seed-replace to wipe + re-seed)."
             ),
         )
@@ -1088,8 +1084,7 @@ Examples:
             help=(
                 "When used with --seed, wipe $WARDING_HOME (rmtree) before "
                 "copying the fixture. Ignored without --seed. Does NOT "
-                "override the main-gateway-home rail — ~/.warding is refused "
-                "regardless."
+                "allow replacing either live gateway home."
             ),
         )
         parser.add_argument(
