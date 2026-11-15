@@ -557,8 +557,9 @@ unit-testable without mocking globals.
   and manages MCP servers in this Kiro home. Existing replays stay in their
   original store. If the desktop asks for Kiro sign-in, use its setup screen.
 - Treats both default data directories as live state. The CLI refuses to seed
-  or enable test-only approvals in either directory. When the desktop directory
-  exists, the gateway refuses to reclaim from the default Kiro replay store.
+  or enable test-only approvals in either directory. An older desktop profile
+  can still share the default replay store. The CLI checks the private Kiro
+  directory before reclaiming and preserves replay IDs in the desktop map.
 - Uses `~/.warding` and port `5476` by default in other builds. Set
   `WARDING_HOME` to select a data directory. A valid `WARDING_PORT` takes
   precedence over the dashboard URL in that directory's config.

@@ -975,14 +975,28 @@ class TestSharedStoreRefusal:
     ) -> None:
         monkeypatch.setenv("WARDING_HOME", str(tmp_path / ".warding"))
         monkeypatch.delenv("KIRO_HOME", raising=False)
-        (tmp_path / ".warding-desktop").mkdir()
+        desktop = tmp_path / ".warding-desktop"
+        desktop.mkdir()
         kiro_home = tmp_path / ".kiro"
         (kiro_home / "sessions" / "cli").mkdir(parents=True)
-        _cli_half(kiro_home, "aaaa1111", log_bytes=32, age_days=40)
+        for sid in ("aaaa1111", "bbbb2222"):
+            _cli_half(kiro_home, sid, log_bytes=32, age_days=40)
+        replay = kiro_home / "sessions" / "cli" / "aaaa1111.jsonl"
 
         with pytest.raises(SessionStorageError, match="Warding desktop"):
             session_storage.move_to_trash(["aaaa1111"], reason="manual", index=_index(), now=_NOW)
-        assert (kiro_home / "sessions" / "cli" / "aaaa1111.jsonl").is_file()
+        assert replay.is_file()
+
+        (desktop / "kiro" / "agents").mkdir(parents=True)
+        (desktop / "session_map.json").write_text(
+            '{"desktop-chat":{"sid":"aaaa1111"}}', encoding="utf-8"
+        )
+        assert session_storage.reclaim_block_reason() == ""
+        with pytest.raises(SessionStorageError, match="still in use"):
+            session_storage.move_to_trash(["aaaa1111"], reason="manual", index=_index(), now=_NOW)
+        session_storage.move_to_trash(["bbbb2222"], reason="manual", index=_index(), now=_NOW)
+        assert not (kiro_home / "sessions" / "cli" / "bbbb2222.jsonl").exists()
+        assert replay.is_file()
 
     def test_a_custom_store_shared_by_two_isolated_instances_is_refused(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
