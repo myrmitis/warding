@@ -5677,22 +5677,19 @@ class TestKiroAgentsDirWriteProtection:
         rel = kiro_agents_dir().relative_to(Path.home()).as_posix()
         assert security._KIRO_AGENTS_DIR == rel
 
-    def test_file_edit_write_into_agents_dir_is_denied(self) -> None:
+    @pytest.mark.parametrize("agent_dir", [".kiro/agents", ".warding-desktop/kiro/agents"])
+    def test_file_edit_write_into_agents_dir_is_denied(self, monkeypatch, agent_dir) -> None:
         from warding.security import is_sensitive_write_path
 
-        home = str(Path.home())
-        # Any filename (specs can be named anything), any depth, and the dir itself.
-        assert is_sensitive_write_path("~/.kiro/agents/pwn.json") is True
-        assert is_sensitive_write_path("~/.kiro/agents/anything.json") is True
-        assert is_sensitive_write_path("~/.kiro/agents/sub/deep.json") is True
-        assert is_sensitive_write_path("~/.kiro/agents") is True
-        assert is_sensitive_write_path(f"{home}/.kiro/agents/pwn.json") is True
+        monkeypatch.delenv("KIRO_HOME", raising=False)
+        assert is_sensitive_write_path(f"~/{agent_dir}") is True
+        assert is_sensitive_write_path(f"~/{agent_dir}/sub/deep.json") is True
+        assert is_sensitive_write_path(str(Path.home() / agent_dir / "warding.json")) is True
 
-    def test_reads_of_agents_dir_stay_allowed(self) -> None:
-        # WRITE-protection only: the read+write gate (is_sensitive_path) must NOT
-        # fence the agents dir, or spec discovery / the dashboard MCP rows break.
-        assert is_sensitive_path("~/.kiro/agents/pwn.json") is False
-        assert is_sensitive_path("~/.kiro/agents") is False
+    @pytest.mark.parametrize("agent_dir", [".kiro/agents", ".warding-desktop/kiro/agents"])
+    def test_reads_of_agents_dir_stay_allowed(self, agent_dir) -> None:
+        assert is_sensitive_path(f"~/{agent_dir}/warding.json") is False
+        assert is_sensitive_path(f"~/{agent_dir}") is False
 
     def test_sibling_dirs_are_not_over_blocked(self) -> None:
         from warding.security import is_sensitive_write_path
@@ -5718,6 +5715,8 @@ class TestKiroAgentsDirWriteProtection:
             # $HOME-spelled and a glob destination variant.
             "echo evil > $HOME/.kiro/agents/pwn.json",
             "cp /tmp/*.json ~/.kiro/agents/",
+            "touch ~/.warding-desktop/kiro/agents/warding.json",
+            "touch $HOME/.warding-desktop/kiro/agents/warding.json",
         ):
             assert is_sensitive_bash_command(cmd) is not None, cmd
 

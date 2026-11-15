@@ -2,7 +2,7 @@
 
 Spawned as::
 
-    <sys.executable> -I -S -c <this file's source> [--rlimits=SPEC] [--oom-bias] -- argv...
+    <sys.executable> -I -B -S -c <this file's source> [--rlimits=SPEC] [--oom-bias] -- argv...
 
 and replaces itself with ``argv`` via ``execv``, so the PID, process group,
 session, inherited fds, and exit status the caller observes are all the child's

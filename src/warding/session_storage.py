@@ -58,6 +58,8 @@ machine-wide store. Those maps are files at a known host-side path, so
 exactly like this instance's own. A blanket refusal is kept only where ownership
 genuinely cannot be established: a co-tenant whose map is unreadable, or a data
 home isolated from the store it reads (see :func:`reclaim_block_reason`).
+An older desktop profile can share the machine-wide store too. The CLI checks the
+desktop's private Kiro directory and protects any older replays in its map.
 """
 
 from __future__ import annotations
@@ -78,9 +80,11 @@ from typing import IO, Any
 
 from warding import hooks, platform_compat
 from warding.config.paths import (
+    DESKTOP_CONFIG_DIR_NAME,
     KIRO_BASE_DIR_NAME,
     data_home,
     default_home_paths,
+    isolated_agents_dir,
     kiro_home,
     kiro_sessions_dir,
 )
@@ -801,8 +805,26 @@ def cotenant_sids() -> tuple[frozenset[str], tuple[tuple[str, str], ...]]:
     protected: set[str] = set()
     refusals: list[tuple[str, str]] = []
     root = _pod_root()
-    for name in _replay_store_cotenants():
-        home = root / name
+    candidates = [(name, root / name) for name in _replay_store_cotenants()]
+
+    user_home = Path.home()
+    desktop_home = user_home / DESKTOP_CONFIG_DIR_NAME
+    store = kiro_home().resolve()
+    if desktop_home.is_dir() and store == (user_home / KIRO_BASE_DIR_NAME).resolve():
+        desktop_home = desktop_home.resolve()
+        desktop_store = isolated_agents_dir(desktop_home).parent.resolve()
+        if (
+            desktop_store.is_dir()
+            and desktop_store.parent == desktop_home
+            and desktop_store != store
+        ):
+            # New desktop sessions stay in their own store. Protect any older
+            # desktop mappings that still name replays in this store.
+            candidates.append(("Warding desktop", desktop_home))
+        else:
+            refusals.append(("Warding desktop", "it can share the default kiro-cli replay store"))
+
+    for name, home in candidates:
         path = home / SESSION_MAP_FILENAME
         try:
             # Through the centralized gate, never a bare read: the pod root is
@@ -926,8 +948,7 @@ def reclaim_block_reason() -> str:
                 listed = "; ".join(f"{name} — {why}" for name, why in refusals[:3])
                 return (
                     f"{len(refusals)} other instance(s) sharing this kiro-cli session "
-                    f"store make reclaiming unsafe ({listed}). Evict them with "
-                    "`warding pod down <name>` to reclaim from here."
+                    f"store make reclaiming unsafe ({listed})."
                 )
         return ""
     # An isolated instance may reclaim only when its replay store is provably its
