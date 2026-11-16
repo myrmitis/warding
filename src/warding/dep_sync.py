@@ -413,7 +413,7 @@ def _probe_interpreter(
     """
     target = Path(os.path.abspath(target_py))
     return subprocess.run(
-        [str(target), "-I", "-X", "utf8", "-c", code],
+        [str(target), "-I", "-X", "utf8", "-B", "-c", code],
         capture_output=True,
         text=True,
         encoding="utf-8",

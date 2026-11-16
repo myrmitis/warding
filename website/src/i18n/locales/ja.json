@@ -5102,7 +5102,10 @@
       "voice_input": "音声入力",
       "finishing": "処理中…",
       "keep_holding_to_record": "押したままで録音",
-      "harness": "{{name}} で実行中"
+      "harness": "{{name}} で実行中",
+      "harness_not_installed": "未インストール",
+      "harness_needs_sign_in": "サインインが必要",
+      "harness_stays_note": "選択は新しいチャットに適用されます。このチャットは {{name}} のままです。"
     },
     "chatPane": {
       "agent_list": "エージェントリスト",

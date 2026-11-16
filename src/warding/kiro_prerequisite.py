@@ -56,7 +56,7 @@ from warding._sqlite_compat import sqlite3
 from warding.agent_files import AGENT_FILENAME
 from warding.atomic_write import atomic_write
 from warding.config.loader import CRED_KIRO_API_KEY, read_env_file_credential
-from warding.config.paths import CONFIG_DIR_NAME, config_dir
+from warding.config.paths import CONFIG_DIR_NAME, DESKTOP_CONFIG_DIR_NAME, config_dir
 from warding.config.paths import data_home as resolve_data_home
 from warding.kiro_cli import (
     find_kiro_cli_candidates,
@@ -1584,6 +1584,7 @@ async def _run_process(
             spawn_argv = [
                 sys.executable,
                 "-I",
+                "-B",
                 "-c",
                 _PROCESS_GROUP_SUPERVISOR_CODE,
                 *resource_limit_supervisor_argv(),
@@ -1955,6 +1956,7 @@ class KiroPrerequisiteService:
                 for path in (
                     self._data_home,
                     self._home / CONFIG_DIR_NAME,
+                    self._home / DESKTOP_CONFIG_DIR_NAME,
                 )
             )
         )

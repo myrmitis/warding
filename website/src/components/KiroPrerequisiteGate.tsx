@@ -16,7 +16,6 @@ import {
   ApiError,
   api,
   type KiroPrerequisiteStatus,
-  type RoutingHarnessesView,
 } from '../api/client'
 import {
   PANEL_CLASS,
@@ -27,7 +26,8 @@ import {
 import { safeGetItem, safeSetItem } from '../utils/safeStorage'
 import { copyToClipboard } from '../utils/clipboard'
 import { Badge, Btn, Card, SendBtn } from './ui'
-import { AgentsPanel, ROUTING_HARNESSES_QUERY_KEY } from '../pages/settings/AgentsPanel'
+import { AgentsPanel } from '../pages/settings/AgentsPanel'
+import { useRoutingHarnesses } from '../hooks/useChatHarness'
 
 import { i18nT } from '../i18n/t'
 import { fmtList } from '../i18n/format'
@@ -724,11 +724,7 @@ export default function KiroPrerequisiteGate({ children }: { children: ReactNode
   // agent once the harness router has seen it connect. Read only while the
   // first-run gate is up, so a returning user pays nothing for it.
   const firstRunBlocking = kiroPrerequisiteIsBlocking(statusQuery.data)
-  const agentsQuery = useQuery<RoutingHarnessesView | null>({
-    queryKey: ROUTING_HARNESSES_QUERY_KEY,
-    queryFn: () => Promise.resolve(api.routingHarnesses?.()).then(v => v ?? null),
-    enabled: firstRunBlocking,
-  })
+  const agentsQuery = useRoutingHarnesses({ enabled: firstRunBlocking })
   const connectedAgents = (agentsQuery.data?.harnesses ?? [])
     .filter(h => h.installed && h.probe.status === 'connected')
   const completeWithAgents = useMutation({
