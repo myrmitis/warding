@@ -13,6 +13,7 @@ This is the stable index for this owner-controlled repository. Existing source d
 | Existing documentation | [Browse docs](./) |
 | Open work | [Issues](https://github.com/myrmitis/warding/issues), [pull requests](https://github.com/myrmitis/warding/pulls) |
 | Change and release evidence | [Commits](https://github.com/myrmitis/warding/commits), [Actions](https://github.com/myrmitis/warding/actions), [releases](https://github.com/myrmitis/warding/releases) |
+| Daylight-saving regression ([#56](https://github.com/myrmitis/warding/issues/56)) | Contract: [per-job timezone](system-specs/modules/learn-cron-dashboard.md#per-job-timezone). Verification: [fixed-date cron tests](../test/test_cron.py). Runtime dependency fix: [#82](https://github.com/myrmitis/warding/pull/82). |
 | Source receipts | [docs/updates](updates/README.md) |
 | Portfolio-wide index | [Portfolio hub](https://github.com/laqaer/portfolio-ops/tree/main/docs/hub) |
 | Config write locks: registries PUT ([#65](https://github.com/myrmitis/warding/issues/65), PR [#71](https://github.com/myrmitis/warding/pull/71); review record in [#70](https://github.com/myrmitis/warding/pull/70)) | Rule: [two config locks](system-specs/modules/config.md#two-config-locks). Verification: the concurrent-writer tests in `test/test_e2e_smoke.py`. Revision: the merge commit of PR #71. This is a source fix, not a release. An installed gateway changes only after its own update. |

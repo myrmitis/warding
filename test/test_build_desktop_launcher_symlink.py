@@ -188,30 +188,27 @@ def test_resolves_through_symlink_chain(tmp_path):
     assert f"DIR={bundle / 'bin'}" in proc.stdout, proc.stdout
 
 
-def test_forwards_arguments_through_symlink(tmp_path):
-    """Resolution is worthless if the argv is mangled on the way through.
-
-    Asserts the module invocation contract (``-s -m warding``) and that a
-    quoted argument containing a space survives as ONE argument.
-    """
+@pytest.mark.parametrize(
+    ("os_type", "flags"),
+    [("darwin25", ["-s", "-B"]), ("linux-gnu", ["-s"])],
+    ids=["macos", "linux"],
+)
+def test_forwards_arguments_through_symlink(tmp_path, monkeypatch, os_type, flags):
+    """Keep each argument intact and require the macOS bytecode flag."""
+    monkeypatch.setenv("OSTYPE", os_type)
     bundle = tmp_path / "bundle"
     launcher = _make_bundle(bundle)
     shim = tmp_path / "warding"
     shim.symlink_to(launcher)
 
-    proc = _invoke(shim, "config", "set", "a b")
-
-    assert proc.returncode == 0, proc.stderr
-    assert "ARGS=-s -m warding config set a b" in proc.stdout, proc.stdout
-
-    # And the word-splitting guard: "$@" (not $@) keeps "a b" a single argv entry.
     stub = bundle / "bin" / "python3.12"
-    stub.write_text('#!/bin/bash\nprintf "COUNT=%s\\n" "$#"\n')
+    stub.write_text('#!/bin/bash\nprintf "%s\\n" "$@"\n')
     stub.chmod(0o755)
+
     proc = _invoke(shim, "config", "set", "a b")
+
     assert proc.returncode == 0, proc.stderr
-    # -s, -m, warding, config, set, "a b" == 6
-    assert "COUNT=6" in proc.stdout, proc.stdout
+    assert proc.stdout.splitlines() == [*flags, "-m", "warding", "config", "set", "a b"]
 
 
 def test_launcher_keeps_the_symlink_walk(tmp_path):
