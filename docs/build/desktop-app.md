@@ -323,8 +323,12 @@ same way). Key details:
 
 - **Interpreter** is a python-build-standalone CPython 3.12 with `@executable_path`-
   relative dylib references (genuinely portable, no system Python dependency).
-- **Entry point** is `bin/warding` — a shell script that execs
-  `bin/python3.12 -s -m warding "$@"`.
+- **Entry point** is `bin/warding`. On macOS it runs
+  `bin/python3.12 -s -B -m warding "$@"` to prevent bytecode writes into the
+  signed bundle. On Linux it runs `bin/python3.12 -s -m warding "$@"`.
+  If these arguments change, update the forwarding test in the same change.
+  Run `python -m pytest test/test_build_desktop_launcher_symlink.py` to check
+  both platform branches through a symlink.
 - **Stdlib probes verified** — `stdlib_probe_gate` fails the build if any package
   the launcher's readiness check probes is missing from the pruned tree, so a
   drifted probe list breaks the build instead of every user's launch (see
