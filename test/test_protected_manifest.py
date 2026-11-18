@@ -256,7 +256,7 @@ def test_posture_lists_every_row_with_its_sandbox_treatment():
     for leaf in pm.LEAVES:
         label = f"~/.warding/{leaf.path}"
         assert label in items, label
-        assert security_posture._SANDBOX_DETAIL[leaf.disposition] in items[label], label
+        assert security_posture._sandbox_detail(leaf.disposition) in items[label], label
 
 
 # ── A real sandboxed child (macOS) ──

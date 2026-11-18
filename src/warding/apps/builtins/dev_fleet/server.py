@@ -86,6 +86,12 @@ def _load_app_secret() -> str:
     global _APP_SECRET
     if _APP_SECRET is not None:
         return _APP_SECRET
+    # The sandbox hides the secret file. The gateway injects the secret into the
+    # environment at spawn, so read that first.
+    injected = os.environ.get("WARDING_PROXY_SECRET", "").strip()
+    if injected:
+        _APP_SECRET = injected
+        return _APP_SECRET
     from warding.config.loader import config_dir
     secret_path = config_dir() / "apps" / APP_NAME / ".app_secret"
     if secret_path.is_file():

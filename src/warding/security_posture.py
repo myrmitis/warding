@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 from dataclasses import dataclass
 from typing import Callable
 
@@ -1532,6 +1533,19 @@ _SANDBOX_DETAIL: dict[protected_manifest.Disposition, str] = {
 }
 
 
+def _sandbox_detail(disposition: protected_manifest.Disposition) -> str:
+    """The sandbox treatment of a leaf on this platform.
+
+    The Linux launcher does not seal read-only rows. Report only the tool gate there.
+    """
+    if (
+        disposition is protected_manifest.Disposition.READONLY
+        and sys.platform != "darwin"
+    ):
+        return "only the tool gate blocks writes (the sandbox does not seal it on this platform)"
+    return _SANDBOX_DETAIL[disposition]
+
+
 def _sensitive_path_items() -> list[PostureItem]:
     """Credential paths blocked at the hook layer, classified by owner."""
     items: list[PostureItem] = []
@@ -1544,7 +1558,7 @@ def _sensitive_path_items() -> list[PostureItem]:
             detail = "Warding trust root — the agent can neither read nor write it"
             disposition = protected_manifest.disposition_of(entry)
             if disposition is not None:
-                detail += f"; {_SANDBOX_DETAIL[disposition]}"
+                detail += f"; {_sandbox_detail(disposition)}"
         else:
             detail = "Third-party credential store"
         items.append(PostureItem(label=f"~/{entry}", detail=detail))
