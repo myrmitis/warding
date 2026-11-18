@@ -545,12 +545,7 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          # The 3.12 leg runs CPython 3.12.15. From 3.12.16, os.lstat is in
-          # os.supports_dir_fd, and the tree-walk capability probe test in
-          # test/test_pinned_staging.py asserts as a stdlib fact that it is
-          # not. Remove this pin when the owner decides that test; the
-          # backend-test row of docs/ci/ci-and-reviews.md tracks the decision.
-          python-version: ${{ matrix.python-version == '3.12' && '3.12.15' || matrix.python-version }}
+          python-version: ${{ matrix.python-version }}
 
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
