@@ -93,6 +93,13 @@ on the way in. Windows has no Warding OS wrapper, so positively identified
 official Kiro CLI spawns delegate to the CLI's built-in sandbox; their environment
 is scrubbed by the parent before spawn. The parent gateway process is unaffected.
 
+The data-home files the sandbox hides or seals come from one manifest,
+`protected_manifest.py`, the same list that feeds the tool gate and the posture
+report. Each row is HIDDEN (no reader inside the sandbox), READONLY (read inside
+the sandbox, never written: the policy and profile files, because a missing
+policy resolves permissive) or VISIBLE (the tool gate is the only layer). See
+[security](../system-specs/modules/security.md#protected-leaf-manifest-protected_manifestpy).
+
 **`agent.sandbox` defaults to `"auto"`, engaging OS-level isolation
 (namespace on Linux, sandbox-exec on macOS).** The only alternative value is
 `"off"` (`config/loader.py`, `AgentConfig.sandbox`, `enum=["auto", "off"]`;

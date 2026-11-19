@@ -50,11 +50,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 from dataclasses import dataclass
 from typing import Callable
 
 import warding.validation as _validation
-from warding import security
+from warding import protected_manifest, security
 from warding import sel as _sel_mod
 from warding.executors import governance_executor
 
@@ -1522,6 +1523,26 @@ def _own_namespace_prefixes() -> tuple[str, ...]:
     return tuple({p.split("/", 1)[0] for p in prefixes} | {".kiro"})
 
 
+#: What the OS sandbox does with a manifest leaf, in the words the posture view shows.
+_SANDBOX_DETAIL: dict[protected_manifest.Disposition, str] = {
+    protected_manifest.Disposition.HIDDEN: "hidden from sandboxed child processes",
+    protected_manifest.Disposition.READONLY: "read-only for sandboxed child processes",
+    protected_manifest.Disposition.VISIBLE: (
+        "sandboxed child processes still use it, so only the tool gate blocks it"
+    ),
+}
+
+
+def _sandbox_detail(disposition: protected_manifest.Disposition) -> str:
+    """The sandbox treatment of a leaf on this platform.
+
+    The Linux launcher does not seal read-only rows. Report only the tool gate there.
+    """
+    if disposition is protected_manifest.Disposition.READONLY and sys.platform != "darwin":
+        return "only the tool gate blocks writes (the sandbox does not seal it on this platform)"
+    return _SANDBOX_DETAIL[disposition]
+
+
 def _sensitive_path_items() -> list[PostureItem]:
     """Credential paths blocked at the hook layer, classified by owner."""
     items: list[PostureItem] = []
@@ -1532,6 +1553,9 @@ def _sensitive_path_items() -> list[PostureItem]:
         first = entry.split("/", 1)[0]
         if first in own:
             detail = "Warding trust root — the agent can neither read nor write it"
+            disposition = protected_manifest.disposition_of(entry)
+            if disposition is not None:
+                detail += f"; {_sandbox_detail(disposition)}"
         else:
             detail = "Third-party credential store"
         items.append(PostureItem(label=f"~/{entry}", detail=detail))
