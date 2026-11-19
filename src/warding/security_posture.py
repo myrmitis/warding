@@ -1538,10 +1538,7 @@ def _sandbox_detail(disposition: protected_manifest.Disposition) -> str:
 
     The Linux launcher does not seal read-only rows. Report only the tool gate there.
     """
-    if (
-        disposition is protected_manifest.Disposition.READONLY
-        and sys.platform != "darwin"
-    ):
+    if disposition is protected_manifest.Disposition.READONLY and sys.platform != "darwin":
         return "only the tool gate blocks writes (the sandbox does not seal it on this platform)"
     return _SANDBOX_DETAIL[disposition]
 
