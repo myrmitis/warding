@@ -1,4 +1,5 @@
 import { copyToClipboard } from '../utils/clipboard'
+import { createImeLatch } from '../hooks/useImeGuard'
 import { TOKEN_COMMAND } from '../components/settingRef/envShellCommands'
 import { resizeImageForModel, type ResizeInfo } from '../utils/resizeImage'
 import type {
@@ -1084,8 +1085,15 @@ function showSessionExpiredBanner(lead?: string): void {
     'outline:2px solid transparent;outline-offset:2px;transition:border-color 0.2s,box-shadow 0.2s;'
   input.addEventListener('focus', () => { input.style.borderColor = '#fff'; input.style.boxShadow = '0 0 0 3px rgba(255,255,255,0.25),0 0 20px rgba(255,255,255,0.1)' })
   input.addEventListener('blur', () => { input.style.borderColor = '#fca5a5'; input.style.boxShadow = 'none' })
+  const ime = createImeLatch()
+  input.addEventListener('compositionstart', () => ime.onCompositionStart())
+  input.addEventListener('compositionend', () => ime.onCompositionEnd())
+  input.addEventListener('focus', () => ime.reset())
+  input.addEventListener('blur', () => ime.reset())
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
+      if (!ime.claimKey(e)) return
+      e.preventDefault()
       const v = input.value.trim()
       if (!v) return
       let t: string | null = null
@@ -1099,6 +1107,7 @@ function showSessionExpiredBanner(lead?: string): void {
   dismiss.style.cssText =
     'margin-left:12px;background:none;border:none;color:#fca5a5;cursor:pointer;font-size:18px;vertical-align:middle;'
   dismiss.addEventListener('click', () => {
+    ime.reset()
     el.remove()
     _sessionExpiredShown = false
     _staleOwnerBanner = false

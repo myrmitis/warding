@@ -24,6 +24,7 @@ import {
 import { ACCENT, SEL_BG, SEL_BORDER, PULSE_MOTION, Btn } from './shared'
 import SegmentedControl, { type Segment } from '../../../components/SegmentedControl'
 import { useIsMobile } from '../../../hooks/useIsMobile'
+import { useImeGuard } from '../../../hooks/useImeGuard'
 import ChatColumn from './ChatColumn'
 import DocView from './DocView'
 import { DOC_CSS } from '../inlineStyles'
@@ -276,6 +277,8 @@ export default function SpecDetail({ name, setErr, onDuplicated }: SpecDetailPro
   // Inline label editing. `null` = not editing; the NAME is never touched, only
   // this label (see the backend's title handler for why the name is immutable).
   const [titleDraft, setTitleDraft] = useState<string | null>(null)
+  const titleIme = useImeGuard()
+  const duplicateIme = useImeGuard()
   // Duplicate asks for the copy's name inline. It has to be asked for rather than
   // derived, because the name IS the new spec's directory and branch — the one
   // field a copy cannot inherit.
@@ -625,10 +628,7 @@ export default function SpecDetail({ name, setErr, onDuplicated }: SpecDetailPro
               autoFocus
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitTitle()
-                if (e.key === 'Escape') setTitleDraft(null)
-              }}
+              {...titleIme.bindEnter<HTMLInputElement>({ onEnter: commitTitle, onEscape: () => setTitleDraft(null) })}
               maxLength={120}
               placeholder={name}
               aria-label={i18nT('apps.specBuilder.components.specDetail.spec_label')}
@@ -658,10 +658,7 @@ export default function SpecDetail({ name, setErr, onDuplicated }: SpecDetailPro
               autoFocus
               value={dupDraft}
               onChange={(e) => setDupDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitDuplicate()
-                if (e.key === 'Escape') setDupDraft(null)
-              }}
+              {...duplicateIme.bindEnter<HTMLInputElement>({ onEnter: commitDuplicate, onEscape: () => setDupDraft(null) })}
               maxLength={64}
               placeholder={i18nT('apps.specBuilder.components.specDetail.name_for_the_copy')}
               aria-label={i18nT('apps.specBuilder.components.specDetail.name_for_the_copy')}
