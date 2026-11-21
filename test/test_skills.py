@@ -705,6 +705,24 @@ class TestSkillsCRUD:
         ok = loader.delete_skill("nonexistent")
         assert ok is False
 
+    @pytest.mark.parametrize("spelling", ["absolute", "dot", "empty", "drive"])
+    def test_a_name_outside_the_skills_dir_is_refused(self, tmp_path, spelling):
+        """Update and delete must never reach a directory outside the skills dir."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        outside = tmp_path / "outside"
+        _create_skill(outside.parent, outside.name, "original\n")
+        name = {
+            "absolute": str(outside),
+            "dot": "./" + outside.name,
+            "empty": "a//" + outside.name,
+            "drive": "C:" + outside.name,
+        }[spelling]
+        loader = SkillsLoader(skills_path=skills_dir, install_builtins=False)
+        assert loader.update_skill(name, "overwritten\n") is False
+        assert loader.delete_skill(name) is False
+        assert (outside / "SKILL.md").read_text(encoding="utf-8") == "original\n"
+
     def test_path_traversal_load(self, tmp_path):
         """Path traversal in skill name must be rejected."""
         skills_dir = tmp_path / "skills"

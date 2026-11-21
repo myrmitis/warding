@@ -14,6 +14,7 @@ from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from warding.dashboard.chat import api_chat_slot_followup
+from warding.dashboard.handlers._shared import request_boundary_middleware
 from warding.dashboard.state import DashboardState, _ChatSlot
 from warding.validation import (
     MAX_FOLLOWUP_PROMPT,
@@ -59,7 +60,7 @@ def _make_app(
         request["user"] = user
         return await handler(request)
 
-    app = web.Application(middlewares=[claims])
+    app = web.Application(middlewares=[claims, request_boundary_middleware])
     app["state"] = state
     app.router.add_post("/api/chat/slots/{slot}/followup", api_chat_slot_followup)
     return app

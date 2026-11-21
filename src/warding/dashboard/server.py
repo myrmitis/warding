@@ -54,6 +54,7 @@ from warding.dashboard.crash_dump_store import (
     rotate_dumps,
     sweep_stale_dumps,
 )
+from warding.dashboard.handlers._shared import request_boundary_middleware
 from warding.dashboard.handlers.artifacts import (
     api_artifact_asset,
     api_artifact_comments,
@@ -3158,6 +3159,7 @@ async def start_dashboard(
             spa_shell_handler=handlers.index,
             tailnet_trust=_tailnet_trust,
         ),
+        request_boundary_middleware,
         sel_audit_middleware,
         spa_fallback,
     ]
@@ -3837,6 +3839,7 @@ async def start_api_server(
             spa_shell_handler=None,
             tailnet_trust=_tailnet_trust,
         ),
+        request_boundary_middleware,
         sel_audit_middleware,
     ]
 
