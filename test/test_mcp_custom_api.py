@@ -67,8 +67,9 @@ def fake_sel(monkeypatch):
 
 def _make_app() -> web.Application:
     from warding.dashboard.handlers import mcp_custom as mod
+    from warding.dashboard.handlers._shared import request_boundary_middleware
 
-    app = web.Application()
+    app = web.Application(middlewares=[request_boundary_middleware])
     app["state"] = MagicMock()
     app.router.add_post("/api/mcp/custom", mod.api_mcp_custom_add)
     app.router.add_get("/api/mcp/custom/{name}", mod.api_mcp_custom_get)

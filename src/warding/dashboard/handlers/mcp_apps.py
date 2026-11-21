@@ -25,7 +25,11 @@ from aiohttp import web
 
 from warding import security
 from warding.dashboard.chat_utils import _history_key_for, effective_session_key
-from warding.dashboard.handlers._shared import _is_restricted_session, _read_session_key
+from warding.dashboard.handlers._shared import (
+    _is_restricted_session,
+    _read_session_key,
+    read_json_object,
+)
 from warding.dashboard.handlers.source_providers import (
     is_owner_dashboard_request,
     stale_owner_session_response,
@@ -108,12 +112,7 @@ async def _gateway_app_call(frame: dict) -> dict:
 
 async def api_mcp_apps_call(request: web.Request) -> web.Response:
     """POST /api/mcp-apps/call — relay an app's tools/call to the gateway."""
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "invalid JSON"}, status=400)
-    if not isinstance(body, dict):
-        return web.json_response({"error": "request body must be a JSON object"}, status=400)
+    body = await read_json_object(request)
 
     spool_id = body.get("spool_id")
     tool = body.get("tool")
