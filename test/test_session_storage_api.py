@@ -22,6 +22,7 @@ from aiohttp.test_utils import make_mocked_request
 
 from warding import session_storage as session_storage_module
 from warding.dashboard.handlers import session_storage as handler
+from warding.dashboard.handlers._shared import request_boundary_middleware
 
 _DAY = 86400.0
 
@@ -938,10 +939,10 @@ class TestEmpty:
                 _request("POST", "/api/system/session-storage/cleanup", {"older_than_days": 30})
             )
             req = _raw_request("POST", "/api/system/session-storage/empty", b"not json at all")
-            resp = await handler.api_session_storage_empty(req)
+            resp = await request_boundary_middleware(req, handler.api_session_storage_empty)
 
         assert resp.status == 400
-        assert json.loads(resp.body)["code"] == "invalid_body"
+        assert json.loads(resp.body)["code"] == "invalid_json"
         assert len(session_storage_module.list_trash()) == 1
 
     @pytest.mark.asyncio
