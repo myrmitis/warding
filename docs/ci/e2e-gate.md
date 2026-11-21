@@ -166,6 +166,10 @@ bundled dashboard rather than a 404, installs Chromium, runs the i18n render-tim
 gate (which reuses that Chromium install), and finally runs `python setup.py
 test_e2e`.
 
+The job uses `ubuntu-24.04`, which is supported by the locked Playwright
+1.58.2 release. Ubuntu 26.04 has no browser download target in that release,
+so `ubuntu-latest` can prevent the gate from reaching its specs.
+
 ### The checkout is detached, so the gateway sees no upstream
 
 The job checks out `github.sha` itself instead of the event's branch. The harness
@@ -181,7 +185,7 @@ state a `pull_request` checkout already has.
 
 ### The browser install is budgeted, and installs no apt packages
 
-The job's ceiling is `timeout-minutes: 15`, and the browser install is the step
+The job's ceiling is `timeout-minutes: 40`, and the browser install is the step
 that historically consumed it. It carries three constraints, all in service of
 leaving the specs enough of that budget to actually run:
 
