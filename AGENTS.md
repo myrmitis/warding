@@ -46,8 +46,8 @@ Full map: [`docs/architecture/overview.md`](docs/architecture/overview.md).
 
 ## Read before you touch
 
-Load the doc for the row you are working in **before** you change code. Update it
-in the **same commit** when you change what it documents.
+Load the doc for the row you are working in **before** you change code. The code
+wins when they disagree (see [Specification management](#specification-management)).
 
 | If you are touching… | Read first |
 |---|---|
@@ -248,16 +248,24 @@ judgment half is the `harness-parity` rule in `REVIEW_RULES.yaml`.
 
 ## Specification management
 
+- **Code is the source of truth** (owner decision, 2026-11-22; shared rule in
+  [laqaer/agent-config](https://github.com/laqaer/agent-config/blob/main/AGENTS.md)).
+  Specs that describe the code drift from it and mislead agents.
 - MUST read the relevant spec under `docs/system-specs/modules/` before changing
-  the code it covers.
-- MUST update the spec in the SAME commit when an API, schema, or documented
-  behavior changes.
+  the code it covers. Treat it as orientation, then check it against the code.
+- MUST NOT add new prose that describes how the code works. Express a design in
+  names, types, invariants and tests. A short comment may give a reason the code
+  cannot show.
+- When a change makes a spec wrong, delete or cut the wrong text in the SAME
+  commit. Do not rewrite it at greater length. Keep invariant ids (such as `H7`),
+  security boundaries and authority limits, because tests and reviews cite them.
+- Put a task's plan or spec in its issue or PR.
 - MUST add the doc to its directory `README.md` when creating one, and MUST update
   every index that points at a doc you move, rename, or delete. `scripts/docs-lint.sh`
   enforces this; run it before you commit a docs change.
 - MUST NOT create additional markdown files unless explicitly instructed.
-- Task specs go in `docs/task-specs/YYYY/MM/${task-id}/`. Treat `docs/task-specs/`
-  as an archive, never as current context.
+- Do not add new task specs to `docs/task-specs/`. It is an archive, never
+  current context.
 
 ## Git
 
@@ -557,4 +565,4 @@ All harness flags: [cli](docs/system-specs/modules/cli.md).
 
 ## Documentation hub
 
-Read [docs/HUB.md](docs/HUB.md) before material changes. Update the affected canonical documentation in the same PR/commit and link the issue, exact revision, tests and deployment boundary. Automatic `docs/updates/` receipts prove only source pushes. Follow the [shared standard](https://github.com/laqaer/agent-config/blob/main/docs/documentation-hub.md); never copy secrets or customer data into documentation.
+Read [docs/HUB.md](docs/HUB.md) before material changes. Update the affected decisions, release records and runbooks in the same PR/commit, and link the issue, exact revision, tests and deployment boundary. Do not refresh code descriptions; see [Specification management](#specification-management). Automatic `docs/updates/` receipts prove only source pushes. Follow the [shared standard](https://github.com/laqaer/agent-config/blob/main/docs/documentation-hub.md); never copy secrets or customer data into documentation.
