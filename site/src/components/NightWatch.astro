@@ -1,0 +1,173 @@
+---
+import { PAUSE_KEY } from "../islands/world/pauseKey";
+
+const hours = Array.from({ length: 24 }, (_, hour) => hour);
+const polar = (radius: number, hour: number) => {
+  const angle = (hour / 24) * Math.PI * 2 - Math.PI / 2;
+  return { x: 22 + Math.cos(angle) * radius, y: 22 + Math.sin(angle) * radius };
+};
+---
+<script is:inline define:vars={{ PAUSE_KEY }}>
+  var now = new Date();
+  var deg = ((now.getHours() + now.getMinutes() / 60) / 24) * 360;
+  document.documentElement.style.setProperty("--hand-deg", String(deg));
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var conn = navigator.connection;
+  var save = !!(conn && conn.saveData);
+  if (save) document.documentElement.setAttribute("data-save-data", "");
+  var paused = false;
+  try { paused = localStorage.getItem(PAUSE_KEY) === "1"; } catch { paused = false; }
+  if (!reduce && !save && !paused) document.documentElement.setAttribute("data-watch-draw", "");
+</script>
+<svg class="night-watch" data-night-watch viewBox="0 0 44 44" width="72" height="72" aria-hidden="true">
+  <circle class="ring" cx="22" cy="22" r="19" pathLength="1" stroke-dasharray="1" />
+  {hours.map((hour) => {
+    const cardinal = hour % 6 === 0;
+    const outer = polar(cardinal ? 18.4 : 17.6, hour);
+    const inner = polar(cardinal ? 14.2 : 16.2, hour);
+    return (
+      <line
+        class:list={["tick", !cardinal && "tick-minor"]}
+        style={`--i:${hour}`}
+        x1={outer.x}
+        y1={outer.y}
+        x2={inner.x}
+        y2={inner.y}
+        pathLength="1"
+        stroke-dasharray="1"
+        stroke-width={cardinal ? 1.6 : 1}
+      />
+    );
+  })}
+  <line class="dial-hand" data-dial-hand x1="22" y1="22" x2="22" y2="9" stroke-width="1.75" stroke-linecap="round" />
+  <circle class="hub" cx="22" cy="22" r="1.7" />
+</svg>
+
+<style is:global>
+  @property --sweep {
+    syntax: "<number>";
+    inherits: true;
+    initial-value: 1;
+  }
+</style>
+
+<style>
+  .night-watch {
+    --ease-draw: cubic-bezier(0.22, 1, 0.36, 1);
+    --dur-draw: 2.1s;
+    --dur-draw-ring: 0.9s;
+    --dur-draw-tick: 0.4s;
+    --dur-draw-hand: 0.7s;
+    display: block;
+    flex: none;
+    width: 72px;
+    height: 72px;
+    color: var(--fg-2);
+  }
+  .ring, .tick {
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-dashoffset: 0;
+  }
+  .ring { stroke-width: 1.5; opacity: 0.55; }
+  .dial-hand, .hub { stroke: var(--fg); fill: var(--fg); }
+  .dial-hand {
+    --sweep: 1;
+    transform-box: view-box;
+    transform-origin: 50% 50%;
+    transform: rotate(calc(var(--sweep) * var(--hand-deg, 0) * 1deg));
+    transition: none;
+  }
+  .night-watch[data-settled] .dial-hand { transition: transform 600ms var(--ease-draw); }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html[data-watch-draw]) .night-watch:not([data-settled]) .ring {
+      animation: draw-stroke var(--dur-draw-ring) var(--ease-draw) both;
+    }
+    :global(html[data-watch-draw]) .night-watch:not([data-settled]) .tick {
+      animation: draw-stroke var(--dur-draw-tick) var(--ease-draw) both;
+      animation-delay: calc(var(--dur-draw-ring) * 0.45 + var(--i) * 18ms);
+    }
+    :global(html[data-watch-draw]) .night-watch:not([data-settled]) .dial-hand {
+      animation: hand-sweep var(--dur-draw-hand) var(--ease-draw) both;
+      animation-delay: calc(var(--dur-draw) - var(--dur-draw-hand));
+    }
+    /* The animation shorthand resets play-state, so the pause has to outrank it. */
+    :global(html[data-watch-draw]) .night-watch[data-motion-paused]:not([data-settled]) .ring,
+    :global(html[data-watch-draw]) .night-watch[data-motion-paused]:not([data-settled]) .tick,
+    :global(html[data-watch-draw]) .night-watch[data-motion-paused]:not([data-settled]) .dial-hand {
+      animation-play-state: paused;
+    }
+  }
+  @keyframes draw-stroke { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  @keyframes hand-sweep { from { --sweep: 0; } to { --sweep: 1; } }
+
+  @media (max-width: 759px) {
+    .night-watch {
+      --dur-draw: 1.4s;
+      --dur-draw-ring: 0.55s;
+      --dur-draw-tick: 0.28s;
+      --dur-draw-hand: 0.45s;
+      width: 44px;
+      height: 44px;
+    }
+    .tick-minor { display: none; }
+  }
+</style>
+
+<script>
+  const watch = document.querySelector<SVGElement>("[data-night-watch]");
+  const root = document.documentElement;
+  if (watch) {
+    const settle = () => watch.setAttribute("data-settled", "");
+    if (!root.hasAttribute("data-watch-draw")) {
+      settle();
+    } else {
+      const hand = watch.querySelector<SVGElement>(".dial-hand");
+      const animations = hand && typeof hand.getAnimations === "function" ? hand.getAnimations() : [];
+      const handDone = animations.length > 0 && animations.every((anim) => anim.playState === "finished");
+      if (handDone) {
+        settle();
+      } else {
+        let visible = true;
+        const sync = () => {
+          const held = !visible || document.hidden || root.hasAttribute("data-office-paused");
+          watch.toggleAttribute("data-motion-paused", held);
+        };
+        const io = new IntersectionObserver((entries) => {
+          visible = entries.some((entry) => entry.isIntersecting);
+          sync();
+        }, { threshold: 0.05 });
+        io.observe(watch);
+        const onVis = () => sync();
+        document.addEventListener("visibilitychange", onVis);
+        const mo = new MutationObserver(sync);
+        mo.observe(root, { attributes: true, attributeFilter: ["data-office-paused"] });
+        sync();
+        let closed = false;
+        const close = () => {
+          if (closed) return;
+          closed = true;
+          settle();
+          io.disconnect();
+          document.removeEventListener("visibilitychange", onVis);
+          mo.disconnect();
+          watch.removeEventListener("animationend", onEnd);
+        };
+        const onEnd = (event: AnimationEvent) => {
+          if (event.target !== hand) return;
+          close();
+        };
+        watch.addEventListener("animationend", onEnd);
+        for (const anim of animations) void anim.finished.then(close, close);
+        if (animations.length === 0 && hand && typeof hand.getAnimations === "function") {
+          requestAnimationFrame(() => {
+            const later = hand.getAnimations();
+            if (later.length > 0 && later.every((anim) => anim.playState === "finished")) close();
+            else for (const anim of later) void anim.finished.then(close, close);
+          });
+        }
+      }
+    }
+  }
+</script>

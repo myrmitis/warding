@@ -3,10 +3,9 @@ import { ImageDown, Pause, Play } from "lucide-react";
 import { applySources, createOffice, deskCentre, draw, seatedCount, update, DESK_COUNT, H, TICKS_PER_SECOND, W } from "./office";
 import { BEATS, REDUCED_MOTION_STEP, resolvedBeat } from "./timeline";
 import { track } from "../../lib/analytics";
+import { PAUSE_KEY, readOfficePaused } from "./pauseKey";
 
 interface Props { label?: string; showWall?: boolean }
-
-const PAUSE_KEY = "warding.world.paused";
 const CYCLE_MS = 9000;
 const SCALE = 2;
 /** Logical y where the wall trim ends and the floor begins; the floor-only crop starts here. */
@@ -104,8 +103,7 @@ export default function OfficeWorld({ label = "Pixel-art night office: agent spr
   }, [layout, render]);
 
   useEffect(() => {
-    let p = false;
-    try { p = localStorage.getItem(PAUSE_KEY) === "1"; } catch { /* no storage */ }
+    const p = readOfficePaused();
     const rm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     reducedRef.current = rm;
     setReduced(rm);
@@ -124,9 +122,15 @@ export default function OfficeWorld({ label = "Pixel-art night office: agent spr
     let acc = 0;
     const dt = 1000 / TICKS_PER_SECOND;
     let officeLive = false;
+    let officePaused = false;
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame);
-      const live = !pausedRef.current && !reducedRef.current && visibleRef.current && !document.hidden;
+      const paused = pausedRef.current;
+      if (paused !== officePaused) {
+        officePaused = paused;
+        document.documentElement.toggleAttribute("data-office-paused", paused);
+      }
+      const live = !paused && !reducedRef.current && visibleRef.current && !document.hidden;
       if (live !== officeLive) {
         officeLive = live;
         document.documentElement.toggleAttribute("data-office-live", live);
@@ -145,6 +149,7 @@ export default function OfficeWorld({ label = "Pixel-art night office: agent spr
       cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", onVis);
       document.documentElement.removeAttribute("data-office-live");
+      document.documentElement.removeAttribute("data-office-paused");
     };
   }, [render]);
 
