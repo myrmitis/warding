@@ -1,12 +1,13 @@
 ---
+import { PAUSE_KEY } from "../islands/world/pauseKey";
+
 const hours = Array.from({ length: 24 }, (_, hour) => hour);
 const polar = (radius: number, hour: number) => {
   const angle = (hour / 24) * Math.PI * 2 - Math.PI / 2;
   return { x: 22 + Math.cos(angle) * radius, y: 22 + Math.sin(angle) * radius };
 };
 ---
-<script is:inline>
-  var PAUSE_KEY = "warding.world.paused";
+<script is:inline define:vars={{ PAUSE_KEY }}>
   var now = new Date();
   var deg = ((now.getHours() + now.getMinutes() / 60) / 24) * 360;
   document.documentElement.style.setProperty("--hand-deg", String(deg));

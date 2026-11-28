@@ -3,9 +3,9 @@ import { ImageDown, Pause, Play } from "lucide-react";
 import { applySources, createOffice, deskCentre, draw, seatedCount, update, DESK_COUNT, H, TICKS_PER_SECOND, W } from "./office";
 import { BEATS, REDUCED_MOTION_STEP, resolvedBeat } from "./timeline";
 import { track } from "../../lib/analytics";
-interface Props { label?: string; showWall?: boolean }
+import { PAUSE_KEY, readOfficePaused } from "./pauseKey";
 
-const PAUSE_KEY = "warding.world.paused";
+interface Props { label?: string; showWall?: boolean }
 const CYCLE_MS = 9000;
 const SCALE = 2;
 /** Logical y where the wall trim ends and the floor begins; the floor-only crop starts here. */
@@ -103,8 +103,7 @@ export default function OfficeWorld({ label = "Pixel-art night office: agent spr
   }, [layout, render]);
 
   useEffect(() => {
-    let p = false;
-    try { p = localStorage.getItem(PAUSE_KEY) === "1"; } catch { /* no storage */ }
+    const p = readOfficePaused();
     const rm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     reducedRef.current = rm;
     setReduced(rm);
